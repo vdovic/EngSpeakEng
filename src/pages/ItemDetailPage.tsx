@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
-  Mic, PenLine, BookText, Lightbulb, Network, GitBranch, Clock, Trash2
+  Mic, PenLine, BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
+  Loader2, AlertCircle, RefreshCw, Target
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -159,13 +160,21 @@ function ListField({ label, items, editing, onChange }: {
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, updateItem, deleteItem, toggleWeeklyFocus } = useVocabStore()
+  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem } = useVocabStore()
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<VocabItem | null>(null)
   const [showLogModal, setShowLogModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+
+  async function handleRetryEnrich() {
+    if (!item) return
+    setRetrying(true)
+    await enrichItem(item.id)
+    setRetrying(false)
+  }
 
   if (!item) {
     return (
@@ -227,6 +236,17 @@ export function ItemDetailPage() {
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1" />
+        {/* Re-generate button — visible when not editing and generation is complete/failed */}
+        {!editing && item.generationStatus !== 'pending' && (
+          <button
+            onClick={handleRetryEnrich}
+            disabled={retrying}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 transition-colors disabled:opacity-40"
+            title="Re-generate study card with AI"
+          >
+            <RefreshCw size={16} className={retrying ? 'animate-spin' : ''} />
+          </button>
+        )}
         <button
           onClick={() => toggleWeeklyFocus(item.id)}
           className={`p-1.5 rounded-lg transition-colors ${item.weeklyFocus ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}
@@ -254,6 +274,38 @@ export function ItemDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Generation status banner ──────────────────────────────────────────── */}
+      {item.generationStatus === 'pending' && (
+        <div className="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <Loader2 size={16} className="text-amber-500 animate-spin shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-amber-800">Generating study card…</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Claude is writing your definition, synonyms, examples and more. This takes a few seconds.
+            </p>
+          </div>
+        </div>
+      )}
+      {item.generationStatus === 'failed' && (
+        <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700">Generation failed</p>
+            {item.generationError && (
+              <p className="text-xs text-red-500 mt-0.5 break-words">{item.generationError}</p>
+            )}
+          </div>
+          <button
+            onClick={handleRetryEnrich}
+            disabled={retrying}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-40 transition-colors"
+          >
+            <RefreshCw size={12} className={retrying ? 'animate-spin' : ''} />
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Identity header */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
@@ -396,6 +448,13 @@ export function ItemDetailPage() {
       {/* Meaning */}
       <Section title="Meaning" icon={<BookText size={14} />}>
         <Field
+          label="Part of speech"
+          value={current.partOfSpeech}
+          placeholder="verb, noun, phrase…"
+          editing={editing}
+          onChange={(v) => patch('partOfSpeech', v)}
+        />
+        <Field
           label="Definition"
           value={current.definitionEn}
           placeholder="Concise English definition…"
@@ -532,6 +591,23 @@ export function ItemDetailPage() {
       </Section>
 
       <div className="my-3" />
+
+      {/* Real-life challenge */}
+      {(current.realLifeTask || editing) && (
+        <>
+          <div className="my-3" />
+          <Section title="Real-life challenge" icon={<Target size={14} />}>
+            <Field
+              label="Your task"
+              value={current.realLifeTask}
+              placeholder="e.g. Use this in your next standup when describing a blocker…"
+              editing={editing}
+              onChange={(v) => patch('realLifeTask', v)}
+              multiline
+            />
+          </Section>
+        </>
+      )}
 
       {/* Memory */}
       <Section title="Memory support" icon={<Lightbulb size={14} />}>

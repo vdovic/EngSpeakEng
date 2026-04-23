@@ -10,6 +10,7 @@ interface VocabStore {
   loaded: boolean
   load: () => Promise<void>
   addItem: (draft: VocabItemDraft) => Promise<string>
+  enrichItem: (id: string) => Promise<void>
   updateItem: (id: string, patch: Partial<VocabItem>) => Promise<void>
   deleteItem: (id: string) => Promise<void>
   logUsage: (id: string, log: Omit<UsageLog, 'id'>) => Promise<void>
@@ -21,10 +22,24 @@ function uid(): string {
   return crypto.randomUUID()
 }
 
+// Helper: write a patch to both IndexedDB and Zustand state atomically
+function applyPatch(
+  id: string,
+  patch: Partial<VocabItem>,
+  set: (fn: (s: { items: VocabItem[] }) => { items: VocabItem[] }) => void
+) {
+  return db.items.update(id, patch).then(() => {
+    set((s) => ({
+      items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)),
+    }))
+  })
+}
+
 export const useVocabStore = create<VocabStore>((set, get) => ({
   items: [],
   loaded: false,
 
+  // ── load ────────────────────────────────────────────────────────────────────
   load: async () => {
     let all = await db.items.filter((i) => !i.archived).toArray()
     if (all.length === 0) {
@@ -33,8 +48,18 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       all = seed
     }
     set({ items: all, loaded: true })
+
+    // Re-trigger enrichment for any items that were 'pending' when the app
+    // was previously closed (e.g., tab killed mid-generation).
+    const stuck = all.filter((i) => i.generationStatus === 'pending')
+    for (const item of stuck) {
+      get().enrichItem(item.id).catch(() => {
+        // enrichItem handles its own errors; this prevents unhandled rejections
+      })
+    }
   },
 
+  // ── addItem ─────────────────────────────────────────────────────────────────
   addItem: async (draft) => {
     const now = new Date().toISOString()
     const item: VocabItem = {
@@ -64,22 +89,79 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       activation: { requiredUses: 3, usageCount: 0, usageLogs: [] },
       weeklyFocus: false,
       archived: false,
+      // Mark as pending so the UI can show a loading state immediately
+      generationStatus: 'pending',
     }
+
     try {
       await db.items.add(item)
     } catch (err: unknown) {
       // Dexie throws a ConstraintError when the unique &term index is violated.
-      // Re-throw with a user-readable message so the UI can display it.
       const name = (err as { name?: string }).name
       if (name === 'ConstraintError') {
         throw new Error(`"${item.term}" is already in your vocabulary.`)
       }
       throw err
     }
+
     set((s) => ({ items: [item, ...s.items] }))
+
+    // ── Kick off enrichment in the background (non-blocking) ──────────────────
+    // addItem returns immediately; the word appears in the UI with a
+    // 'pending' badge while the API call runs in the background.
+    get().enrichItem(item.id).catch(() => {
+      // enrichItem handles its own errors internally
+    })
+
     return item.id
   },
 
+  // ── enrichItem ───────────────────────────────────────────────────────────────
+  // Calls POST /api/enrich, then writes the returned fields to the item.
+  // Can be called manually (retry) or automatically from addItem.
+  enrichItem: async (id: string) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+
+    // Show spinner immediately
+    await applyPatch(id, { generationStatus: 'pending', generationError: undefined }, set)
+
+    try {
+      const res = await fetch('/api/enrich', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term: item.term, type: item.type }),
+      })
+
+      if (!res.ok) {
+        // Try to parse a JSON error body; fall back to HTTP status text
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+
+      const { enriched } = (await res.json()) as { enriched: Partial<VocabItem> }
+
+      await applyPatch(
+        id,
+        {
+          ...enriched,
+          generationStatus: 'complete',
+          generationError: undefined,
+          updatedAt: new Date().toISOString(),
+        },
+        set
+      )
+    } catch (err: unknown) {
+      const generationError =
+        err instanceof Error ? err.message : 'Generation failed. Please retry.'
+
+      console.error(`[enrichItem] failed for "${item.term}":`, generationError)
+
+      await applyPatch(id, { generationStatus: 'failed', generationError }, set)
+    }
+  },
+
+  // ── updateItem ──────────────────────────────────────────────────────────────
   updateItem: async (id, patch) => {
     const now = new Date().toISOString()
     const full = { ...patch, updatedAt: now }
@@ -89,11 +171,13 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     }))
   },
 
+  // ── deleteItem ──────────────────────────────────────────────────────────────
   deleteItem: async (id) => {
     await db.items.update(id, { archived: true })
     set((s) => ({ items: s.items.filter((i) => i.id !== id) }))
   },
 
+  // ── logUsage ────────────────────────────────────────────────────────────────
   logUsage: async (id, logEntry) => {
     const item = get().items.find((i) => i.id === id)
     if (!item) return
@@ -119,6 +203,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     }))
   },
 
+  // ── recordReview ─────────────────────────────────────────────────────────────
   recordReview: async (id, outcome) => {
     const item = get().items.find((i) => i.id === id)
     if (!item) return
@@ -159,6 +244,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     }))
   },
 
+  // ── toggleWeeklyFocus ────────────────────────────────────────────────────────
   toggleWeeklyFocus: async (id) => {
     const item = get().items.find((i) => i.id === id)
     if (!item) return

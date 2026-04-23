@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { VocabItem } from '@/types/vocabulary'
 import { StatusBadge } from './StatusBadge'
 import { TypeBadge } from './TypeBadge'
@@ -14,6 +15,8 @@ interface Props {
 export function VocabCard({ item, compact = false }: Props) {
   const navigate = useNavigate()
   const usesDone = usagePoints(item.activation.usageLogs)
+  const isPending = item.generationStatus === 'pending'
+  const isFailed = item.generationStatus === 'failed'
 
   return (
     <button
@@ -24,14 +27,36 @@ export function VocabCard({ item, compact = false }: Props) {
         <span className="font-semibold text-slate-900 text-base group-hover:text-brand-700 transition-colors leading-tight">
           {item.term}
         </span>
-        <div className="flex gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
           <TypeBadge type={item.type} />
           <StatusBadge status={item.status} />
+          {/* Generation status badges */}
+          {isPending && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
+              <Loader2 size={9} className="animate-spin" />
+              Generating…
+            </span>
+          )}
+          {isFailed && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-500 bg-red-50 border border-red-200 rounded-full px-1.5 py-0.5">
+              <AlertCircle size={9} />
+              Failed
+            </span>
+          )}
         </div>
       </div>
 
-      {!compact && item.definitionEn && (
-        <p className="text-sm text-slate-600 mb-2 line-clamp-2">{item.definitionEn}</p>
+      {!compact && (
+        <>
+          {isPending && !item.definitionEn && (
+            <p className="text-sm text-slate-400 italic mb-2 animate-pulse">
+              Generating definition and examples…
+            </p>
+          )}
+          {!isPending && item.definitionEn && (
+            <p className="text-sm text-slate-600 mb-2 line-clamp-2">{item.definitionEn}</p>
+          )}
+        </>
       )}
 
       {!compact && (item.status === 'activation' || item.status === 'mastered') && (

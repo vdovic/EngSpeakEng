@@ -80,6 +80,18 @@ export interface VocabItem {
 
   weeklyFocus: boolean
   archived: boolean
+
+  // ── AI enrichment ──────────────────────────────────────────────────────────
+  // Set by addItem() and updated by enrichItem() in the store.
+  // undefined = seed data (pre-populated, no generation needed)
+  // 'pending'  = generation in progress
+  // 'complete' = generation succeeded
+  // 'failed'   = generation failed (see generationError)
+  generationStatus?: 'pending' | 'complete' | 'failed'
+  generationError?: string
+  // Returned by the API alongside definitionEn and synonyms, etc.
+  partOfSpeech?: string
+  realLifeTask?: string
 }
 
 export type VocabItemDraft = Pick<VocabItem, 'term' | 'type'> &
