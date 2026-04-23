@@ -65,7 +65,17 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       weeklyFocus: false,
       archived: false,
     }
-    await db.items.add(item)
+    try {
+      await db.items.add(item)
+    } catch (err: unknown) {
+      // Dexie throws a ConstraintError when the unique &term index is violated.
+      // Re-throw with a user-readable message so the UI can display it.
+      const name = (err as { name?: string }).name
+      if (name === 'ConstraintError') {
+        throw new Error(`"${item.term}" is already in your vocabulary.`)
+      }
+      throw err
+    }
     set((s) => ({ items: [item, ...s.items] }))
     return item.id
   },
