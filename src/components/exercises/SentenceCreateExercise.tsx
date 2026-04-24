@@ -9,6 +9,7 @@ import {
   WifiOff,
 } from 'lucide-react'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
+import { WordPeek } from './WordPeek'
 
 interface Props {
   item: VocabItem
@@ -181,6 +182,8 @@ export function SentenceCreateExercise({ item, onAnswer }: Props) {
           >
             Check with AI →
           </button>
+
+          <WordPeek item={item} />
         </>
       )}
 
@@ -269,6 +272,8 @@ export function SentenceCreateExercise({ item, onAnswer }: Props) {
             Continue
             <ArrowRight size={15} />
           </button>
+
+          <WordPeek item={item} />
         </>
       )}
     </div>

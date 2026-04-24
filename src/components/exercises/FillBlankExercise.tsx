@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
+import { WordPeek } from './WordPeek'
 
 interface Props {
   item: VocabItem
@@ -97,6 +98,8 @@ export function FillBlankExercise({ item, onAnswer }: Props) {
       >
         Submit
       </button>
+
+      <WordPeek item={item} />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
+import { WordPeek } from './WordPeek'
 
 interface Props {
   item: VocabItem
@@ -106,6 +107,8 @@ export function SynonymMatchExercise({ item, allItems, onAnswer }: Props) {
           )
         })}
       </div>
+
+      <WordPeek item={item} />
     </div>
   )
 }
