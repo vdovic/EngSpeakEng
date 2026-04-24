@@ -85,6 +85,7 @@ export function FillBlankExercise({ item, onAnswer }: Props) {
       points: correct ? 10 : 0,
       userAnswer: answer.trim(),
       correct,
+      correctAnswer: item.term,
     })
   }
 

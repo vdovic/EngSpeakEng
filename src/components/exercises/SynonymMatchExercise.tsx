@@ -56,6 +56,7 @@ export function SynonymMatchExercise({ item, allItems, onAnswer }: Props) {
       points: correct ? 10 : 0,
       userAnswer: opt,
       correct,
+      correctAnswer: correctSynonym,
     })
   }
 

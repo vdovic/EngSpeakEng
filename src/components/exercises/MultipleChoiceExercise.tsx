@@ -44,6 +44,7 @@ export function MultipleChoiceExercise({ item, allItems, onAnswer }: Props) {
       points: correct ? 10 : 0,
       userAnswer: opt,
       correct,
+      correctAnswer: item.term,
     })
   }
 

@@ -21,6 +21,7 @@ type FeedbackState = {
   correct: boolean
   points: number
   userAnswer: string
+  correctAnswer: string
 } | null
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -127,6 +128,7 @@ export function DailyChallengePage() {
         correct: result.correct,
         points: result.points,
         userAnswer: result.userAnswer,
+        correctAnswer: result.correctAnswer ?? item.term,
       })
 
       setTimeout(() => {
@@ -283,13 +285,16 @@ export function DailyChallengePage() {
         />
       </div>
 
-      {/* Word header */}
-      <div className="mb-6">
-        <h2 className="text-3xl font-bold text-slate-900">{item.term}</h2>
-        {item.partOfSpeech && (
-          <p className="text-sm text-slate-400 italic mt-0.5">{item.partOfSpeech}</p>
-        )}
-      </div>
+      {/* Word header — hidden for multiple-choice (definition is the prompt;
+          showing the term would give the answer away) */}
+      {exerciseType !== 'multiple-choice' && (
+        <div className="mb-6">
+          <h2 className="text-3xl font-bold text-slate-900">{item.term}</h2>
+          {item.partOfSpeech && (
+            <p className="text-sm text-slate-400 italic mt-0.5">{item.partOfSpeech}</p>
+          )}
+        </div>
+      )}
 
       {/* Exercise */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
@@ -344,7 +349,7 @@ export function DailyChallengePage() {
                 <XCircle size={48} className="mx-auto mb-3 opacity-90" />
                 <p className="text-2xl font-bold mb-1">Not quite</p>
                 <p className="text-base opacity-80 mt-1">
-                  Answer: <strong>{item.term}</strong>
+                  Answer: <strong>{feedback.correctAnswer}</strong>
                 </p>
               </>
             )}

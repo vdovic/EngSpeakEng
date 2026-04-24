@@ -140,9 +140,11 @@ export type ExerciseType =
 export interface ExerciseResult {
   itemId: string
   exerciseType: ExerciseType
-  points: number     // 0, 5, or 10
+  points: number      // 0, 5, or 10
   userAnswer: string
-  correct: boolean   // false for partial-credit sentence-create
+  correct: boolean    // false for partial-credit sentence-create
+  /** The correct answer to show in the feedback overlay when the user was wrong. */
+  correctAnswer?: string
 }
 
 // ── Legacy stats ──────────────────────────────────────────────────────────────
