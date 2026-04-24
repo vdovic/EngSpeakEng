@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "migrate": "tsx scripts/migrationRun.ts"
+    "migrate": "tsx scripts/migrationRun.ts",
+    "related:smoke": "tsx scripts/generateRelatedEntries.ts --limit 10",
+    "related:generate": "tsx scripts/generateRelatedEntries.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",

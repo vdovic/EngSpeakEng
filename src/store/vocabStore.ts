@@ -5,6 +5,7 @@ import { calculateNextReview, isDueToday } from '@/lib/srs'
 import { deriveStatus } from '@/lib/mastery'
 import { createSeedData } from '@/lib/seed'
 import { getNextChallengeDate } from '@/lib/challengeSchedule'
+import { generateCandidates, validateRelatedEntries } from '@/lib/relatedEntries'
 
 interface VocabStore {
   items: VocabItem[]
@@ -12,6 +13,8 @@ interface VocabStore {
   load: () => Promise<void>
   addItem: (draft: VocabItemDraft) => Promise<string>
   enrichItem: (id: string) => Promise<void>
+  /** Find related words for an item from within the library via the API. */
+  generateRelatedEntries: (id: string) => Promise<void>
   updateItem: (id: string, patch: Partial<VocabItem>) => Promise<void>
   deleteItem: (id: string) => Promise<void>
   logUsage: (id: string, log: Omit<UsageLog, 'id'>) => Promise<void>
@@ -190,6 +193,10 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         },
         set
       )
+
+      // After successful enrichment, auto-generate related entries.
+      // Fire-and-forget — enrichItem's callers are not affected by this.
+      get().generateRelatedEntries(id).catch(() => {})
     } catch (err: unknown) {
       const generationError =
         err instanceof Error ? err.message : 'Generation failed. Please retry.'
@@ -197,6 +204,68 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       console.error(`[enrichItem] failed for "${item.term}":`, generationError)
 
       await applyPatch(id, { generationStatus: 'failed', generationError }, set)
+    }
+  },
+
+  // ── generateRelatedEntries ──────────────────────────────────────────────────
+  // Calls POST /api/relatedEntries to find library-internal related words.
+  // Fire-and-forget: can be called manually or after enrichItem succeeds.
+  generateRelatedEntries: async (id: string) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+
+    // Mark as pending
+    await applyPatch(id, { relatedEntriesStatus: 'pending' }, set)
+
+    try {
+      const allItems = get().items
+      const candidates = generateCandidates(item, allItems, 15)
+
+      if (candidates.length === 0) {
+        await applyPatch(id, { relatedEntriesStatus: 'complete', relatedEntries: [] }, set)
+        return
+      }
+
+      const simplify = (v: VocabItem) => ({
+        id: v.id,
+        term: v.term,
+        partOfSpeech: v.partOfSpeech,
+        definitionEn: v.definitionEn,
+        synonyms: v.synonyms,
+        type: v.type,
+      })
+
+      const res = await fetch('/api/relatedEntries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          item: simplify(item),
+          candidates: candidates.map(simplify),
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        throw new Error(body.error ?? `HTTP ${res.status}`)
+      }
+
+      const { entries } = (await res.json()) as { entries: unknown[] }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const validated = validateRelatedEntries(entries as any, allItems)
+
+      await applyPatch(
+        id,
+        {
+          relatedEntries: validated,
+          relatedEntriesStatus: 'complete',
+          updatedAt: new Date().toISOString(),
+        },
+        set,
+      )
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Related entries generation failed.'
+      console.error(`[generateRelatedEntries] failed for "${item.term}":`, msg)
+      await applyPatch(id, { relatedEntriesStatus: 'failed' }, set)
     }
   },
 

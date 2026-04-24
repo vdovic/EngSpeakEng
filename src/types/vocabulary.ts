@@ -98,6 +98,39 @@ export interface VocabItem {
   // nextChallengeDate is set after each challenge exercise; undefined means due immediately.
   exposureCount?: number       // 0–8; undefined treated as 0
   nextChallengeDate?: string   // ISO datetime; undefined = due now
+
+  // ── Related words (within the app's own vocabulary) ──────────────────────
+  relatedEntries?: RelatedEntry[]
+  relatedEntriesStatus?: 'pending' | 'complete' | 'failed'
+}
+
+// ── Related words ─────────────────────────────────────────────────────────────
+
+export type RelationshipType =
+  | 'meaning'
+  | 'usage_context'
+  | 'nuance'
+  | 'etymology'
+  | 'word_family'
+  | 'similar_form'
+  | 'confusable'
+
+export type RelationshipDirection =
+  | 'synonym'
+  | 'contrast'
+  | 'same_family'
+  | 'soundalike'
+  | 'same_context'
+  | 'confusable'
+
+export interface RelatedEntry {
+  id: string
+  term: string
+  relationshipType: RelationshipType
+  direction?: RelationshipDirection
+  /** 1 = weak, 2 = moderate, 3 = strong */
+  strength: 1 | 2 | 3
+  explanation: string
 }
 
 export type VocabItemDraft = Pick<VocabItem, 'term' | 'type'> &

@@ -11,6 +11,7 @@ import { TypeBadge } from '@/components/TypeBadge'
 import { UsageProgress } from '@/components/UsageProgress'
 import { LogUsageModal } from '@/components/LogUsageModal'
 import { ExposureBar } from '@/components/ExposureBar'
+import { RelatedWordsSection } from '@/components/RelatedWordsSection'
 import { usagePoints, progressTowardMastery } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
 import { format } from 'date-fns'
@@ -161,7 +162,7 @@ function ListField({ label, items, editing, onChange }: {
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem } = useVocabStore()
+  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries } = useVocabStore()
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
@@ -504,6 +505,15 @@ export function ItemDetailPage() {
           />
         )}
       </Section>
+
+      <div className="my-3" />
+
+      {/* Related words from within the library */}
+      <RelatedWordsSection
+        entries={item.relatedEntries ?? []}
+        status={item.relatedEntriesStatus}
+        onGenerate={() => generateRelatedEntries(item.id)}
+      />
 
       <div className="my-3" />
 
