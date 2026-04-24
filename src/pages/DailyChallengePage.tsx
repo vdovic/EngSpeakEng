@@ -285,9 +285,12 @@ export function DailyChallengePage() {
         />
       </div>
 
-      {/* Word header — hidden for multiple-choice (definition is the prompt;
-          showing the term would give the answer away) */}
-      {exerciseType !== 'multiple-choice' && (
+      {/* Word header — hidden for exercises where the term IS the answer
+          (multiple-choice: pick word from definition;
+           fill-blank: recall or type the word).
+          Shown for synonym-match and sentence-create where the term is the
+          known starting point, not the thing being tested. */}
+      {exerciseType !== 'multiple-choice' && exerciseType !== 'fill-blank' && (
         <div className="mb-6">
           <h2 className="text-3xl font-bold text-slate-900">{item.term}</h2>
           {item.partOfSpeech && (

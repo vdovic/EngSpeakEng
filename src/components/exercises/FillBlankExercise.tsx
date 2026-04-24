@@ -7,13 +7,11 @@ interface Props {
   onAnswer: (result: ExerciseResult) => void
 }
 
-type PromptMode = 'frame' | 'sentence' | 'definition'
+type PromptMode = 'sentence' | 'definition'
 
 interface Prompt {
   blanked: string
   mode: PromptMode
-  /** The exact word/phrase removed from the sentence (may be an inflected form). */
-  expectedAnswer: string
 }
 
 function escapeRegex(s: string) {
@@ -23,62 +21,51 @@ function escapeRegex(s: string) {
 /**
  * Fill-in-the-blank exercise.
  *
- * Priority for the prompt:
- *  1. A single-blank sentence frame where the term is NOT already visible
- *     (i.e. the blank IS the term).  Multi-blank frames are skipped.
- *  2. The example or work sentence with the term blanked out (exact match).
+ * Priority:
+ *  1. Blank the term inside the example sentence using a word-boundary regex
+ *     so that partial matches (e.g. "plead" inside "pleaded") are never used —
+ *     those would leave broken fragments like "___ed" in the sentence.
+ *  2. Same attempt with the work/professional sentence.
  *  3. Fallback: show the definition and ask the learner to recall the term.
  *
- * Answer checking accepts both the exact word removed AND the base term so
- * inflected forms (e.g. "scrutinised" for "scrutinise") are not penalised.
+ * Sentence frames from the data are intentionally skipped — they were
+ * generated as conversation-practice templates with multiple blanks for
+ * arbitrary words, not as fill-in-the-term exercises.
+ *
+ * The word header in DailyChallengePage is hidden for this exercise type
+ * (same reason as multiple-choice) so the answer is never on screen.
  */
 export function FillBlankExercise({ item, onAnswer }: Props) {
   const [answer, setAnswer] = useState('')
   const [submitted, setSubmitted] = useState(false)
 
   const prompt = useMemo((): Prompt => {
+    // Word-boundary regex: ensures "plead" only matches "plead" as a whole
+    // word, not "pleaded", "pleads", "pleading" etc.
     const escaped = escapeRegex(item.term)
+    const termRegex = new RegExp(`\\b${escaped}\\b`, 'gi')
 
-    // ── 1. Single-blank sentence frame where the blank represents the term ──
-    for (const frame of item.sentenceFrames) {
-      if ((frame.match(/___/g) ?? []).length !== 1) continue
-      // The term must NOT already appear in the visible (non-blank) parts —
-      // otherwise the blank is for a different word.
-      const visibleText = frame.replace(/___/g, '')
-      if (!new RegExp(escaped, 'i').test(visibleText)) {
-        return { blanked: frame, mode: 'frame', expectedAnswer: item.term }
-      }
-    }
-
-    // ── 2. Blank the term inside an existing sentence ───────────────────────
-    const termRegex = new RegExp(escaped, 'gi')
     for (const s of [item.exampleSentence, item.workSentence]) {
       if (!s) continue
-      const match = termRegex.exec(s)
-      termRegex.lastIndex = 0
-      if (match) {
-        const actualWord = match[0]               // preserve exact form (e.g. "scrutinised")
+      if (termRegex.test(s)) {
+        termRegex.lastIndex = 0
         const blanked = s.replace(termRegex, '___')
-        return { blanked, mode: 'sentence', expectedAnswer: actualWord }
+        return { blanked, mode: 'sentence' }
       }
+      termRegex.lastIndex = 0
     }
 
-    // ── 3. Definition-recall fallback ────────────────────────────────────────
+    // Fallback: definition recall
     return {
       blanked: item.definitionEn ?? `What is the word for "${item.term}"?`,
       mode: 'definition',
-      expectedAnswer: item.term,
     }
   }, [item])
 
   function handleSubmit() {
     if (!answer.trim() || submitted) return
     setSubmitted(true)
-    const userAnswer = answer.trim().toLowerCase()
-    // Accept the exact blanked word OR the canonical base form of the term.
-    const correct =
-      userAnswer === prompt.expectedAnswer.toLowerCase() ||
-      userAnswer === item.term.toLowerCase()
+    const correct = answer.trim().toLowerCase() === item.term.toLowerCase()
     onAnswer({
       itemId: item.id,
       exerciseType: 'fill-blank',
@@ -88,11 +75,6 @@ export function FillBlankExercise({ item, onAnswer }: Props) {
       correctAnswer: item.term,
     })
   }
-
-  // Show a base-form hint when sentence blanking removed an inflected variant
-  const showBaseHint =
-    prompt.mode === 'sentence' &&
-    prompt.expectedAnswer.toLowerCase() !== item.term.toLowerCase()
 
   return (
     <div className="space-y-5">
@@ -106,26 +88,21 @@ export function FillBlankExercise({ item, onAnswer }: Props) {
         <div className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
           <p className="text-sm text-slate-500 mb-1">Definition</p>
           <p className="text-base text-slate-900 leading-relaxed">{prompt.blanked}</p>
-        </div>
-      ) : (
-        <div>
-          <p className="text-lg text-slate-900 leading-relaxed font-medium">
-            {prompt.blanked.split('___').map((part, i, arr) => (
-              <span key={i}>
-                {part}
-                {i < arr.length - 1 && (
-                  <span className="inline-block min-w-[5rem] border-b-2 border-brand-400 mx-1 align-bottom" />
-                )}
-              </span>
-            ))}
-          </p>
-          {showBaseHint && (
-            <p className="text-xs text-slate-400 mt-2">
-              Hint: base form is{' '}
-              <strong className="text-slate-600">{item.term}</strong>
-            </p>
+          {item.partOfSpeech && (
+            <p className="text-xs text-slate-400 mt-1 italic">{item.partOfSpeech}</p>
           )}
         </div>
+      ) : (
+        <p className="text-lg text-slate-900 leading-relaxed font-medium">
+          {prompt.blanked.split('___').map((part, i, arr) => (
+            <span key={i}>
+              {part}
+              {i < arr.length - 1 && (
+                <span className="inline-block min-w-[5rem] border-b-2 border-brand-400 mx-1 align-bottom" />
+              )}
+            </span>
+          ))}
+        </p>
       )}
 
       {/* Input */}
