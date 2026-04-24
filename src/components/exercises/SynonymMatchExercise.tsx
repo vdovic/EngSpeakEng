@@ -66,6 +66,8 @@ function pickSynonymDistractors(
  * question) rather than randomly mismatched words.
  */
 export function SynonymMatchExercise({ item, allItems, onAnswer }: Props) {
+  const [defExpanded, setDefExpanded] = useState(false)
+
   const { correctSynonym, options } = useMemo(() => {
     const syns = item.synonyms.filter(Boolean)
     const correctSynonym = syns[Math.floor(Math.random() * syns.length)] ?? item.synonyms[0]
@@ -110,7 +112,21 @@ export function SynonymMatchExercise({ item, allItems, onAnswer }: Props) {
           <p className="text-xs text-slate-400 mt-1 italic">{item.partOfSpeech}</p>
         )}
         {item.definitionEn && (
-          <p className="text-sm text-slate-500 mt-2 line-clamp-2">{item.definitionEn}</p>
+          <div
+            className="mt-2 cursor-pointer"
+            onClick={() => setDefExpanded((v) => !v)}
+          >
+            <p className={`text-sm text-slate-500 ${defExpanded ? '' : 'line-clamp-2'}`}>
+              {item.definitionEn}
+            </p>
+            {/* Show expand hint only when long enough to be clamped */}
+            {!defExpanded && item.definitionEn.length > 80 && (
+              <span className="text-xs text-brand-500 font-medium">▾ show more</span>
+            )}
+            {defExpanded && (
+              <span className="text-xs text-slate-400 font-medium">▴ show less</span>
+            )}
+          </div>
         )}
       </div>
 
