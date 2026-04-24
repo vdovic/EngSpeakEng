@@ -1,7 +1,22 @@
-import { useState, useRef, useEffect } from 'react'
-import { X, ChevronDown, FileText, Mic, Film, Users, Mail, BookOpen, MoreHorizontal, AlertCircle } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  X,
+  ChevronDown,
+  FileText,
+  Mic,
+  Film,
+  Users,
+  Mail,
+  BookOpen,
+  MoreHorizontal,
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+} from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
-import { ItemType, SourceType } from '@/types/vocabulary'
+import { ItemType, SourceType, VocabItem } from '@/types/vocabulary'
+import { findExactDuplicate, findNearDuplicates } from '@/utils/vocabSearch'
 
 interface Props {
   onClose: () => void
@@ -23,35 +38,60 @@ const SOURCE_TYPES: { value: SourceType; label: string; icon: React.ElementType 
   { value: 'other',    label: 'Other',    icon: MoreHorizontal },
 ]
 
-export function QuickAddModal({ onClose }: Props) {
-  const addItem = useVocabStore((s) => s.addItem)
-  // Used for pre-flight duplicate detection against in-memory items
-  const items = useVocabStore((s) => s.items)
-  const termRef = useRef<HTMLInputElement>(null)
+const DEBOUNCE_MS = 280
 
-  const [term, setTerm] = useState('')
-  const [type, setType] = useState<ItemType>('word')
+export function QuickAddModal({ onClose }: Props) {
+  const navigate = useNavigate()
+  const addItem  = useVocabStore((s) => s.addItem)
+  const items    = useVocabStore((s) => s.items)
+  const termRef  = useRef<HTMLInputElement>(null)
+
+  const [term, setTerm]             = useState('')
+  const [debouncedTerm, setDebouncedTerm] = useState('')
+  const [type, setType]             = useState<ItemType>('word')
   const [sourceType, setSourceType] = useState<SourceType | null>(null)
   const [sourceText, setSourceText] = useState('')
   const [definition, setDefinition] = useState('')
-  const [showDef, setShowDef] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [showDef, setShowDef]       = useState(false)
+  const [saving, setSaving]         = useState(false)
   const [savedCount, setSavedCount] = useState(0)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]           = useState<string | null>(null)
 
+  useEffect(() => { termRef.current?.focus() }, [])
+
+  // Debounce the term for duplicate checks (avoid running on every keystroke)
   useEffect(() => {
-    termRef.current?.focus()
-  }, [])
+    const t = setTimeout(() => setDebouncedTerm(term), DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [term])
+
+  // Exact duplicate — blocks save and shows a link
+  const exactDuplicate = useMemo<VocabItem | null>(
+    () => (debouncedTerm.trim() ? findExactDuplicate(items, debouncedTerm) : null),
+    [items, debouncedTerm],
+  )
+
+  // Near duplicates — shown as a non-blocking amber warning while typing
+  const nearDuplicates = useMemo<VocabItem[]>(
+    () =>
+      debouncedTerm.trim() && !exactDuplicate
+        ? findNearDuplicates(items, debouncedTerm)
+        : [],
+    [items, debouncedTerm, exactDuplicate],
+  )
+
+  function openExisting(id: string) {
+    navigate(`/item/${id}`)
+    onClose()
+  }
 
   async function save(andNext: boolean) {
     const t = term.trim()
     if (!t) return
 
-    // Pre-flight duplicate check: compare case-insensitively against current items.
-    // This catches duplicates instantly without a DB round-trip and gives a clear
-    // message before Dexie's ConstraintError can fire.
-    const duplicate = items.find((i) => i.term.toLowerCase() === t.toLowerCase())
-    if (duplicate) {
+    // Guard: exact duplicate (real-time check, not the debounced one, for safety)
+    const realTimeExact = findExactDuplicate(items, t)
+    if (realTimeExact) {
       setError(`"${t}" is already in your vocabulary.`)
       return
     }
@@ -68,8 +108,6 @@ export function QuickAddModal({ onClose }: Props) {
         definitionEn: definition.trim() || undefined,
       })
     } catch (err: unknown) {
-      // addItem re-throws ConstraintError as a readable Error; catch any other DB
-      // error here too so the button is never left frozen in "Saving…" state.
       const message =
         err instanceof Error ? err.message : 'Could not save. Please try again.'
       setError(message)
@@ -90,7 +128,7 @@ export function QuickAddModal({ onClose }: Props) {
     }
   }
 
-  const canSave = term.trim().length > 0 && !saving
+  const canSave = term.trim().length > 0 && !saving && !exactDuplicate
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
@@ -141,7 +179,6 @@ export function QuickAddModal({ onClose }: Props) {
               value={term}
               onChange={(e) => {
                 setTerm(e.target.value)
-                // Clear error as soon as the user starts editing
                 if (error) setError(null)
               }}
               onKeyDown={(e) => {
@@ -149,13 +186,74 @@ export function QuickAddModal({ onClose }: Props) {
               }}
               placeholder={ITEM_TYPES.find((t) => t.value === type)?.hint}
               className={`w-full px-4 py-3 text-base border-2 rounded-xl focus:outline-none placeholder:text-slate-300 transition-colors ${
-                error
+                exactDuplicate || error
                   ? 'border-red-400 focus:border-red-500'
+                  : nearDuplicates.length > 0
+                  ? 'border-amber-400 focus:border-amber-500'
                   : 'border-slate-200 focus:border-brand-500'
               }`}
             />
-            {/* Inline error message */}
-            {error && (
+
+            {/* ── Exact duplicate banner ──────────────────────────────────── */}
+            {exactDuplicate && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-red-700">
+                    Already in your vocabulary
+                  </p>
+                  {exactDuplicate.definitionEn && (
+                    <p className="text-xs text-red-500 mt-0.5 line-clamp-1">
+                      {exactDuplicate.definitionEn}
+                    </p>
+                  )}
+                </div>
+                <button
+                  onClick={() => openExisting(exactDuplicate.id)}
+                  className="shrink-0 flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 transition-colors whitespace-nowrap"
+                >
+                  Open entry
+                  <ArrowRight size={11} />
+                </button>
+              </div>
+            )}
+
+            {/* ── Near-duplicate warning ──────────────────────────────────── */}
+            {nearDuplicates.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <AlertTriangle size={13} className="text-amber-600 shrink-0" />
+                  <p className="text-xs font-semibold text-amber-800">Similar entries found</p>
+                </div>
+                <div className="space-y-1">
+                  {nearDuplicates.map((dup) => (
+                    <button
+                      key={dup.id}
+                      onClick={() => openExisting(dup.id)}
+                      className="w-full flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 hover:border-amber-400 hover:bg-amber-50 transition-colors group"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs font-semibold text-slate-800 truncate">
+                          {dup.term}
+                        </span>
+                        <span className="text-[10px] text-slate-400 capitalize shrink-0">
+                          {dup.status}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-semibold text-amber-600 group-hover:text-amber-700 shrink-0 flex items-center gap-0.5">
+                        View <ArrowRight size={10} />
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-amber-600 mt-2">
+                  You can still save if this is a different word.
+                </p>
+              </div>
+            )}
+
+            {/* Generic error (e.g. DB failure) */}
+            {error && !exactDuplicate && (
               <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium px-1">
                 <AlertCircle size={12} className="shrink-0" />
                 {error}
@@ -210,7 +308,7 @@ export function QuickAddModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* Context sentence — shown only when a source is selected */}
+          {/* Context sentence */}
           {sourceType && (
             <input
               type="text"

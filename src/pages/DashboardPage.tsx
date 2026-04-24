@@ -6,6 +6,7 @@ import { useGamificationStore } from '@/store/gamificationStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { VocabCard } from '@/components/VocabCard'
+import { GlobalSearch } from '@/components/GlobalSearch'
 import { isWithinInterval, subDays, startOfDay } from 'date-fns'
 
 function getStreak(items: ReturnType<typeof useVocabStore.getState>['items']): number {
@@ -66,6 +67,9 @@ export function DashboardPage() {
           <span className="sm:hidden">Add</span>
         </button>
       </div>
+
+      {/* Global search */}
+      <GlobalSearch className="mb-5" placeholder="Search 1000+ words, phrases, synonyms…" />
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">

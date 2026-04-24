@@ -1,8 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, SlidersHorizontal, Library, X } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { VocabCard } from '@/components/VocabCard'
 import { ItemStatus, ItemType, SourceType, VocabItem } from '@/types/vocabulary'
+import { searchVocabulary } from '@/utils/vocabSearch'
 
 const STATUS_OPTIONS: { value: ItemStatus | 'all'; label: string }[] = [
   { value: 'all',        label: 'All' },
@@ -92,13 +94,21 @@ function FilterPills<T extends string>({
 
 export function LibraryPage() {
   const items = useVocabStore((s) => s.items)
-  const [search, setSearch] = useState('')
+  const [searchParams] = useSearchParams()
+
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [status, setStatus] = useState<ItemStatus | 'all'>('all')
   const [type, setType] = useState<ItemType | 'all'>('all')
   const [source, setSource] = useState<SourceType | 'all'>('all')
   const [tag, setTag] = useState<string | 'all'>('all')
   const [sort, setSort] = useState<SortKey>('newest')
   const [showFilters, setShowFilters] = useState(false)
+
+  // Sync search box when the URL param changes (e.g. navigating from GlobalSearch "View all")
+  useEffect(() => {
+    const q = searchParams.get('q') ?? ''
+    if (q) setSearch(q)
+  }, [searchParams])
 
   const allTags = useMemo(() => {
     const counts = new Map<string, number>()
@@ -124,16 +134,30 @@ export function LibraryPage() {
   }
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase()
+    const hasFilters =
+      status !== 'all' || type !== 'all' || source !== 'all' || tag !== 'all'
+
+    if (search.trim()) {
+      // ── Ranked search mode ──
+      // Use full-text ranked search (term + synonyms + definition + examples + tags),
+      // then apply the status/type/source/tag filters.  Sort order is ignored while
+      // a query is active so relevance ranking is preserved.
+      const SEARCH_LIMIT = 200 // high enough to show everything that matches
+      const ranked = searchVocabulary(items, search, SEARCH_LIMIT).map((r) => r.item)
+
+      if (!hasFilters) return ranked
+
+      return ranked.filter((i) => {
+        if (status !== 'all' && i.status !== status) return false
+        if (type !== 'all' && i.type !== type) return false
+        if (source !== 'all' && i.sourceType !== source) return false
+        if (tag !== 'all' && !i.tags.includes(tag)) return false
+        return true
+      })
+    }
+
+    // ── Filter + sort mode (no search query) ──
     const base = items.filter((i) => {
-      if (q) {
-        const hit =
-          i.term.toLowerCase().includes(q) ||
-          i.definitionEn?.toLowerCase().includes(q) ||
-          i.tags.some((t) => t.toLowerCase().includes(q)) ||
-          i.exampleSentence?.toLowerCase().includes(q)
-        if (!hit) return false
-      }
       if (status !== 'all' && i.status !== status) return false
       if (type !== 'all' && i.type !== type) return false
       if (source !== 'all' && i.sourceType !== source) return false
@@ -277,6 +301,9 @@ export function LibraryPage() {
           {(activeFilterCount > 0 || search) && (
             <p className="text-xs text-slate-400 mb-2 pl-0.5">
               {filtered.length} of {items.length} items
+              {search.trim() && (
+                <span className="ml-1 text-brand-500 font-medium">· ranked by relevance</span>
+              )}
             </p>
           )}
           <div className="space-y-2">
