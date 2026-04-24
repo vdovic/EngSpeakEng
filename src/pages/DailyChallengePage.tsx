@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle } from 'lucide-react'
+import { Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle, ChevronDown, PlayCircle } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
@@ -56,6 +56,42 @@ function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType 
 
 const MAX_ITEMS = 25
 
+// ── Preview row ───────────────────────────────────────────────────────────────
+
+function PreviewRow({ item }: { item: VocabItem }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors"
+      >
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-semibold text-slate-900">{item.term}</span>
+          {item.partOfSpeech && (
+            <span className="ml-2 text-xs text-slate-400 italic">{item.partOfSpeech}</span>
+          )}
+        </div>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && item.definitionEn && (
+        <div className="px-4 pb-3 pt-0 border-t border-slate-100">
+          <p className="text-sm text-slate-600 leading-relaxed">{item.definitionEn}</p>
+          {item.exampleSentence && (
+            <p className="text-xs text-slate-400 italic mt-1.5">
+              &ldquo;{item.exampleSentence}&rdquo;
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function DailyChallengePage() {
@@ -69,13 +105,16 @@ export function DailyChallengePage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [results, setResults] = useState<ExerciseResult[]>([])
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [phase, setPhase] = useState<'loading' | 'exercising' | 'complete'>('loading')
+  const [phase, setPhase] = useState<'loading' | 'preview' | 'exercising' | 'complete'>('loading')
   const [newBadges, setNewBadges] = useState<ReturnType<typeof checkBadges>>([])
+  const [isBonus, setIsBonus] = useState(false)
+  // Track all item ids used so far (main + bonus) to avoid repeats
+  const usedItemIds = useRef<Set<string>>(new Set())
 
   // Stores the advance() fn that should run when the feedback overlay is dismissed.
   const pendingAdvance = useRef<(() => void) | null>(null)
 
-  // Build challenge slots on mount
+  // Build challenge slots on mount (main round only)
   useEffect(() => {
     const due = shuffle(
       allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)),
@@ -86,14 +125,34 @@ export function DailyChallengePage() {
       return
     }
 
+    due.forEach((i) => usedItemIds.current.add(i.id))
+
     setSlots(
       due.map((item) => ({
         item,
         exerciseType: pickExerciseType(item, allItems),
       })),
     )
-    setPhase('exercising')
+    setPhase('preview')
   }, [allItems]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start bonus round: pick items not yet practised this session
+  function startBonusRound() {
+    const available = shuffle(
+      allItems.filter(
+        (i) => !usedItemIds.current.has(i.id) && !i.archived && i.definitionEn,
+      ),
+    ).slice(0, MAX_ITEMS)
+
+    if (available.length === 0) return
+
+    available.forEach((i) => usedItemIds.current.add(i.id))
+    setSlots(available.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) })))
+    setCurrentIndex(0)
+    setResults([])
+    setIsBonus(true)
+    setPhase('preview')
+  }
 
   const handleAnswer = useCallback(
     (result: ExerciseResult) => {
@@ -108,9 +167,12 @@ export function DailyChallengePage() {
 
       function advance() {
         if (currentIndex + 1 >= slots.length) {
-          recordChallengeCompletion()
-          const unlocked = checkBadges()
-          setNewBadges(unlocked)
+          // Only record streak/completion for the main (non-bonus) round
+          if (!isBonus) {
+            recordChallengeCompletion()
+            const unlocked = checkBadges()
+            setNewBadges(unlocked)
+          }
           setPhase('complete')
         } else {
           setCurrentIndex((i) => i + 1)
@@ -129,14 +191,14 @@ export function DailyChallengePage() {
         correct: result.correct,
         points: result.points,
         userAnswer: result.userAnswer,
-        correctAnswer: result.correctAnswer ?? item.term,
+        correctAnswer: result.correctAnswer ?? slots[currentIndex]?.item.term ?? '',
       })
     },
-    [currentIndex, slots.length, recordExposure, addPoints, recordChallengeCompletion, checkBadges],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentIndex, slots, isBonus, recordExposure, addPoints, recordChallengeCompletion, checkBadges],
   )
 
   // Dismiss the feedback overlay and advance to the next question.
-  // Triggered by clicking the overlay or pressing any key.
   const dismissFeedback = useCallback(() => {
     if (!feedback) return
     setFeedback(null)
@@ -161,11 +223,71 @@ export function DailyChallengePage() {
     )
   }
 
+  // ── Preview ────────────────────────────────────────────────────────────────
+  if (phase === 'preview') {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-4 pb-24">
+        {/* Top bar */}
+        <div className="flex items-center gap-3 mb-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
+            title="Exit"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <div className="flex items-center gap-2">
+            <Zap size={16} className="text-amber-500" />
+            <span className="text-sm font-semibold text-slate-700">
+              {isBonus ? 'Bonus Round' : 'Daily Challenge'}
+            </span>
+          </div>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Flame size={14} className="text-orange-500" />
+            <span className="text-xs font-semibold text-orange-600">{streakDays}d</span>
+          </div>
+        </div>
+
+        {/* Heading */}
+        <div className="mb-5">
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">
+            {isBonus ? '🎯 Bonus round' : "Today's words"}
+          </h1>
+          <p className="text-sm text-slate-500">
+            {slots.length} word{slots.length !== 1 ? 's' : ''} to practise.
+            {' '}Tap any word to preview its definition before you start.
+          </p>
+        </div>
+
+        {/* Word list */}
+        <div className="space-y-2 mb-8">
+          {slots.map(({ item }) => (
+            <PreviewRow key={item.id} item={item} />
+          ))}
+        </div>
+
+        {/* Start button */}
+        <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-none">
+          <button
+            onClick={() => setPhase('exercising')}
+            className="pointer-events-auto w-full max-w-lg mx-auto flex items-center justify-center gap-2 py-4 bg-brand-600 text-white rounded-2xl font-bold text-base hover:bg-brand-700 active:scale-[0.98] transition-all shadow-lg shadow-brand-200"
+          >
+            <PlayCircle size={20} />
+            Start{isBonus ? ' bonus round' : ' challenge'}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ── Complete ───────────────────────────────────────────────────────────────
   if (phase === 'complete') {
     const totalPoints = results.reduce((s, r) => s + r.points, 0)
     const correctCount = results.filter((r) => r.correct).length
     const total = results.length
+    const bonusAvailable = allItems.some(
+      (i) => !usedItemIds.current.has(i.id) && !i.archived && i.definitionEn,
+    )
 
     return (
       <div className="max-w-md mx-auto px-4 py-10 pb-24 text-center">
@@ -175,12 +297,16 @@ export function DailyChallengePage() {
         </div>
 
         <h1 className="text-2xl font-bold text-slate-900 mb-1">
-          {total === 0 ? 'All caught up!' : 'Challenge complete!'}
+          {total === 0
+            ? 'All caught up!'
+            : isBonus
+            ? 'Bonus round done!'
+            : 'Challenge complete!'}
         </h1>
         <p className="text-sm text-slate-500 mb-8">
           {total === 0
-            ? 'No items are due for practice right now. Come back later!'
-            : `You practised ${total} word${total !== 1 ? 's' : ''} today.`}
+            ? 'No items are due for practice right now.'
+            : `You practised ${total} word${total !== 1 ? 's' : ''}.`}
         </p>
 
         {total > 0 && (
@@ -215,7 +341,7 @@ export function DailyChallengePage() {
           </>
         )}
 
-        {/* Newly unlocked badges */}
+        {/* Newly unlocked badges (main round only) */}
         {newBadges.length > 0 && (
           <div className="mb-6">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
@@ -244,9 +370,23 @@ export function DailyChallengePage() {
         )}
 
         <div className="flex flex-col gap-3">
+          {/* Bonus round offer */}
+          {bonusAvailable && (
+            <button
+              onClick={startBonusRound}
+              className="w-full py-3 bg-brand-600 text-white rounded-xl font-semibold hover:bg-brand-700 transition-colors flex items-center justify-center gap-2"
+            >
+              <Zap size={16} />
+              Start bonus round
+            </button>
+          )}
           <button
             onClick={() => navigate('/')}
-            className="w-full py-3 bg-brand-600 text-white rounded-xl font-semibold hover:bg-brand-700 transition-colors"
+            className={`w-full py-3 rounded-xl font-semibold transition-colors ${
+              bonusAvailable
+                ? 'border border-slate-200 text-slate-700 hover:bg-slate-50'
+                : 'bg-brand-600 text-white hover:bg-brand-700'
+            }`}
           >
             Back to home
           </button>
@@ -264,22 +404,24 @@ export function DailyChallengePage() {
   // ── Exercising ─────────────────────────────────────────────────────────────
   const currentSlot = slots[currentIndex]
   const { item, exerciseType } = currentSlot
-  const progress = ((currentIndex) / slots.length) * 100
+  const progress = (currentIndex / slots.length) * 100
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 min-h-screen relative">
       {/* Top bar */}
       <div className="flex items-center gap-3 mb-4">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => setPhase('preview')}
           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
-          title="Exit challenge"
+          title="Back to word list"
         >
           <ArrowLeft size={20} />
         </button>
         <div className="flex items-center gap-2">
           <Zap size={16} className="text-amber-500" />
-          <span className="text-sm font-semibold text-slate-700">Daily Challenge</span>
+          <span className="text-sm font-semibold text-slate-700">
+            {isBonus ? 'Bonus Round' : 'Daily Challenge'}
+          </span>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Flame size={14} className="text-orange-500" />

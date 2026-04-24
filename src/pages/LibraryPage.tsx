@@ -44,6 +44,12 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 
 function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
   return [...items].sort((a, b) => {
+    // Mastered items always sink to the bottom when mixed with other statuses
+    const aMastered = a.status === 'mastered' ? 1 : 0
+    const bMastered = b.status === 'mastered' ? 1 : 0
+    if (aMastered !== bMastered) return aMastered - bMastered
+
+    // Primary sort within each group
     switch (sort) {
       case 'az':
         return a.term.localeCompare(b.term)
