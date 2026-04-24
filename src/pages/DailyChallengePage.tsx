@@ -21,7 +21,6 @@ type FeedbackState = {
   correct: boolean
   points: number
   userAnswer: string
-  isSentence: boolean
 } | null
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -95,8 +94,8 @@ export function DailyChallengePage() {
 
   const handleAnswer = useCallback(
     (result: ExerciseResult) => {
-      // 1. Record exposure in vocab store
-      recordExposure(result.itemId, result.correct || result.exerciseType === 'sentence-create')
+      // 1. Record exposure in vocab store (correct = true advances SRS)
+      recordExposure(result.itemId, result.correct)
 
       // 2. Add points
       addPoints(result.points)
@@ -105,19 +104,8 @@ export function DailyChallengePage() {
       const newResults = [...results, result]
       setResults(newResults)
 
-      // 4. Show feedback overlay
-      setFeedback({
-        correct: result.correct,
-        points: result.points,
-        userAnswer: result.userAnswer,
-        isSentence: result.exerciseType === 'sentence-create',
-      })
-
-      // 5. After delay advance or complete
-      setTimeout(() => {
-        setFeedback(null)
+      function advance() {
         if (currentIndex + 1 >= slots.length) {
-          // Challenge complete
           recordChallengeCompletion()
           const unlocked = checkBadges()
           setNewBadges(unlocked)
@@ -125,6 +113,25 @@ export function DailyChallengePage() {
         } else {
           setCurrentIndex((i) => i + 1)
         }
+      }
+
+      // 4. Sentence-create: the exercise already showed inline AI feedback.
+      //    Advance immediately — no overlay needed.
+      if (result.exerciseType === 'sentence-create') {
+        advance()
+        return
+      }
+
+      // 5. Other exercise types: flash feedback overlay, then advance
+      setFeedback({
+        correct: result.correct,
+        points: result.points,
+        userAnswer: result.userAnswer,
+      })
+
+      setTimeout(() => {
+        setFeedback(null)
+        advance()
       }, FEEDBACK_DURATION_MS)
     },
     [results, currentIndex, slots.length, recordExposure, addPoints, recordChallengeCompletion, checkBadges],
@@ -318,29 +325,19 @@ export function DailyChallengePage() {
         )}
       </div>
 
-      {/* Feedback overlay */}
+      {/* Feedback overlay (fill-blank, multiple-choice, synonym-match only) */}
       {feedback && (
         <div
-          className={`fixed inset-0 flex items-center justify-center z-50 transition-opacity ${
-            feedback.isSentence
-              ? 'bg-brand-600/80'
-              : feedback.correct
-              ? 'bg-emerald-600/80'
-              : 'bg-red-600/80'
+          className={`fixed inset-0 flex items-center justify-center z-50 ${
+            feedback.correct ? 'bg-emerald-600/80' : 'bg-red-600/80'
           }`}
         >
           <div className="text-white text-center px-6">
-            {feedback.isSentence ? (
-              <>
-                <CheckCircle size={48} className="mx-auto mb-3 opacity-90" />
-                <p className="text-2xl font-bold mb-1">Good practice!</p>
-                <p className="text-lg opacity-80">+{feedback.points} points</p>
-              </>
-            ) : feedback.correct ? (
+            {feedback.correct ? (
               <>
                 <CheckCircle size={48} className="mx-auto mb-3 opacity-90" />
                 <p className="text-2xl font-bold mb-1">Correct!</p>
-                <p className="text-lg opacity-80">+{feedback.points} points</p>
+                <p className="text-lg opacity-80">+{feedback.points} pts</p>
               </>
             ) : (
               <>
