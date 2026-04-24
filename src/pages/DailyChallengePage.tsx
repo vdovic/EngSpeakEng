@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
@@ -55,7 +55,6 @@ function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType 
 }
 
 const MAX_ITEMS = 25
-const FEEDBACK_DURATION_MS = 1_800
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -72,6 +71,9 @@ export function DailyChallengePage() {
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [phase, setPhase] = useState<'loading' | 'exercising' | 'complete'>('loading')
   const [newBadges, setNewBadges] = useState<ReturnType<typeof checkBadges>>([])
+
+  // Stores the advance() fn that should run when the feedback overlay is dismissed.
+  const pendingAdvance = useRef<(() => void) | null>(null)
 
   // Build challenge slots on mount
   useEffect(() => {
@@ -102,8 +104,7 @@ export function DailyChallengePage() {
       addPoints(result.points)
 
       // 3. Collect result
-      const newResults = [...results, result]
-      setResults(newResults)
+      setResults((prev) => [...prev, result])
 
       function advance() {
         if (currentIndex + 1 >= slots.length) {
@@ -116,28 +117,40 @@ export function DailyChallengePage() {
         }
       }
 
-      // 4. Sentence-create: the exercise already showed inline AI feedback.
-      //    Advance immediately — no overlay needed.
+      // 4. Sentence-create: inline AI feedback already shown — advance directly.
       if (result.exerciseType === 'sentence-create') {
         advance()
         return
       }
 
-      // 5. Other exercise types: flash feedback overlay, then advance
+      // 5. Other types: show overlay and wait for the user to dismiss it.
+      pendingAdvance.current = advance
       setFeedback({
         correct: result.correct,
         points: result.points,
         userAnswer: result.userAnswer,
         correctAnswer: result.correctAnswer ?? item.term,
       })
-
-      setTimeout(() => {
-        setFeedback(null)
-        advance()
-      }, FEEDBACK_DURATION_MS)
     },
-    [results, currentIndex, slots.length, recordExposure, addPoints, recordChallengeCompletion, checkBadges],
+    [currentIndex, slots.length, recordExposure, addPoints, recordChallengeCompletion, checkBadges],
   )
+
+  // Dismiss the feedback overlay and advance to the next question.
+  // Triggered by clicking the overlay or pressing any key.
+  const dismissFeedback = useCallback(() => {
+    if (!feedback) return
+    setFeedback(null)
+    pendingAdvance.current?.()
+    pendingAdvance.current = null
+  }, [feedback])
+
+  // Global keydown listener — active only while the overlay is visible.
+  useEffect(() => {
+    if (!feedback) return
+    const onKey = () => dismissFeedback()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [feedback, dismissFeedback])
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (phase === 'loading') {
@@ -333,30 +346,37 @@ export function DailyChallengePage() {
         )}
       </div>
 
-      {/* Feedback overlay (fill-blank, multiple-choice, synonym-match only) */}
+      {/* Feedback overlay — stays until user taps or presses any key */}
       {feedback && (
         <div
-          className={`fixed inset-0 flex items-center justify-center z-50 ${
-            feedback.correct ? 'bg-emerald-600/80' : 'bg-red-600/80'
+          role="button"
+          tabIndex={0}
+          onClick={dismissFeedback}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') dismissFeedback() }}
+          className={`fixed inset-0 flex flex-col items-center justify-center z-50 cursor-pointer select-none ${
+            feedback.correct ? 'bg-emerald-600/90' : 'bg-red-600/90'
           }`}
         >
           <div className="text-white text-center px-6">
             {feedback.correct ? (
               <>
-                <CheckCircle size={48} className="mx-auto mb-3 opacity-90" />
-                <p className="text-2xl font-bold mb-1">Correct!</p>
+                <CheckCircle size={56} className="mx-auto mb-4 opacity-90" />
+                <p className="text-3xl font-bold mb-1">Correct!</p>
                 <p className="text-lg opacity-80">+{feedback.points} pts</p>
               </>
             ) : (
               <>
-                <XCircle size={48} className="mx-auto mb-3 opacity-90" />
-                <p className="text-2xl font-bold mb-1">Not quite</p>
-                <p className="text-base opacity-80 mt-1">
+                <XCircle size={56} className="mx-auto mb-4 opacity-90" />
+                <p className="text-3xl font-bold mb-2">Not quite</p>
+                <p className="text-lg opacity-90">
                   Answer: <strong>{feedback.correctAnswer}</strong>
                 </p>
               </>
             )}
           </div>
+          <p className="text-white/50 text-sm mt-10 tracking-wide">
+            tap anywhere or press any key to continue
+          </p>
         </div>
       )}
     </div>
