@@ -18,25 +18,62 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * Synonym-match exercise: show the term, pick the correct synonym from
- * four options (one real synonym + three distractors from other items).
+ * Return up to `n` distractor strings (synonyms preferred, term as fallback)
+ * drawn from other items, prioritised by linguistic similarity:
+ *   Tier 1 — same partOfSpeech
+ *   Tier 2 — same item type  (word / phrase / chunk)
+ *   Tier 3 — anything else
+ */
+function pickSynonymDistractors(
+  item: VocabItem,
+  others: VocabItem[],
+  exclude: Set<string>,
+  n: number,
+): string[] {
+  const tier1 = item.partOfSpeech
+    ? others.filter((i) => i.partOfSpeech === item.partOfSpeech)
+    : []
+  const tier1Ids = new Set(tier1.map((i) => i.id))
+
+  const tier2 = others.filter(
+    (i) => !tier1Ids.has(i.id) && i.type === item.type,
+  )
+  const tier2Ids = new Set(tier2.map((i) => i.id))
+
+  const tier3 = others.filter((i) => !tier1Ids.has(i.id) && !tier2Ids.has(i.id))
+
+  const ordered = [...shuffle(tier1), ...shuffle(tier2), ...shuffle(tier3)]
+
+  const result: string[] = []
+  for (const other of ordered) {
+    if (result.length >= n) break
+    // Prefer a synonym from the other item; fall back to its term
+    const word =
+      other.synonyms.find((s) => s && !exclude.has(s) && !result.includes(s)) ??
+      (other.term && !exclude.has(other.term) && !result.includes(other.term)
+        ? other.term
+        : undefined)
+    if (word) result.push(word)
+  }
+  return result
+}
+
+/**
+ * Synonym-match exercise: show the term + definition, pick the correct synonym.
+ *
+ * Distractors are drawn from same-partOfSpeech items first so options are
+ * semantically plausible (e.g. other phrasal-verb synonyms for a phrasal-verb
+ * question) rather than randomly mismatched words.
  */
 export function SynonymMatchExercise({ item, allItems, onAnswer }: Props) {
   const { correctSynonym, options } = useMemo(() => {
     const syns = item.synonyms.filter(Boolean)
     const correctSynonym = syns[Math.floor(Math.random() * syns.length)] ?? item.synonyms[0]
 
-    // Build a pool of distractor words from other items' synonyms + terms
-    const distractorPool: string[] = []
-    for (const other of allItems) {
-      if (other.id === item.id) continue
-      if (other.synonyms.length > 0) distractorPool.push(other.synonyms[0])
-      else distractorPool.push(other.term)
-    }
+    const others = allItems.filter((o) => o.id !== item.id)
+    const exclude = new Set([correctSynonym, ...item.synonyms.filter(Boolean)])
 
-    const distractors = shuffle(
-      distractorPool.filter((d) => d && d !== correctSynonym),
-    ).slice(0, 3)
+    const distractors = pickSynonymDistractors(item, others, exclude, 3)
 
     return {
       correctSynonym,

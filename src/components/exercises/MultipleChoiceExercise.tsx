@@ -18,24 +18,49 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /**
- * Multiple-choice exercise: show the definition, pick the correct term
- * from four options (correct + 3 random distractors).
+ * Return up to `n` distractor VocabItems prioritised by linguistic
+ * similarity to the target item:
+ *   Tier 1 — same partOfSpeech  (e.g. both "phrasal verb")
+ *   Tier 2 — same item type     (word / phrase / chunk)
+ *   Tier 3 — anything else
+ *
+ * Each tier is independently shuffled so the selection is random within
+ * each priority band, then tiers are concatenated and sliced to `n`.
+ */
+function pickDistractors(item: VocabItem, others: VocabItem[], n: number): VocabItem[] {
+  const tier1 = item.partOfSpeech
+    ? others.filter((i) => i.partOfSpeech === item.partOfSpeech)
+    : []
+  const tier1Ids = new Set(tier1.map((i) => i.id))
+
+  const tier2 = others.filter(
+    (i) => !tier1Ids.has(i.id) && i.type === item.type,
+  )
+  const tier2Ids = new Set(tier2.map((i) => i.id))
+
+  const tier3 = others.filter((i) => !tier1Ids.has(i.id) && !tier2Ids.has(i.id))
+
+  return [...shuffle(tier1), ...shuffle(tier2), ...shuffle(tier3)].slice(0, n)
+}
+
+/**
+ * Multiple-choice exercise: show the definition, pick the correct term.
+ *
+ * Distractors are chosen to be linguistically plausible — same part of
+ * speech first, then same item type — so options are never absurdly
+ * mismatched (e.g. a noun distractor for a phrasal-verb question).
  */
 export function MultipleChoiceExercise({ item, allItems, onAnswer }: Props) {
   const options = useMemo(() => {
-    const distractors = allItems
-      .filter((i) => i.id !== item.id && i.term)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 3)
-      .map((i) => i.term)
-
+    const others = allItems.filter((i) => i.id !== item.id && i.term)
+    const distractors = pickDistractors(item, others, 3).map((i) => i.term)
     return shuffle([item.term, ...distractors])
   }, [item, allItems])
 
   const [selected, setSelected] = useState<string | null>(null)
 
   function handleSelect(opt: string) {
-    if (selected !== null) return // already answered
+    if (selected !== null) return
     setSelected(opt)
     const correct = opt === item.term
     onAnswer({
