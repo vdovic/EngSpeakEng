@@ -131,13 +131,15 @@ export function WordPeek({ item }: Props) {
           )}
 
           {/* Link to full detail page (new tab — preserves exercise session) */}
-          <button
-            onClick={() => window.open(`/item/${item.id}`, '_blank', 'noopener')}
-            className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors pt-1"
+          <a
+            href={`/item/${item.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 underline-offset-2 hover:underline transition-colors pt-1"
           >
             <ExternalLink size={11} />
             Open full word page
-          </button>
+          </a>
         </div>
       )}
     </div>
