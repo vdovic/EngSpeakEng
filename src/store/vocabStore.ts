@@ -46,23 +46,24 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
   // ── load ────────────────────────────────────────────────────────────────────
   load: async () => {
     let all = await db.items.filter((i) => !i.archived).toArray()
+
+    // Always fetch the migration file so we can top-up any items that were
+    // missing from an earlier deployment (e.g., the file previously had only
+    // 529 items and now has 1 156). On a completely fresh DB we seed normally;
+    // on an existing DB we silently add only the items not yet present.
+    let migrationSeed: VocabItem[] = []
+    try {
+      const res = await fetch('/data/migration-vocab.json')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      migrationSeed = (await res.json()) as VocabItem[]
+    } catch {
+      // Migration file unavailable — fall back to built-in seed for empty DB only
+    }
+
     if (all.length === 0) {
-      // On a fresh install, try to seed from the pre-enriched migration file
-      // (served as a static asset). Falls back to the small built-in seed if
-      // the file is missing or the fetch fails (e.g., local dev without it).
-      let seed: VocabItem[]
-      try {
-        const res = await fetch('/data/migration-vocab.json')
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        seed = (await res.json()) as VocabItem[]
-        console.info(`[load] Seeding from migration data: ${seed.length} items`)
-      } catch {
-        console.info('[load] Migration data not available — using built-in seed')
-        seed = createSeedData()
-      }
-      // bulkAdd is safe here because the DB is empty. If a term collision occurs
-      // (shouldn't after dedup) we fall back to a one-by-one insert that skips
-      // any violations rather than aborting the entire import.
+      // Fresh install
+      const seed = migrationSeed.length > 0 ? migrationSeed : createSeedData()
+      console.info(`[load] Seeding from migration data: ${seed.length} items`)
       try {
         await db.items.bulkAdd(seed)
       } catch {
@@ -71,7 +72,20 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         }
       }
       all = await db.items.filter((i) => !i.archived).toArray()
+    } else if (migrationSeed.length > all.length) {
+      // Top-up: add any migration items not yet in the DB (identified by id).
+      // This handles the case where an earlier deployment had fewer items.
+      const existingIds = new Set(all.map((i) => i.id))
+      const missing = migrationSeed.filter((i) => !existingIds.has(i.id))
+      if (missing.length > 0) {
+        console.info(`[load] Top-up: adding ${missing.length} missing migration items`)
+        for (const item of missing) {
+          await db.items.add(item).catch(() => { /* skip term collisions */ })
+        }
+        all = await db.items.filter((i) => !i.archived).toArray()
+      }
     }
+
     set({ items: all, loaded: true })
 
     // Re-trigger enrichment for any items that were 'pending' when the app
