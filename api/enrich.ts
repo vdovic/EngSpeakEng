@@ -65,7 +65,7 @@ export default async function handler(req: any, res: any) {
   // ── Generation starts here ──────────────────────────────────────────────────
   try {
     const message = await client.messages.create({
-      model: 'claude-haiku-3-5',  // Fast + cheap for structured extraction
+      model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5',
       max_tokens: 1200,
       system: SYSTEM_PROMPT,
       messages: [

@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, RefreshCw, Library, Target, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, BookOpen, RefreshCw, Library, Target, BarChart2, Zap } from 'lucide-react'
 
 const links = [
-  { to: '/',        icon: LayoutDashboard, label: 'Home' },
-  { to: '/inbox',   icon: BookOpen,        label: 'Inbox' },
-  { to: '/review',  icon: RefreshCw,       label: 'Review' },
-  { to: '/library', icon: Library,         label: 'Library' },
-  { to: '/week',    icon: Target,          label: 'This Week' },
-  { to: '/stats',   icon: BarChart2,       label: 'Stats' },
+  { to: '/',          icon: LayoutDashboard, label: 'Home' },
+  { to: '/inbox',     icon: BookOpen,        label: 'Inbox' },
+  { to: '/review',    icon: RefreshCw,       label: 'Review' },
+  { to: '/challenge', icon: Zap,             label: 'Challenge' },
+  { to: '/library',   icon: Library,         label: 'Library' },
+  { to: '/week',      icon: Target,          label: 'This Week' },
+  { to: '/stats',     icon: BarChart2,       label: 'Stats' },
 ]
 
 export function NavBar() {

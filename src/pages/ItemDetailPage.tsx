@@ -10,6 +10,7 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { UsageProgress } from '@/components/UsageProgress'
 import { LogUsageModal } from '@/components/LogUsageModal'
+import { ExposureBar } from '@/components/ExposureBar'
 import { usagePoints, progressTowardMastery } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
 import { format } from 'date-fns'
@@ -414,6 +415,19 @@ export function ItemDetailPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Challenge exposure progress */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">Challenge progress</h2>
+        <ExposureBar
+          exposureCount={item.exposureCount}
+          nextChallengeDate={item.nextChallengeDate}
+          size="md"
+        />
+        <p className="text-xs text-slate-400 mt-2">
+          Complete the Daily Challenge to advance through 8 SRS exposure steps.
+        </p>
       </div>
 
       {/* Mastery progress */}

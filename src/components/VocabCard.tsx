@@ -7,6 +7,24 @@ import { UsageProgress } from './UsageProgress'
 import { usagePoints } from '@/lib/mastery'
 import { format } from 'date-fns'
 
+const MAX_EXPOSURE = 8
+
+function ExposureDots({ count }: { count: number }) {
+  const filled = Math.min(count, MAX_EXPOSURE)
+  return (
+    <div className="flex gap-0.5 items-center" title={`Challenge: ${filled}/${MAX_EXPOSURE} steps`}>
+      {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
+        <div
+          key={i}
+          className={`w-1.5 h-1.5 rounded-full ${
+            i < filled ? 'bg-brand-400' : 'bg-slate-200'
+          }`}
+        />
+      ))}
+    </div>
+  )
+}
+
 interface Props {
   item: VocabItem
   compact?: boolean
@@ -71,6 +89,9 @@ export function VocabCard({ item, compact = false }: Props) {
             #{tag}
           </span>
         ))}
+        {(item.exposureCount ?? 0) > 0 && (
+          <ExposureDots count={item.exposureCount ?? 0} />
+        )}
         {item.review.nextReviewAt && item.status !== 'inbox' && (
           <span className="ml-auto">
             Next: {format(new Date(item.review.nextReviewAt), 'MMM d')}

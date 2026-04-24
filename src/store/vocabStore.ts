@@ -4,6 +4,7 @@ import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus } from '
 import { calculateNextReview, isDueToday } from '@/lib/srs'
 import { deriveStatus } from '@/lib/mastery'
 import { createSeedData } from '@/lib/seed'
+import { getNextChallengeDate } from '@/lib/challengeSchedule'
 
 interface VocabStore {
   items: VocabItem[]
@@ -16,6 +17,9 @@ interface VocabStore {
   logUsage: (id: string, log: Omit<UsageLog, 'id'>) => Promise<void>
   recordReview: (id: string, outcome: ReviewOutcome) => Promise<void>
   toggleWeeklyFocus: (id: string) => Promise<void>
+  /** Record one challenge exposure for an item. Advances the SRS counter on
+   *  correct answers; on incorrect it keeps the count and retries sooner. */
+  recordExposure: (id: string, correct: boolean) => Promise<void>
 }
 
 function uid(): string {
@@ -43,9 +47,30 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
   load: async () => {
     let all = await db.items.filter((i) => !i.archived).toArray()
     if (all.length === 0) {
-      const seed = createSeedData()
-      await db.items.bulkAdd(seed)
-      all = seed
+      // On a fresh install, try to seed from the pre-enriched migration file
+      // (served as a static asset). Falls back to the small built-in seed if
+      // the file is missing or the fetch fails (e.g., local dev without it).
+      let seed: VocabItem[]
+      try {
+        const res = await fetch('/data/migration-vocab.json')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        seed = (await res.json()) as VocabItem[]
+        console.info(`[load] Seeding from migration data: ${seed.length} items`)
+      } catch {
+        console.info('[load] Migration data not available — using built-in seed')
+        seed = createSeedData()
+      }
+      // bulkAdd is safe here because the DB is empty. If a term collision occurs
+      // (shouldn't after dedup) we fall back to a one-by-one insert that skips
+      // any violations rather than aborting the entire import.
+      try {
+        await db.items.bulkAdd(seed)
+      } catch {
+        for (const item of seed) {
+          await db.items.add(item).catch(() => { /* skip duplicates */ })
+        }
+      }
+      all = await db.items.filter((i) => !i.archived).toArray()
     }
     set({ items: all, loaded: true })
 
@@ -253,6 +278,23 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     set((s) => ({
       items: s.items.map((i) => (i.id === id ? { ...i, weeklyFocus } : i)),
     }))
+  },
+
+  // ── recordExposure ──────────────────────────────────────────────────────────
+  recordExposure: async (id, correct) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+
+    const currentCount = item.exposureCount ?? 0
+    // Advance on correct; keep on incorrect (retry sooner)
+    const newCount = correct ? Math.min(currentCount + 1, 8) : currentCount
+    const nextChallengeDate = getNextChallengeDate(newCount, correct)
+
+    await applyPatch(
+      id,
+      { exposureCount: newCount, nextChallengeDate, updatedAt: new Date().toISOString() },
+      set,
+    )
   },
 }))
 

@@ -8,6 +8,7 @@ import { LibraryPage } from '@/pages/LibraryPage'
 import { ItemDetailPage } from '@/pages/ItemDetailPage'
 import { ActiveWeekPage } from '@/pages/ActiveWeekPage'
 import { StatsPage } from '@/pages/StatsPage'
+import { DailyChallengePage } from '@/pages/DailyChallengePage'
 import { useVocabStore } from '@/store/vocabStore'
 
 export default function App() {
@@ -38,8 +39,9 @@ export default function App() {
           <Route path="/review"  element={<ReviewPage />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/item/:id" element={<ItemDetailPage />} />
-          <Route path="/week"    element={<ActiveWeekPage />} />
-          <Route path="/stats"   element={<StatsPage />} />
+          <Route path="/week"      element={<ActiveWeekPage />} />
+          <Route path="/stats"     element={<StatsPage />} />
+          <Route path="/challenge" element={<DailyChallengePage />} />
         </Routes>
       </main>
     </div>

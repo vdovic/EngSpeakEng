@@ -92,6 +92,12 @@ export interface VocabItem {
   // Returned by the API alongside definitionEn and synonyms, etc.
   partOfSpeech?: string
   realLifeTask?: string
+
+  // ── Daily Challenge SRS ─────────────────────────────────────────────────────
+  // exposureCount tracks progress through 8 challenge steps (0 = new, 8 = mastered via challenge).
+  // nextChallengeDate is set after each challenge exercise; undefined means due immediately.
+  exposureCount?: number       // 0–8; undefined treated as 0
+  nextChallengeDate?: string   // ISO datetime; undefined = due now
 }
 
 export type VocabItemDraft = Pick<VocabItem, 'term' | 'type'> &
@@ -105,6 +111,41 @@ export type VocabItemDraft = Pick<VocabItem, 'term' | 'type'> &
       | 'status'
     >
   >
+
+// ── Gamification ─────────────────────────────────────────────────────────────
+
+export type BadgeId =
+  | 'first-step'
+  | 'on-a-roll'
+  | 'week-warrior'
+  | 'century'
+  | 'grand-scholar'
+  | 'early-bird'
+  | 'diligent'
+
+export interface Badge {
+  id: BadgeId
+  label: string
+  description: string
+  emoji: string
+  unlockedAt?: string // ISO datetime
+}
+
+export type ExerciseType =
+  | 'fill-blank'
+  | 'multiple-choice'
+  | 'synonym-match'
+  | 'sentence-create'
+
+export interface ExerciseResult {
+  itemId: string
+  exerciseType: ExerciseType
+  points: number     // 0, 5, or 10
+  userAnswer: string
+  correct: boolean   // false for partial-credit sentence-create
+}
+
+// ── Legacy stats ──────────────────────────────────────────────────────────────
 
 export interface WeeklyStats {
   dueToday: number

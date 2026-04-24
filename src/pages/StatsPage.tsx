@@ -1,8 +1,10 @@
 import { useVocabStore } from '@/store/vocabStore'
 import { useDueItems } from '@/store/vocabStore'
+import { useGamificationStore, ALL_BADGES } from '@/store/gamificationStore'
 import { isWeak } from '@/lib/srs'
-import { BarChart2, Flame, CheckCircle, Zap, BookOpen, RefreshCw, TrendingUp } from 'lucide-react'
+import { BarChart2, Flame, CheckCircle, Zap, BookOpen, RefreshCw, TrendingUp, Trophy } from 'lucide-react'
 import { subDays, startOfDay, isWithinInterval, format } from 'date-fns'
+import { Badge } from '@/types/vocabulary'
 
 function last7Days(): Date[] {
   return Array.from({ length: 7 }, (_, i) => subDays(new Date(), 6 - i))
@@ -11,6 +13,7 @@ function last7Days(): Date[] {
 export function StatsPage() {
   const items = useVocabStore((s) => s.items)
   const dueItems = useDueItems()
+  const { points, streakDays, challengeCompletions, badges } = useGamificationStore()
 
   const inboxCount = items.filter((i) => i.status === 'inbox').length
   const learningCount = items.filter((i) => i.status === 'learning').length
@@ -53,6 +56,15 @@ export function StatsPage() {
     else if (i > 0) break
   }
 
+  // Build full badge list (unlocked + locked)
+  const unlockedIds = new Set(badges.map((b) => b.id))
+  const allBadgesWithState: (Badge & { locked: boolean })[] = ALL_BADGES.map((def) => {
+    const unlocked = badges.find((b) => b.id === def.id)
+    return unlocked
+      ? { ...unlocked, locked: false }
+      : { ...def, locked: true }
+  })
+
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-28 md:pb-8">
       <div className="flex items-center gap-2 mb-6">
@@ -68,6 +80,63 @@ export function StatsPage() {
         <MetricCard icon={<Zap size={16} className="text-amber-600" />} label="Activating" value={activationCount} bg="bg-amber-50" />
         <MetricCard icon={<TrendingUp size={16} className="text-brand-600" />} label="Uses this week" value={usesThisWeek} bg="bg-brand-50" />
         <MetricCard icon={<BookOpen size={16} className="text-slate-500" />} label="Total items" value={items.length} bg="bg-slate-50" />
+      </div>
+
+      {/* Challenge stats */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Trophy size={16} className="text-amber-500" />
+          <h2 className="text-sm font-semibold text-slate-700">Daily Challenge</h2>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-brand-50 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-brand-700">{points}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Total pts</div>
+          </div>
+          <div className="bg-orange-50 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-orange-600">{streakDays}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Day streak</div>
+          </div>
+          <div className="bg-slate-50 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-slate-700">{challengeCompletions}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Completed</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Badges */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
+        <h2 className="text-sm font-semibold text-slate-700 mb-3">
+          Badges{' '}
+          <span className="text-slate-400 font-normal">
+            ({unlockedIds.size}/{ALL_BADGES.length})
+          </span>
+        </h2>
+        <div className="grid grid-cols-1 gap-2">
+          {allBadgesWithState.map((b) => (
+            <div
+              key={b.id}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors ${
+                b.locked
+                  ? 'bg-slate-50 border-slate-100 opacity-50'
+                  : 'bg-amber-50 border-amber-200'
+              }`}
+            >
+              <span className="text-xl">{b.locked ? '🔒' : b.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${b.locked ? 'text-slate-400' : 'text-slate-900'}`}>
+                  {b.label}
+                </p>
+                <p className="text-xs text-slate-400">{b.description}</p>
+              </div>
+              {!b.locked && b.unlockedAt && (
+                <span className="text-[10px] text-amber-600 font-medium shrink-0">
+                  {format(new Date(b.unlockedAt), 'MMM d')}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Status breakdown */}

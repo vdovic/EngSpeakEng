@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Flame, BookOpen, RefreshCw, Target, Zap } from 'lucide-react'
+import { Plus, Flame, BookOpen, RefreshCw, Target, Zap, Trophy } from 'lucide-react'
 import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
+import { useGamificationStore } from '@/store/gamificationStore'
+import { isDueChallengeNow } from '@/lib/challengeSchedule'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { VocabCard } from '@/components/VocabCard'
 import { isWithinInterval, subDays, startOfDay } from 'date-fns'
@@ -28,6 +30,7 @@ export function DashboardPage() {
   const items = useVocabStore((s) => s.items)
   const dueItems = useDueItems()
   const weeklyItems = useWeeklyFocusItems()
+  const { points, streakDays: challengeStreak, lastChallengeDate } = useGamificationStore()
 
   const inboxCount = items.filter((i) => i.status === 'inbox').length
   const activationCount = items.filter((i) => i.status === 'activation').length
@@ -39,6 +42,12 @@ export function DashboardPage() {
     .filter((l) => new Date(l.usedAt) >= thisWeekStart).length
 
   const streak = getStreak(items)
+
+  const challengeDueCount = items.filter((i) =>
+    isDueChallengeNow(i.exposureCount, i.nextChallengeDate),
+  ).length
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const challengeDoneToday = lastChallengeDate === todayKey
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 md:pb-6">
@@ -59,7 +68,7 @@ export function DashboardPage() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <StatCard
           icon={<RefreshCw size={18} className="text-blue-600" />}
           label="Due today"
@@ -89,6 +98,42 @@ export function DashboardPage() {
           bg="bg-emerald-50"
           suffix="days"
         />
+      </div>
+
+      {/* Daily Challenge CTA */}
+      <div
+        className={`mb-6 rounded-2xl border p-4 flex items-center gap-4 cursor-pointer transition-all ${
+          challengeDoneToday
+            ? 'bg-slate-50 border-slate-200'
+            : 'bg-gradient-to-r from-brand-50 to-amber-50 border-brand-200 hover:shadow-sm hover:border-brand-300'
+        }`}
+        onClick={() => navigate('/challenge')}
+        role="button"
+      >
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            challengeDoneToday ? 'bg-slate-200' : 'bg-brand-600'
+          }`}
+        >
+          {challengeDoneToday ? (
+            <Trophy size={18} className="text-slate-500" />
+          ) : (
+            <Zap size={18} className="text-white" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-slate-900 text-sm">
+            {challengeDoneToday ? 'Challenge done today ✓' : 'Daily Challenge'}
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {challengeDoneToday
+              ? `${challengeStreak}-day streak • ${points} total pts`
+              : `${challengeDueCount} word${challengeDueCount !== 1 ? 's' : ''} due • ${challengeStreak > 0 ? `${challengeStreak}d streak` : 'Start your streak'}`}
+          </p>
+        </div>
+        {!challengeDoneToday && (
+          <span className="text-xs font-semibold text-brand-600 shrink-0">Start →</span>
+        )}
       </div>
 
       {/* Due today */}
