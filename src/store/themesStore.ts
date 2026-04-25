@@ -1,6 +1,73 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+// ── Suggested grouping dimensions ─────────────────────────────────────────────
+// Pre-built semantic categories. Words can belong to multiple groups.
+// These are starting points — users can add, rename, or delete any of them.
+
+export const SUGGESTED_THEMES: { name: string; description: string; emoji: string }[] = [
+  {
+    name: 'Phrasal Verbs',
+    emoji: '🔗',
+    description: 'Multi-word verbs — "give up", "carry out", "put off"',
+  },
+  {
+    name: 'Idioms & Expressions',
+    emoji: '💬',
+    description: 'Fixed phrases with non-literal meaning — "bite the bullet", "on the fence"',
+  },
+  {
+    name: 'Business & Professional',
+    emoji: '💼',
+    description: 'General workplace and corporate vocabulary',
+  },
+  {
+    name: 'Meetings & Presentations',
+    emoji: '📊',
+    description: 'Language for chairing, presenting, and participating in meetings',
+  },
+  {
+    name: 'Written Communication',
+    emoji: '✉️',
+    description: 'Emails, reports, proposals, formal documents',
+  },
+  {
+    name: 'Leadership & Management',
+    emoji: '🎯',
+    description: 'Managing teams, giving feedback, delegation, performance',
+  },
+  {
+    name: 'Negotiations & Persuasion',
+    emoji: '🤝',
+    description: 'Diplomatic language, deal-making, influencing without authority',
+  },
+  {
+    name: 'Problem-solving & Analysis',
+    emoji: '🔍',
+    description: 'Analytical thinking, root-cause language, decision frameworks',
+  },
+  {
+    name: 'Transitions & Connectors',
+    emoji: '🔀',
+    description: 'Discourse markers — "furthermore", "in contrast", "as a result"',
+  },
+  {
+    name: 'Formal & Academic',
+    emoji: '🎓',
+    description: 'High-register vocabulary for writing and formal speaking',
+  },
+  {
+    name: 'Everyday Conversation',
+    emoji: '☕',
+    description: 'Small talk, casual spoken English, social phrases',
+  },
+  {
+    name: 'Collocations & Chunks',
+    emoji: '🧩',
+    description: 'Fixed word combinations that native speakers use together',
+  },
+]
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 interface ThemesStore {

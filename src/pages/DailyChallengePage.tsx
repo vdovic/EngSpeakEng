@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
-  ChevronDown, PlayCircle, X, Plus, Search,
+  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
+import { useThemesStore } from '@/store/themesStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
 import { VocabItem, ExerciseType, ExerciseResult } from '@/types/vocabulary'
 import { FillBlankExercise } from '@/components/exercises/FillBlankExercise'
@@ -240,6 +241,7 @@ export function DailyChallengePage() {
   const recordExposure = useVocabStore((s) => s.recordExposure)
   const { addPoints, recordChallengeCompletion, checkBadges, streakDays, points } =
     useGamificationStore()
+  const allThemes = useThemesStore((s) => s.themes)
 
   const [slots, setSlots] = useState<ChallengeSlot[]>([])
   const [showPicker, setShowPicker] = useState(false)
@@ -249,6 +251,9 @@ export function DailyChallengePage() {
   const [phase, setPhase] = useState<'loading' | 'preview' | 'exercising' | 'complete'>('loading')
   const [newBadges, setNewBadges] = useState<ReturnType<typeof checkBadges>>([])
   const [isBonus, setIsBonus] = useState(false)
+  // '' = due words only (default), theme name = filter by theme
+  const [selectedGroup, setSelectedGroup] = useState('')
+  const [reshaking, setReshaking] = useState(false)
 
   // Track all item ids used so far (main + bonus) to avoid repeats in bonus
   const usedItemIds = useRef<Set<string>>(new Set())
@@ -258,21 +263,66 @@ export function DailyChallengePage() {
   // Set of ids currently in preview slots (drives picker exclusion list)
   const slotIds = useMemo(() => new Set(slots.map((s) => s.item.id)), [slots])
 
-  // Build challenge slots on mount (main round only)
-  useEffect(() => {
+  // ── Slot builders ───────────────────────────────────────────────────────────
+
+  /** Build slots from the "due now" pool (default mode). */
+  function buildDueSlots(): ChallengeSlot[] {
     const due = shuffle(
       allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)),
     ).slice(0, MAX_ITEMS)
+    return due.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
+  }
 
-    if (due.length === 0) {
+  /** Build slots from a specific theme. Due items come first, then not-yet-due ones. */
+  function buildThemeSlots(theme: string): ChallengeSlot[] {
+    const pool = allItems.filter(
+      (i) =>
+        (i.themes ?? []).includes(theme) &&
+        i.definitionEn &&
+        !i.archived &&
+        (i.exposureCount ?? 0) < 8,
+    )
+    const due = shuffle(pool.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
+    const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
+    return [...due, ...notDue]
+      .slice(0, MAX_ITEMS)
+      .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
+  }
+
+  // Build challenge slots on mount (main round only)
+  useEffect(() => {
+    const initial = buildDueSlots()
+
+    if (initial.length === 0) {
       setPhase('complete')
       return
     }
 
-    due.forEach((i) => usedItemIds.current.add(i.id))
-    setSlots(due.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) })))
+    initial.forEach((s) => usedItemIds.current.add(s.item.id))
+    setSlots(initial)
     setPhase('preview')
   }, [allItems]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Reshuffle ───────────────────────────────────────────────────────────────
+
+  function handleReshuffle() {
+    const newSlots = selectedGroup ? buildThemeSlots(selectedGroup) : buildDueSlots()
+    if (newSlots.length === 0) return
+    usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
+    setSlots(newSlots)
+    // Brief visual shake animation
+    setReshaking(true)
+    setTimeout(() => setReshaking(false), 400)
+  }
+
+  // ── Group change ────────────────────────────────────────────────────────────
+
+  function handleGroupChange(group: string) {
+    setSelectedGroup(group)
+    const newSlots = group ? buildThemeSlots(group) : buildDueSlots()
+    usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
+    setSlots(newSlots)
+  }
 
   // ── Preview: remove a word ──────────────────────────────────────────────────
   function handleRemove(itemId: string) {
@@ -385,15 +435,72 @@ export function DailyChallengePage() {
         </div>
 
         {/* Heading */}
-        <div className="mb-4">
+        <div className="mb-3">
           <h1 className="text-2xl font-bold text-slate-900 mb-1">
             {isBonus ? '🎯 Bonus round' : "Today's words"}
           </h1>
           <p className="text-sm text-slate-500">
-            {slots.length} word{slots.length !== 1 ? 's' : ''} selected.
-            {' '}Remove any you don't want, or add others from your library.
+            Review the list, remove words you want to skip, or change the group.
           </p>
         </div>
+
+        {/* ── Reshuffle + Group toolbar ── */}
+        {!isBonus && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            {/* Reshuffle button */}
+            <button
+              onClick={handleReshuffle}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all ${reshaking ? 'animate-spin-once' : ''}`}
+              title="Pick a new random set"
+            >
+              <Shuffle size={15} />
+              Reshuffle
+            </button>
+
+            {/* Group / theme selector */}
+            {allThemes.length > 0 && (
+              <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm">
+                <Layers size={14} className="text-slate-400 shrink-0" />
+                <select
+                  value={selectedGroup}
+                  onChange={(e) => handleGroupChange(e.target.value)}
+                  className="text-sm font-medium text-slate-700 bg-transparent border-none outline-none cursor-pointer pr-1"
+                >
+                  <option value="">Due words</option>
+                  <optgroup label="Pick from theme">
+                    {allThemes.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
+            )}
+
+            {/* Context line */}
+            <span className="text-xs text-slate-400 ml-auto">
+              {slots.length} word{slots.length !== 1 ? 's' : ''}
+              {selectedGroup && (
+                <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>
+              )}
+            </span>
+          </div>
+        )}
+
+        {/* Empty-theme state */}
+        {slots.length === 0 && selectedGroup && (
+          <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
+            <p className="text-sm font-medium text-slate-600 mb-1">No words in "{selectedGroup}"</p>
+            <p className="text-xs text-slate-400 mb-3">
+              Open any word's detail page to assign it to this theme, or choose a different group.
+            </p>
+            <button
+              onClick={() => handleGroupChange('')}
+              className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+            >
+              ← Back to due words
+            </button>
+          </div>
+        )}
 
         {/* Word list */}
         <div className="space-y-2 mb-4">
