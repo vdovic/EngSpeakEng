@@ -26,6 +26,9 @@ import { subDays, startOfDay, isWithinInterval } from 'date-fns'
 
 // ── Module-level constants ─────────────────────────────────────────────────────
 
+/** Mirrors DailyChallengePage MAX_ITEMS — keeps home count consistent with what the session actually shows */
+const CHALLENGE_SESSION_CAP = 25
+
 /** Emoji map built once from SUGGESTED_THEMES at module load */
 const THEME_EMOJI: Record<string, string> = Object.fromEntries(
   SUGGESTED_THEMES.map((s) => [s.name, s.emoji]),
@@ -772,8 +775,9 @@ export function DashboardPage() {
       }
     }
     if (challengeDueCount >= 5 && !challengeDoneToday) {
+      const capped = Math.min(challengeDueCount, CHALLENGE_SESSION_CAP)
       return {
-        text: `${challengeDueCount} words are ready for your Daily Challenge. Completing today's session keeps your learning streak strong.`,
+        text: `${capped} word${capped !== 1 ? 's' : ''} are ready for your Daily Challenge. Completing today's session keeps your learning streak strong.`,
         action: '/challenge',
         actionLabel: 'Start Challenge',
       }
@@ -808,7 +812,7 @@ export function DashboardPage() {
       {/* 2. Primary CTA */}
       <LearningCtaCard
         dueCount={dueItems.length}
-        challengeCount={challengeDueCount}
+        challengeCount={Math.min(challengeDueCount, CHALLENGE_SESSION_CAP)}
         challengeDoneToday={challengeDoneToday}
         onReview={() => navigate('/review')}
         onChallenge={() => navigate('/challenge')}
@@ -818,7 +822,7 @@ export function DashboardPage() {
       <TodaysFocusPanel
         dueCount={dueItems.length}
         nextDueWord={nextDueWord}
-        challengeCount={challengeDueCount}
+        challengeCount={Math.min(challengeDueCount, CHALLENGE_SESSION_CAP)}
         challengeDoneToday={challengeDoneToday}
         onReview={() => navigate('/review')}
         onChallenge={() => navigate('/challenge')}

@@ -665,7 +665,7 @@ export function InboxPage() {
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Inbox size={20} className="text-slate-500" />
-          <h1 className="text-xl font-bold text-slate-900">New Words</h1>
+          <h1 className="text-xl font-bold text-slate-900">Inbox</h1>
           {inboxItems.length > 0 && (
             <span className="bg-slate-200 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full">
               {inboxItems.length}
@@ -755,7 +755,7 @@ export function InboxPage() {
           >
             {anySelected
               ? `${selectedIds.length} selected — clear`
-              : `Select all ${filtered.length === inboxItems.length ? 'new words' : `${filtered.length} visible`}`}
+              : `Select all ${filtered.length === inboxItems.length ? 'inbox items' : `${filtered.length} visible`}`}
           </button>
           {filtered.length < inboxItems.length && (
             <span className="text-xs text-slate-400">
@@ -771,7 +771,7 @@ export function InboxPage() {
           <Inbox size={40} className="mx-auto mb-3 opacity-40" />
           {inboxItems.length === 0 ? (
             <>
-              <p className="font-medium text-slate-600">No new words yet</p>
+              <p className="font-medium text-slate-600">Inbox is empty</p>
               <p className="text-sm mt-1">Capture words and phrases as you encounter them.</p>
               <button
                 onClick={() => setShowAdd(true)}

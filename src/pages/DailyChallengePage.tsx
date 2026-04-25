@@ -47,6 +47,7 @@ function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType 
 }
 
 const MAX_ITEMS = 25
+const SESSION_SIZES = [15, 25, 40] as const
 
 const STATUS_ORDER: Record<string, number> = {
   inbox: 0, learning: 1, stable: 2, activation: 3, mastered: 4,
@@ -254,6 +255,7 @@ export function DailyChallengePage() {
   // '' = due words only (default), theme name = filter by theme
   const [selectedGroup, setSelectedGroup] = useState('')
   const [reshaking, setReshaking] = useState(false)
+  const [sessionSize, setSessionSize] = useState<number>(MAX_ITEMS)
 
   // Track all item ids used so far (main + bonus) to avoid repeats in bonus
   const usedItemIds = useRef<Set<string>>(new Set())
@@ -266,15 +268,15 @@ export function DailyChallengePage() {
   // ── Slot builders ───────────────────────────────────────────────────────────
 
   /** Build slots from the "due now" pool (default mode). */
-  function buildDueSlots(): ChallengeSlot[] {
+  function buildDueSlots(cap = sessionSize): ChallengeSlot[] {
     const due = shuffle(
       allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)),
-    ).slice(0, MAX_ITEMS)
+    ).slice(0, cap)
     return due.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
   /** Build slots from a specific theme. Due items come first, then not-yet-due ones. */
-  function buildThemeSlots(theme: string): ChallengeSlot[] {
+  function buildThemeSlots(theme: string, cap = sessionSize): ChallengeSlot[] {
     const pool = allItems.filter(
       (i) =>
         (i.themes ?? []).includes(theme) &&
@@ -285,7 +287,7 @@ export function DailyChallengePage() {
     const due = shuffle(pool.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     return [...due, ...notDue]
-      .slice(0, MAX_ITEMS)
+      .slice(0, cap)
       .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
@@ -320,6 +322,15 @@ export function DailyChallengePage() {
   function handleGroupChange(group: string) {
     setSelectedGroup(group)
     const newSlots = group ? buildThemeSlots(group) : buildDueSlots()
+    usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
+    setSlots(newSlots)
+  }
+
+  // ── Session size change ──────────────────────────────────────────────────────
+
+  function handleSessionSizeChange(size: number) {
+    setSessionSize(size)
+    const newSlots = selectedGroup ? buildThemeSlots(selectedGroup, size) : buildDueSlots(size)
     usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
     setSlots(newSlots)
   }
@@ -446,44 +457,66 @@ export function DailyChallengePage() {
 
         {/* ── Reshuffle + Group toolbar ── */}
         {!isBonus && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            {/* Reshuffle button */}
-            <button
-              onClick={handleReshuffle}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all ${reshaking ? 'animate-spin-once' : ''}`}
-              title="Pick a new random set"
-            >
-              <Shuffle size={15} />
-              Reshuffle
-            </button>
+          <>
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {/* Reshuffle button */}
+              <button
+                onClick={handleReshuffle}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all ${reshaking ? 'animate-spin-once' : ''}`}
+                title="Pick a new random set"
+              >
+                <Shuffle size={15} />
+                Reshuffle
+              </button>
 
-            {/* Group / theme selector */}
-            {allThemes.length > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm">
-                <Layers size={14} className="text-slate-400 shrink-0" />
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => handleGroupChange(e.target.value)}
-                  className="text-sm font-medium text-slate-700 bg-transparent border-none outline-none cursor-pointer pr-1"
-                >
-                  <option value="">Due words</option>
-                  <optgroup label="Pick from theme">
-                    {allThemes.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-            )}
-
-            {/* Context line */}
-            <span className="text-xs text-slate-400 ml-auto">
-              {slots.length} word{slots.length !== 1 ? 's' : ''}
-              {selectedGroup && (
-                <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>
+              {/* Group / theme selector */}
+              {allThemes.length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm">
+                  <Layers size={14} className="text-slate-400 shrink-0" />
+                  <select
+                    value={selectedGroup}
+                    onChange={(e) => handleGroupChange(e.target.value)}
+                    className="text-sm font-medium text-slate-700 bg-transparent border-none outline-none cursor-pointer pr-1"
+                  >
+                    <option value="">Due words</option>
+                    <optgroup label="Pick from theme">
+                      {allThemes.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
               )}
-            </span>
-          </div>
+
+              {/* Context line */}
+              <span className="text-xs text-slate-400 ml-auto">
+                {slots.length} word{slots.length !== 1 ? 's' : ''}
+                {selectedGroup && (
+                  <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>
+                )}
+              </span>
+            </div>
+
+            {/* ── Session size picker ── */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs font-medium text-slate-500 shrink-0">Session size:</span>
+              <div className="flex gap-1.5">
+                {SESSION_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => handleSessionSizeChange(size)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                      sessionSize === size
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Empty-theme state */}
@@ -514,7 +547,7 @@ export function DailyChallengePage() {
         </div>
 
         {/* Add from library button */}
-        {slots.length < MAX_ITEMS && (
+        {slots.length < sessionSize && (
           <button
             onClick={() => setShowPicker(true)}
             className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
