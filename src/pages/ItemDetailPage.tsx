@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
   Mic, PenLine, BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
-  Loader2, AlertCircle, RefreshCw, Target, Layers
+  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -17,14 +17,33 @@ import { format } from 'date-fns'
 
 const STATUS_FLOW: ItemStatus[] = ['inbox', 'learning', 'stable', 'activation', 'mastered']
 
-function Section({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  children,
+  defaultOpen = true,
+}: {
+  title: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200 hover:bg-slate-100 transition-colors text-left"
+      >
         {icon && <span className="text-slate-500">{icon}</span>}
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{title}</h3>
-      </div>
-      <div className="px-4 py-3">{children}</div>
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex-1">{title}</h3>
+        <ChevronDown
+          size={13}
+          className={`text-slate-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <div className="px-4 py-3">{children}</div>}
     </div>
   )
 }
@@ -552,7 +571,7 @@ export function ItemDetailPage() {
       <div className="my-3" />
 
       {/* Usage examples */}
-      <Section title="Usage examples" icon={<GitBranch size={14} />}>
+      <Section title="Usage examples" icon={<GitBranch size={14} />} defaultOpen={false}>
         <Field
           label="Natural example"
           value={current.exampleSentence}
@@ -592,7 +611,7 @@ export function ItemDetailPage() {
       <div className="my-3" />
 
       {/* Nuance */}
-      <Section title="Nuance & register">
+      <Section title="Nuance & register" defaultOpen={false}>
         {editing && (
           <div className="mb-3">
             <label className="text-xs font-medium text-slate-500 block mb-1">Register</label>
@@ -640,7 +659,7 @@ export function ItemDetailPage() {
       <div className="my-3" />
 
       {/* Word relationships */}
-      <Section title="Relationships" icon={<Network size={14} />}>
+      <Section title="Relationships" icon={<Network size={14} />} defaultOpen={false}>
         <ListField label="Synonyms" items={current.synonyms} editing={editing} onChange={(v) => patch('synonyms', v)} />
         <ListField label="Antonyms" items={current.antonyms} editing={editing} onChange={(v) => patch('antonyms', v)} />
         <ListField label="Collocations" items={current.collocations} editing={editing} onChange={(v) => patch('collocations', v)} />
@@ -668,7 +687,7 @@ export function ItemDetailPage() {
       )}
 
       {/* Memory */}
-      <Section title="Memory support" icon={<Lightbulb size={14} />}>
+      <Section title="Memory support" icon={<Lightbulb size={14} />} defaultOpen={false}>
         <Field
           label="Etymology"
           value={current.etymology}

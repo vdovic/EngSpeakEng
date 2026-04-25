@@ -518,6 +518,12 @@ export function StatsPage() {
     [points, streakDays, challengeCompletions],
   )
 
+  // ── Onboarding check ────────────────────────────────────────────────────────
+  const hasStartedLearning = useMemo(
+    () => items.some((i) => i.status !== 'inbox'),
+    [items],
+  )
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-28 md:pb-8 space-y-4">
@@ -527,6 +533,31 @@ export function StatsPage() {
         <BarChart2 size={20} className="text-slate-500" />
         <h1 className="text-xl font-bold text-slate-900">Progress</h1>
       </div>
+
+      {/* ── Onboarding banner ─────────────────────────────────────────────────── */}
+      {!hasStartedLearning && (
+        <div className="bg-gradient-to-br from-brand-50 to-violet-50 border border-brand-100 rounded-2xl p-5">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
+              <TrendingUp size={18} className="text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-900 mb-1">Your journey starts here</p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Activate <span className="font-semibold text-brand-700">10–20 words</span> from your Inbox to unlock
+                challenge history, streak tracking, and personalised learning insights.
+              </p>
+              <button
+                onClick={() => navigate('/inbox')}
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 transition-colors"
+              >
+                Go to Inbox
+                <ChevronRight size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Overview metrics ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">

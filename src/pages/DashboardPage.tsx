@@ -14,9 +14,9 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Flame, BookOpen, RefreshCw, Zap, Trophy,
-  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2,
+  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2, Star,
 } from 'lucide-react'
-import { useVocabStore, useDueItems } from '@/store/vocabStore'
+import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
@@ -695,6 +695,74 @@ function AIInsightCard({ insight }: { insight: Insight }) {
   )
 }
 
+// ── ThisWeekPreview ───────────────────────────────────────────────────────────
+
+function ThisWeekPreview({
+  onNavigate,
+}: {
+  onNavigate: () => void
+}) {
+  const weekItems = useWeeklyFocusItems()
+  if (weekItems.length === 0) return null
+
+  const preview = weekItems.slice(0, 5)
+
+  return (
+    <section className="mb-8">
+      <div className="flex items-end justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Star size={16} className="text-amber-500" fill="currentColor" />
+            Active This Week
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">{weekItems.length} word{weekItems.length !== 1 ? 's' : ''} in focus</p>
+        </div>
+        <button
+          onClick={onNavigate}
+          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0"
+        >
+          See all <ChevronRight size={12} />
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 shadow-sm">
+        {preview.map((item) => {
+          const uses = item.activation.usageLogs.length
+          return (
+            <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900 truncate">{item.term}</p>
+                {item.definitionEn && (
+                  <p className="text-xs text-slate-400 truncate leading-snug mt-0.5">{item.definitionEn}</p>
+                )}
+              </div>
+              {/* Usage dots: 3 needed for full week use */}
+              <div className="flex gap-1 shrink-0">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full ${
+                      i < uses ? 'bg-amber-400' : 'bg-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          )
+        })}
+        {weekItems.length > 5 && (
+          <button
+            onClick={onNavigate}
+            className="w-full py-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors text-center"
+          >
+            +{weekItems.length - 5} more →
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}
+
 // ── DashboardPage ─────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
@@ -836,6 +904,9 @@ export function DashboardPage() {
         onAddTheme={handleActivateTheme}
         processingTheme={processingTheme}
       />
+
+      {/* 4b. Active This Week preview */}
+      <ThisWeekPreview onNavigate={() => navigate('/week')} />
 
       {/* 5. Progress */}
       <ProgressSummaryCard
