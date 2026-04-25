@@ -168,7 +168,8 @@ function HomeHero({
 
       {/* ── Left: text ── */}
       <div className="lg:col-span-3">
-        {/* Product badge */}
+        {/* Greeting + product badge */}
+        <p className="text-sm font-semibold text-brand-600 mb-2">{greeting}</p>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-50 border border-brand-100 rounded-full mb-4">
           <Sparkles size={11} className="text-brand-600" />
           <span className="text-xs font-semibold text-brand-700 tracking-wide">Personalized English · ESE</span>
