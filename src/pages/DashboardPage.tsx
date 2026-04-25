@@ -14,10 +14,11 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Flame, BookOpen, RefreshCw, Zap, Trophy,
-  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers,
+  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2,
 } from 'lucide-react'
 import { useVocabStore, useDueItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
+import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
 import { QuickAddModal } from '@/components/QuickAddModal'
@@ -414,11 +415,13 @@ function SuggestedFocusAreaCard({
   emoji,
   description,
   onActivate,
+  isProcessing,
 }: {
   name: string
   emoji: string
   description: string
   onActivate: () => void
+  isProcessing?: boolean
 }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col hover:border-brand-200 hover:shadow-sm transition-all">
@@ -429,9 +432,17 @@ function SuggestedFocusAreaCard({
       <p className="text-xs text-slate-500 leading-snug flex-1 mb-4">{description}</p>
       <button
         onClick={onActivate}
-        className="w-full py-2 bg-brand-50 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors"
+        disabled={isProcessing}
+        className="w-full py-2 bg-brand-50 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
       >
-        Activate
+        {isProcessing ? (
+          <>
+            <Loader2 size={12} className="animate-spin" />
+            Scanning…
+          </>
+        ) : (
+          'Activate'
+        )}
       </button>
     </div>
   )
@@ -490,11 +501,13 @@ function FocusAreasPreview({
   onNavigateToTheme,
   onManageThemes,
   onAddTheme,
+  processingTheme,
 }: {
   themeStats: ThemeStat[]
   onNavigateToTheme: (theme: string) => void
   onManageThemes: () => void
   onAddTheme: (name: string) => void
+  processingTheme: string | null
 }) {
   const isEmpty = themeStats.length === 0
 
@@ -527,6 +540,7 @@ function FocusAreasPreview({
               emoji={s.emoji}
               description={s.description}
               onActivate={() => onAddTheme(s.name)}
+              isProcessing={processingTheme === s.name}
             />
           ))
         ) : (
@@ -688,6 +702,13 @@ export function DashboardPage() {
   const dueItems = useDueItems()
   const { themes, addTheme } = useThemesStore()
   const { lastChallengeDate } = useGamificationStore()
+  const { trigger, processingTheme } = useThemeAutoAssign()
+
+  /** Create theme then immediately run AI word assignment */
+  function handleActivateTheme(name: string) {
+    addTheme(name)
+    void trigger(name)
+  }
 
   // ── Derived values ──
 
@@ -808,7 +829,8 @@ export function DashboardPage() {
         themeStats={themeStats}
         onNavigateToTheme={(theme) => navigate(`/library?theme=${encodeURIComponent(theme)}`)}
         onManageThemes={() => navigate('/themes')}
-        onAddTheme={(name) => addTheme(name)}
+        onAddTheme={handleActivateTheme}
+        processingTheme={processingTheme}
       />
 
       {/* 5. Progress */}

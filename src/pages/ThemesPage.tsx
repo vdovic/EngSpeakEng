@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Layers, Plus, Pencil, Trash2, Check, X, ChevronRight, Sparkles, ChevronDown } from 'lucide-react'
+import { Layers, Plus, Pencil, Trash2, Check, X, ChevronRight, Sparkles, ChevronDown, Loader2 } from 'lucide-react'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
 import { useVocabStore } from '@/store/vocabStore'
+import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
 
 // ── Edit-in-place theme row ───────────────────────────────────────────────────
 
@@ -159,6 +160,15 @@ export function ThemesPage() {
   const [showNewInput, setShowNewInput] = useState(false)
   const [newName, setNewName] = useState('')
 
+  const { trigger, isProcessing, processingTheme, lastResult, error, clearResult, clearError } =
+    useThemeAutoAssign()
+
+  /** Create a theme then immediately kick off AI word assignment */
+  function handleAddTheme(name: string) {
+    addTheme(name)
+    void trigger(name)
+  }
+
   const themeCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const theme of themes) counts.set(theme, 0)
@@ -173,7 +183,7 @@ export function ThemesPage() {
   function submitNew() {
     const trimmed = newName.trim()
     if (trimmed) {
-      addTheme(trimmed)
+      handleAddTheme(trimmed)
       setNewName('')
       setShowNewInput(false)
     }
@@ -223,6 +233,47 @@ export function ThemesPage() {
       <p className="text-sm text-slate-500 mb-5">
         Group words into topics. Words can belong to multiple themes. Use themes to filter Vocabulary and to focus Daily Challenge sessions.
       </p>
+
+      {/* AI assignment status banner */}
+      {isProcessing && (
+        <div className="mb-4 flex items-center gap-3 px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl text-sm text-brand-700">
+          <Loader2 size={15} className="animate-spin shrink-0 text-brand-600" />
+          <span>
+            Scanning your vocabulary for{' '}
+            <strong>"{processingTheme}"</strong> words…
+          </span>
+        </div>
+      )}
+      {!isProcessing && lastResult && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-700">
+          <span>
+            {lastResult.assigned > 0 ? (
+              <>
+                <strong>{lastResult.assigned}</strong> word
+                {lastResult.assigned !== 1 ? 's' : ''} automatically assigned to{' '}
+                <strong>"{lastResult.theme}"</strong>
+              </>
+            ) : (
+              <>
+                No existing words matched <strong>"{lastResult.theme}"</strong>
+                {lastResult.scanned > 0 ? ` (${lastResult.scanned} scanned)` : ''} — add words
+                first or assign manually.
+              </>
+            )}
+          </span>
+          <button onClick={clearResult} className="shrink-0 text-emerald-500 hover:text-emerald-700">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      {!isProcessing && error && (
+        <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+          <span>AI assignment failed: {error}</span>
+          <button onClick={clearError} className="shrink-0 text-red-400 hover:text-red-600">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* New theme input */}
       {showNewInput && (
@@ -283,7 +334,7 @@ export function ThemesPage() {
       )}
 
       {/* Suggested dimensions */}
-      <SuggestedThemesSection existingThemes={themes} onAdd={addTheme} />
+      <SuggestedThemesSection existingThemes={themes} onAdd={handleAddTheme} />
     </div>
   )
 }
