@@ -5,52 +5,28 @@ import { Badge, BadgeId } from '@/types/vocabulary'
 // ── Badge catalogue ───────────────────────────────────────────────────────────
 
 const BADGE_DEFS: Omit<Badge, 'unlockedAt'>[] = [
-  {
-    id: 'first-step',
-    label: 'First Step',
-    description: 'Complete your first daily challenge',
-    emoji: '🎯',
-  },
-  {
-    id: 'early-bird',
-    label: 'Early Bird',
-    description: 'Complete 10 daily challenges',
-    emoji: '🐦',
-  },
-  {
-    id: 'on-a-roll',
-    label: 'On a Roll',
-    description: 'Reach a 3-day challenge streak',
-    emoji: '🔥',
-  },
-  {
-    id: 'week-warrior',
-    label: 'Week Warrior',
-    description: 'Reach a 7-day challenge streak',
-    emoji: '⚔️',
-  },
-  {
-    id: 'century',
-    label: 'Century',
-    description: 'Earn 100 total points',
-    emoji: '💯',
-  },
-  {
-    id: 'grand-scholar',
-    label: 'Grand Scholar',
-    description: 'Earn 500 total points',
-    emoji: '🎓',
-  },
-  {
-    id: 'diligent',
-    label: 'Diligent',
-    description: 'Complete 30 daily challenges',
-    emoji: '📚',
-  },
+  { id: 'first-step',    label: 'First Step',    description: 'Complete your first daily challenge',  emoji: '🎯' },
+  { id: 'early-bird',   label: 'Early Bird',    description: 'Complete 10 daily challenges',          emoji: '🐦' },
+  { id: 'on-a-roll',    label: 'On a Roll',     description: 'Reach a 3-day challenge streak',        emoji: '🔥' },
+  { id: 'week-warrior', label: 'Week Warrior',  description: 'Reach a 7-day challenge streak',        emoji: '⚔️' },
+  { id: 'century',      label: 'Century',       description: 'Earn 100 total points',                 emoji: '💯' },
+  { id: 'grand-scholar',label: 'Grand Scholar', description: 'Earn 500 total points',                 emoji: '🎓' },
+  { id: 'diligent',     label: 'Diligent',      description: 'Complete 30 daily challenges',          emoji: '📚' },
 ]
 
 /** All badge definitions including locked ones (no unlockedAt). */
 export const ALL_BADGES: Badge[] = BADGE_DEFS.map((d) => ({ ...d }))
+
+/** Progress thresholds for each badge — used to render progress bars. */
+export const BADGE_THRESHOLDS: Record<BadgeId, { metric: 'completions' | 'streak' | 'points'; target: number }> = {
+  'first-step':    { metric: 'completions', target: 1 },
+  'early-bird':    { metric: 'completions', target: 10 },
+  'on-a-roll':     { metric: 'streak',      target: 3 },
+  'week-warrior':  { metric: 'streak',      target: 7 },
+  'century':       { metric: 'points',      target: 100 },
+  'grand-scholar': { metric: 'points',      target: 500 },
+  'diligent':      { metric: 'completions', target: 30 },
+}
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -64,21 +40,28 @@ function yesterdayKey(): string {
   return d.toISOString().slice(0, 10)
 }
 
+function defaultDeadline(): string {
+  return new Date(new Date().getFullYear() + 1, 0, 1).toISOString().slice(0, 10)
+}
+
 // ── Store interface ───────────────────────────────────────────────────────────
 
 interface GamificationStore {
   points: number
   streakDays: number
-  lastChallengeDate: string | null // YYYY-MM-DD or null
-  badges: Badge[]                  // only unlocked badges
+  lastChallengeDate: string | null
+  badges: Badge[]
   challengeCompletions: number
+  /** Daily challenge points keyed by YYYY-MM-DD. */
+  pointsHistory: Record<string, number>
+  /** Customisable mastery goal */
+  goalTarget: number
+  goalDeadline: string
 
   addPoints: (n: number) => void
   recordChallengeCompletion: () => void
-  /** Evaluate badge criteria and unlock newly earned ones.
-   *  Returns the array of badges unlocked in this call (may be empty). */
   checkBadges: () => Badge[]
-  /** Reset all state — useful for development / testing. */
+  setGoal: (target: number, deadline: string) => void
   resetAll: () => void
 }
 
@@ -92,20 +75,28 @@ export const useGamificationStore = create<GamificationStore>()(
       lastChallengeDate: null,
       badges: [],
       challengeCompletions: 0,
+      pointsHistory: {},
+      goalTarget: 200,
+      goalDeadline: defaultDeadline(),
 
-      addPoints: (n) => set((s) => ({ points: s.points + n })),
+      addPoints: (n) => {
+        const today = todayKey()
+        set((s) => ({
+          points: s.points + n,
+          pointsHistory: {
+            ...s.pointsHistory,
+            [today]: (s.pointsHistory[today] ?? 0) + n,
+          },
+        }))
+      },
 
       recordChallengeCompletion: () => {
         const { streakDays, lastChallengeDate } = get()
         const today = todayKey()
-
-        // Only update once per calendar day
         if (lastChallengeDate === today) return
 
         const newStreak =
-          lastChallengeDate === yesterdayKey()
-            ? streakDays + 1 // continuing streak
-            : 1              // streak broken or first time
+          lastChallengeDate === yesterdayKey() ? streakDays + 1 : 1
 
         set((s) => ({
           streakDays: newStreak,
@@ -116,7 +107,6 @@ export const useGamificationStore = create<GamificationStore>()(
 
       checkBadges: () => {
         const { points, streakDays, challengeCompletions, badges } = get()
-
         const unlockedIds = new Set<BadgeId>(badges.map((b) => b.id as BadgeId))
 
         const criteria: { id: BadgeId; unlocked: boolean }[] = [
@@ -135,9 +125,7 @@ export const useGamificationStore = create<GamificationStore>()(
         for (const crit of criteria) {
           if (crit.unlocked && !unlockedIds.has(crit.id)) {
             const def = BADGE_DEFS.find((d) => d.id === crit.id)
-            if (def) {
-              newlyUnlocked.push({ ...def, unlockedAt: now })
-            }
+            if (def) newlyUnlocked.push({ ...def, unlockedAt: now })
           }
         }
 
@@ -148,6 +136,8 @@ export const useGamificationStore = create<GamificationStore>()(
         return newlyUnlocked
       },
 
+      setGoal: (target, deadline) => set({ goalTarget: target, goalDeadline: deadline }),
+
       resetAll: () =>
         set({
           points: 0,
@@ -155,6 +145,9 @@ export const useGamificationStore = create<GamificationStore>()(
           lastChallengeDate: null,
           badges: [],
           challengeCompletions: 0,
+          pointsHistory: {},
+          goalTarget: 200,
+          goalDeadline: defaultDeadline(),
         }),
     }),
     { name: 'speak-english-gamification' },
