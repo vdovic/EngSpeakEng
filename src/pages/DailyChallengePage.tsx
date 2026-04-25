@@ -26,6 +26,10 @@ type FeedbackState = {
   points: number
   userAnswer: string
   correctAnswer: string
+  /** Displayed in the feedback panel to help remember the word in context */
+  exampleSentence?: string
+  /** Used for "View entry" deep-link in the feedback panel */
+  itemId: string
 } | null
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -291,7 +295,20 @@ export function DailyChallengePage() {
       .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
-  // Build challenge slots on mount (main round only)
+  // Build challenge slots ONCE on mount.
+  //
+  // ⚠️  CRITICAL: dependency array is intentionally [] (not [allItems]).
+  //
+  // When the user answers an exercise, recordExposure() mutates a VocabItem
+  // in the Zustand store, which updates the `allItems` reference. If this
+  // effect depended on `allItems`, it would re-fire after every answer,
+  // rebuild the slot list from scratch, and call setPhase('preview') — sending
+  // the user back to the setup page after the very first exercise answer.
+  //
+  // App.tsx guarantees `loaded === true` before any route renders (it shows a
+  // full-page spinner until the store is populated), so `allItems` is always
+  // non-empty and current when this effect first runs. No race condition.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const initial = buildDueSlots()
 
@@ -303,7 +320,7 @@ export function DailyChallengePage() {
     initial.forEach((s) => usedItemIds.current.add(s.item.id))
     setSlots(initial)
     setPhase('preview')
-  }, [allItems]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // ← run once on mount only
 
   // ── Reshuffle ───────────────────────────────────────────────────────────────
 
@@ -392,6 +409,8 @@ export function DailyChallengePage() {
         points: result.points,
         userAnswer: result.userAnswer,
         correctAnswer: result.correctAnswer ?? slots[currentIndex]?.item.term ?? '',
+        exampleSentence: slots[currentIndex]?.item.exampleSentence ?? undefined,
+        itemId: result.itemId,
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -742,38 +761,83 @@ export function DailyChallengePage() {
         )}
       </div>
 
-      {/* Feedback overlay */}
+      {/* ── Feedback panel ── */}
       {feedback && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={dismissFeedback}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') dismissFeedback() }}
-          className={`fixed inset-0 flex flex-col items-center justify-center z-50 cursor-pointer select-none ${
-            feedback.correct ? 'bg-emerald-600/90' : 'bg-red-600/90'
-          }`}
-        >
-          <div className="text-white text-center px-6">
-            {feedback.correct ? (
-              <>
-                <CheckCircle size={56} className="mx-auto mb-4 opacity-90" />
-                <p className="text-3xl font-bold mb-1">Correct!</p>
-                <p className="text-lg opacity-80">+{feedback.points} pts</p>
-              </>
-            ) : (
-              <>
-                <XCircle size={56} className="mx-auto mb-4 opacity-90" />
-                <p className="text-3xl font-bold mb-2">Not quite</p>
-                <p className="text-lg opacity-90">
-                  Answer: <strong>{feedback.correctAnswer}</strong>
+        <>
+          {/* Dim scrim — click to continue (keyboard shortcut still works too) */}
+          <div
+            className="fixed inset-0 z-40 bg-black/20"
+            onClick={dismissFeedback}
+          />
+
+          {/* Bottom sheet */}
+          <div
+            className={`fixed bottom-0 left-0 right-0 z-50 border-t-2 rounded-t-3xl shadow-2xl ${
+              feedback.correct
+                ? 'bg-emerald-50 border-emerald-200'
+                : 'bg-red-50 border-red-200'
+            }`}
+          >
+            <div className="max-w-lg mx-auto px-5 py-5 pb-8">
+
+              {/* Result header */}
+              <div className="flex items-center gap-3 mb-4">
+                {feedback.correct
+                  ? <CheckCircle size={28} className="text-emerald-600 shrink-0" />
+                  : <XCircle    size={28} className="text-red-600 shrink-0" />}
+                <div className="flex-1">
+                  <p className={`text-lg font-bold leading-tight ${
+                    feedback.correct ? 'text-emerald-800' : 'text-red-800'
+                  }`}>
+                    {feedback.correct ? 'Correct!' : 'Not quite'}
+                  </p>
+                  {feedback.correct && (
+                    <p className="text-sm text-emerald-600 font-semibold">+{feedback.points} pts</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Correct answer — shown when wrong */}
+              {!feedback.correct && (
+                <div className={`rounded-xl px-4 py-3 mb-3 bg-red-100 border border-red-200`}>
+                  <p className="text-xs font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Correct answer</p>
+                  <p className="text-base font-bold text-red-900">{feedback.correctAnswer}</p>
+                </div>
+              )}
+
+              {/* Example sentence */}
+              {feedback.exampleSentence && (
+                <p className="text-sm text-slate-600 italic leading-relaxed mb-4">
+                  &ldquo;{feedback.exampleSentence}&rdquo;
                 </p>
-              </>
-            )}
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => { navigate(`/item/${feedback.itemId}`); dismissFeedback() }}
+                  className="px-4 py-3 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors shrink-0"
+                >
+                  View entry
+                </button>
+                <button
+                  onClick={dismissFeedback}
+                  className={`flex-1 py-3 text-sm font-bold text-white rounded-2xl transition-colors ${
+                    feedback.correct
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  Continue →
+                </button>
+              </div>
+
+              <p className="text-center text-xs text-slate-400 mt-3">
+                or press any key to continue
+              </p>
+            </div>
           </div>
-          <p className="text-white/50 text-sm mt-10 tracking-wide">
-            tap anywhere or press any key to continue
-          </p>
-        </div>
+        </>
       )}
     </div>
   )
