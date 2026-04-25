@@ -25,6 +25,14 @@ interface VocabStore {
   recordExposure: (id: string, correct: boolean) => Promise<void>
   /** Replace the full themes array for an item. */
   assignThemes: (id: string, themes: string[]) => Promise<void>
+  /** Move inbox items to Learning. Returns counts for feedback. */
+  moveToLearning: (ids: string[]) => Promise<{ moved: number; skipped: number }>
+  /** Set items as immediately due for Daily Challenge (promotes inbox→learning). */
+  addToChallenge: (ids: string[]) => Promise<{ added: number; skipped: number }>
+  /** Add items to This Week's Focus (promotes inbox→learning). */
+  addToWeekFocus: (ids: string[]) => Promise<{ added: number; skipped: number }>
+  /** Archive (soft-delete) multiple items at once. */
+  deleteItems: (ids: string[]) => Promise<void>
 }
 
 function uid(): string {
@@ -378,6 +386,68 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
   // ── assignThemes ─────────────────────────────────────────────────────────────
   assignThemes: async (id, themes) => {
     await applyPatch(id, { themes, updatedAt: new Date().toISOString() }, set)
+  },
+
+  // ── moveToLearning ───────────────────────────────────────────────────────────
+  moveToLearning: async (ids) => {
+    const now = new Date().toISOString()
+    let moved = 0, skipped = 0
+    for (const id of ids) {
+      const item = get().items.find((i) => i.id === id)
+      if (!item || item.status !== 'inbox') { skipped++; continue }
+      await applyPatch(id, { status: 'learning' as ItemStatus, updatedAt: now }, set)
+      moved++
+    }
+    return { moved, skipped }
+  },
+
+  // ── addToChallenge ───────────────────────────────────────────────────────────
+  addToChallenge: async (ids) => {
+    const now = new Date().toISOString()
+    let added = 0, skipped = 0
+    for (const id of ids) {
+      const item = get().items.find((i) => i.id === id)
+      if (!item) { skipped++; continue }
+      // Skip items fully mastered via challenge
+      if ((item.exposureCount ?? 0) >= 8) { skipped++; continue }
+      // Skip if already immediately due (already in the queue) and not inbox
+      const alreadyDue = !item.nextChallengeDate ||
+        Date.now() >= new Date(item.nextChallengeDate).getTime()
+      if (alreadyDue && item.status !== 'inbox') { skipped++; continue }
+      const patch: Partial<VocabItem> = { nextChallengeDate: now, updatedAt: now }
+      if (item.status === 'inbox') patch.status = 'learning' as ItemStatus
+      await applyPatch(id, patch, set)
+      added++
+    }
+    return { added, skipped }
+  },
+
+  // ── addToWeekFocus ───────────────────────────────────────────────────────────
+  addToWeekFocus: async (ids) => {
+    const now = new Date().toISOString()
+    let added = 0, skipped = 0
+    for (const id of ids) {
+      const item = get().items.find((i) => i.id === id)
+      if (!item) { skipped++; continue }
+      // Skip if already in focus list and not promoting from inbox
+      if (item.weeklyFocus && item.status !== 'inbox') { skipped++; continue }
+      const patch: Partial<VocabItem> = { weeklyFocus: true, updatedAt: now }
+      if (item.status === 'inbox') patch.status = 'learning' as ItemStatus
+      await applyPatch(id, patch, set)
+      added++
+    }
+    return { added, skipped }
+  },
+
+  // ── deleteItems ──────────────────────────────────────────────────────────────
+  deleteItems: async (ids) => {
+    const now = new Date().toISOString()
+    await db.transaction('rw', db.items, async () => {
+      for (const id of ids) {
+        await db.items.update(id, { archived: true, updatedAt: now })
+      }
+    })
+    set((s) => ({ items: s.items.filter((i) => !ids.includes(i.id)) }))
   },
 
   // ── recordExposure ──────────────────────────────────────────────────────────
