@@ -8,9 +8,7 @@ import {
 import { useVocabStore } from '@/store/vocabStore'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
-import { UsageProgress } from '@/components/UsageProgress'
 import { LogUsageModal } from '@/components/LogUsageModal'
-import { ExposureBar } from '@/components/ExposureBar'
 import { RelatedWordsSection } from '@/components/RelatedWordsSection'
 import { usagePoints, progressTowardMastery } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
@@ -374,88 +372,45 @@ export function ItemDetailPage() {
             Move to {STATUS_FLOW[STATUS_FLOW.indexOf(item.status) + 1]} →
           </button>
         )}
-      </div>
 
-      {/* Real-life usage tracker */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-700">Real-life usage</h2>
-          <button
-            onClick={() => setShowLogModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors"
-          >
-            <Plus size={14} />
-            I used it
-          </button>
-        </div>
-
-        <UsageProgress done={usesDone} needed={3} />
-
-        {item.activation.usageLogs.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {item.activation.usageLogs.slice().reverse().map((log) => (
-              <div key={log.id} className="flex items-start gap-2 text-xs bg-slate-50 rounded-lg p-2.5">
-                <div className="shrink-0 mt-0.5">
-                  {log.channel === 'speaking' ? (
-                    <Mic size={12} className="text-blue-500" />
-                  ) : (
-                    <PenLine size={12} className="text-emerald-500" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-medium text-slate-700 capitalize">{log.channel}</span>
-                    <span className="text-slate-400">{format(new Date(log.usedAt), 'MMM d')}</span>
-                  </div>
-                  {log.note && <p className="text-slate-500">{log.note}</p>}
-                  {log.sentence && (
-                    <p className="text-slate-700 italic mt-0.5">"{log.sentence}"</p>
-                  )}
-                </div>
+        {/* ── Compact progress strip ─────────────────────────────────────────── */}
+        {!editing && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* Usage dots */}
+              <div className="flex items-center gap-1">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className={`w-2.5 h-2.5 rounded-full border-2 ${
+                      i < usesDone ? 'bg-brand-600 border-brand-600' : 'bg-white border-slate-300'
+                    }`}
+                  />
+                ))}
+                <span className="text-xs text-slate-400 ml-1.5">{usesDone}/3 used</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Challenge exposure progress */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">Challenge progress</h2>
-        <ExposureBar
-          exposureCount={item.exposureCount}
-          nextChallengeDate={item.nextChallengeDate}
-          size="md"
-        />
-        <p className="text-xs text-slate-400 mt-2">
-          Complete the Daily Challenge to advance through 8 SRS exposure steps.
-        </p>
-      </div>
-
-      {/* Mastery progress */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-4">
-        <h2 className="text-sm font-semibold text-slate-700 mb-3">Mastery progress</h2>
-        <div className="space-y-2.5">
-          <MasteryRow
-            label="Successful recalls"
-            done={mastery.recalls.done}
-            needed={mastery.recalls.needed}
-          />
-          <MasteryRow
-            label="Own sentence written"
-            done={mastery.sentence ? 1 : 0}
-            needed={1}
-            boolStyle
-          />
-          <MasteryRow
-            label="Real-life uses"
-            done={mastery.uses.done}
-            needed={mastery.uses.needed}
-          />
-        </div>
-        {item.status === 'mastered' && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2">
-            <Check size={16} className="text-emerald-600" />
-            <span className="font-medium">Mastered!</span>
+              {/* Challenge exposure dots */}
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full ${
+                      i < (item.exposureCount ?? 0) ? 'bg-amber-400' : 'bg-slate-200'
+                    }`}
+                  />
+                ))}
+                <span className="text-xs text-slate-400 ml-1.5">
+                  {item.exposureCount ?? 0}/8 challenges
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowLogModal(true)}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors shrink-0"
+            >
+              <Plus size={12} />
+              I used it
+            </button>
           </div>
         )}
       </div>
@@ -651,6 +606,61 @@ export function ItemDetailPage() {
           onChange={(v) => patch('memoryCue', v)}
           multiline
         />
+      </Section>
+
+      <div className="my-3" />
+
+      {/* Progress — mastery checklist + usage log */}
+      <Section title="Progress" icon={<Target size={14} />}>
+        <div className="space-y-2.5">
+          <MasteryRow
+            label="Successful recalls"
+            done={mastery.recalls.done}
+            needed={mastery.recalls.needed}
+          />
+          <MasteryRow
+            label="Own sentence written"
+            done={mastery.sentence ? 1 : 0}
+            needed={1}
+            boolStyle
+          />
+          <MasteryRow
+            label="Real-life uses"
+            done={mastery.uses.done}
+            needed={mastery.uses.needed}
+          />
+        </div>
+        {item.status === 'mastered' && (
+          <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2">
+            <Check size={16} className="text-emerald-600" />
+            <span className="font-medium">Mastered!</span>
+          </div>
+        )}
+        {/* Usage log entries */}
+        {item.activation.usageLogs.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
+            <p className="text-xs font-medium text-slate-500 mb-1">Usage log</p>
+            {item.activation.usageLogs.slice().reverse().map((log) => (
+              <div key={log.id} className="flex items-start gap-2 text-xs bg-slate-50 rounded-lg p-2.5">
+                <div className="shrink-0 mt-0.5">
+                  {log.channel === 'speaking' ? (
+                    <Mic size={12} className="text-blue-500" />
+                  ) : (
+                    <PenLine size={12} className="text-emerald-500" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="font-medium text-slate-700 capitalize">{log.channel}</span>
+                    <span className="text-slate-400">{format(new Date(log.usedAt), 'MMM d')}</span>
+                  </div>
+                  {log.note && <p className="text-slate-500">{log.note}</p>}
+                  {log.sentence && <p className="text-slate-700 italic mt-0.5">"{log.sentence}"</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Section>
 
       <div className="my-3" />
