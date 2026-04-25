@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, BookOpen, RefreshCw, Library,
-  Target, BarChart2, Zap, Layers, GraduationCap,
+  Target, BarChart2, Zap, Layers, GraduationCap, Sparkles,
   type LucideIcon,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
@@ -24,13 +24,13 @@ const SIDEBAR_GROUPS: NavGroup[] = [
   {
     label: null,
     links: [
-      { to: '/',          icon: LayoutDashboard, label: 'Home' },
+      { to: '/', icon: LayoutDashboard, label: 'Home' },
     ],
   },
   {
     label: 'Learn',
     links: [
-      { to: '/inbox',     icon: BookOpen,  label: 'New Words',         badge: 'inbox' as const },
+      { to: '/inbox',     icon: BookOpen,  label: 'New Words',    badge: 'inbox' as const },
       { to: '/review',    icon: RefreshCw, label: 'Review' },
       { to: '/challenge', icon: Zap,       label: 'Daily Challenge' },
     ],
@@ -38,15 +38,15 @@ const SIDEBAR_GROUPS: NavGroup[] = [
   {
     label: 'Organise',
     links: [
-      { to: '/library',   icon: Library,   label: 'Vocabulary' },
-      { to: '/themes',    icon: Layers,    label: 'Themes' },
-      { to: '/week',      icon: Target,    label: "This Week's Focus" },
+      { to: '/library', icon: Library, label: 'Vocabulary' },
+      { to: '/themes',  icon: Layers,  label: 'Themes' },
+      { to: '/week',    icon: Target,  label: "This Week's Focus" },
     ],
   },
   {
     label: 'Track',
     links: [
-      { to: '/stats',     icon: BarChart2, label: 'Stats' },
+      { to: '/stats', icon: BarChart2, label: 'Stats' },
     ],
   },
 ]
@@ -60,6 +60,33 @@ const MOBILE_LINKS: NavLinkDef[] = [
   { to: '/library',   icon: Library,         label: 'Vocab' },
   { to: '/stats',     icon: BarChart2,       label: 'Stats' },
 ]
+
+// ── SidebarValueCard ───────────────────────────────────────────────────────────
+
+function SidebarValueCard() {
+  return (
+    <div className="mx-1 mt-4">
+      <div className="bg-gradient-to-br from-brand-50 to-violet-50 border border-brand-100 rounded-2xl p-3.5">
+        <div className="flex items-center gap-1.5 mb-2.5">
+          <Sparkles size={12} className="text-brand-600 shrink-0" />
+          <span className="text-[11px] font-bold text-brand-900 leading-none">ESE adapts to you</span>
+        </div>
+        <ul className="space-y-1.5">
+          {[
+            'Personalize by role & goals',
+            'Focus on what matters',
+            'AI-powered learning that sticks',
+          ].map((text) => (
+            <li key={text} className="flex items-start gap-1.5">
+              <span className="text-brand-400 text-xs shrink-0 mt-0.5">·</span>
+              <span className="text-[10px] text-brand-700 leading-snug">{text}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
 
 // ── NavBar ─────────────────────────────────────────────────────────────────────
 
@@ -77,11 +104,14 @@ export function NavBar() {
       {/* ── Desktop sidebar ── */}
       <nav className="hidden md:flex flex-col w-56 shrink-0 bg-white border-r border-slate-200 py-5 px-3">
         {/* Logo */}
-        <div className="flex items-center gap-2 px-3 mb-6">
-          <div className="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center shrink-0">
-            <GraduationCap size={15} className="text-white" />
+        <div className="flex items-center gap-2.5 px-3 mb-6">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shrink-0 shadow-sm">
+            <GraduationCap size={14} className="text-white" />
           </div>
-          <span className="text-[15px] font-bold text-slate-900 tracking-tight">SpeakEnglish</span>
+          <div className="leading-none">
+            <span className="block text-[15px] font-extrabold text-slate-900 tracking-tight">ESE</span>
+            <span className="block text-[9px] text-slate-400 tracking-wide mt-0.5">Personalized English</span>
+          </div>
         </div>
 
         {/* Groups */}
@@ -111,7 +141,6 @@ export function NavBar() {
                     >
                       {({ isActive }) => (
                         <>
-                          {/* Active indicator bar */}
                           {isActive && (
                             <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-brand-600 rounded-r-full" />
                           )}
@@ -131,6 +160,9 @@ export function NavBar() {
             </div>
           ))}
         </div>
+
+        {/* Sidebar value card */}
+        <SidebarValueCard />
       </nav>
 
       {/* ── Mobile bottom bar (5 links) ── */}
