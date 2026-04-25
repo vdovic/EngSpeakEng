@@ -22,6 +22,12 @@ class VocabDatabase extends Dexie {
         items: 'id, status, type, weeklyFocus, archived, &term, *tags',
       })
       .upgrade((tx) => tx.table('items').clear())
+
+    // v3 — add *themes multi-value index.
+    // No data wipe — existing items just get themes: [] defaulted in load().
+    this.version(3).stores({
+      items: 'id, status, type, weeklyFocus, archived, &term, *tags, *themes',
+    })
   }
 }
 

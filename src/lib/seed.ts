@@ -13,6 +13,7 @@ function makeItem(overrides: Partial<VocabItem> & Pick<VocabItem, 'term' | 'type
     createdAt: now,
     updatedAt: now,
     tags: [],
+    themes: [],
     synonyms: [],
     antonyms: [],
     collocations: [],

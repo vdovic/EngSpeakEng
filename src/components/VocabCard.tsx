@@ -89,6 +89,11 @@ export function VocabCard({ item, compact = false }: Props) {
             #{tag}
           </span>
         ))}
+        {(item.themes ?? []).slice(0, 2).map((theme) => (
+          <span key={theme} className="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
+            {theme}
+          </span>
+        ))}
         {(item.exposureCount ?? 0) > 0 && (
           <ExposureDots count={item.exposureCount ?? 0} />
         )}

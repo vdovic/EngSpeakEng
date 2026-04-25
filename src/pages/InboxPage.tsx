@@ -14,7 +14,7 @@ export function InboxPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
           <Inbox size={20} className="text-slate-500" />
-          <h1 className="text-xl font-bold text-slate-900">Inbox</h1>
+          <h1 className="text-xl font-bold text-slate-900">New Words</h1>
           {inboxItems.length > 0 && (
             <span className="bg-slate-200 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full">
               {inboxItems.length}
@@ -33,7 +33,7 @@ export function InboxPage() {
       {inboxItems.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
           <Inbox size={40} className="mx-auto mb-3 opacity-40" />
-          <p className="font-medium">Your inbox is empty</p>
+          <p className="font-medium">No new words</p>
           <p className="text-sm mt-1">Capture new words and phrases as you encounter them.</p>
           <button
             onClick={() => setShowAdd(true)}

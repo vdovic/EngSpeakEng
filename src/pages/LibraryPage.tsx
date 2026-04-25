@@ -2,16 +2,17 @@ import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Search, SlidersHorizontal, Library, X } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
+import { useThemesStore } from '@/store/themesStore'
 import { VocabCard } from '@/components/VocabCard'
 import { ItemStatus, ItemType, SourceType, VocabItem } from '@/types/vocabulary'
 import { searchVocabulary } from '@/utils/vocabSearch'
 
 const STATUS_OPTIONS: { value: ItemStatus | 'all'; label: string }[] = [
   { value: 'all',        label: 'All' },
-  { value: 'inbox',      label: 'Inbox' },
+  { value: 'inbox',      label: 'New' },
   { value: 'learning',   label: 'Learning' },
-  { value: 'stable',     label: 'Stable' },
-  { value: 'activation', label: 'Activation' },
+  { value: 'stable',     label: 'Stabilising' },
+  { value: 'activation', label: 'Activating' },
   { value: 'mastered',   label: 'Mastered' },
 ]
 
@@ -100,6 +101,7 @@ function FilterPills<T extends string>({
 
 export function LibraryPage() {
   const items = useVocabStore((s) => s.items)
+  const allThemes = useThemesStore((s) => s.themes)
   const [searchParams] = useSearchParams()
 
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
@@ -107,13 +109,16 @@ export function LibraryPage() {
   const [type, setType] = useState<ItemType | 'all'>('all')
   const [source, setSource] = useState<SourceType | 'all'>('all')
   const [tag, setTag] = useState<string | 'all'>('all')
+  const [theme, setTheme] = useState<string | 'all'>(() => searchParams.get('theme') ?? 'all')
   const [sort, setSort] = useState<SortKey>('newest')
   const [showFilters, setShowFilters] = useState(false)
 
-  // Sync search box when the URL param changes (e.g. navigating from GlobalSearch "View all")
+  // Sync search box / theme when the URL params change
   useEffect(() => {
     const q = searchParams.get('q') ?? ''
     if (q) setSearch(q)
+    const t = searchParams.get('theme') ?? 'all'
+    if (t !== 'all') { setTheme(t); setShowFilters(true) }
   }, [searchParams])
 
   const allTags = useMemo(() => {
@@ -129,6 +134,7 @@ export function LibraryPage() {
     type !== 'all',
     source !== 'all',
     tag !== 'all',
+    theme !== 'all',
   ].filter(Boolean).length
 
   function clearFilters() {
@@ -136,42 +142,37 @@ export function LibraryPage() {
     setType('all')
     setSource('all')
     setTag('all')
+    setTheme('all')
     setSearch('')
   }
 
   const filtered = useMemo(() => {
     const hasFilters =
-      status !== 'all' || type !== 'all' || source !== 'all' || tag !== 'all'
+      status !== 'all' || type !== 'all' || source !== 'all' || tag !== 'all' || theme !== 'all'
 
-    if (search.trim()) {
-      // ── Ranked search mode ──
-      // Use full-text ranked search (term + synonyms + definition + examples + tags),
-      // then apply the status/type/source/tag filters.  Sort order is ignored while
-      // a query is active so relevance ranking is preserved.
-      const SEARCH_LIMIT = 200 // high enough to show everything that matches
-      const ranked = searchVocabulary(items, search, SEARCH_LIMIT).map((r) => r.item)
-
-      if (!hasFilters) return ranked
-
-      return ranked.filter((i) => {
-        if (status !== 'all' && i.status !== status) return false
-        if (type !== 'all' && i.type !== type) return false
-        if (source !== 'all' && i.sourceType !== source) return false
-        if (tag !== 'all' && !i.tags.includes(tag)) return false
-        return true
-      })
-    }
-
-    // ── Filter + sort mode (no search query) ──
-    const base = items.filter((i) => {
+    function passesFilters(i: VocabItem) {
       if (status !== 'all' && i.status !== status) return false
       if (type !== 'all' && i.type !== type) return false
       if (source !== 'all' && i.sourceType !== source) return false
       if (tag !== 'all' && !i.tags.includes(tag)) return false
+      if (theme !== 'all' && !(i.themes ?? []).includes(theme)) return false
       return true
-    })
-    return sortItems(base, sort)
-  }, [items, search, status, type, source, tag, sort])
+    }
+
+    if (search.trim()) {
+      // ── Ranked search mode ──
+      // Use full-text ranked search (term + synonyms + definition + examples + tags),
+      // then apply the status/type/source/tag/theme filters.  Sort order is ignored while
+      // a query is active so relevance ranking is preserved.
+      const SEARCH_LIMIT = 200 // high enough to show everything that matches
+      const ranked = searchVocabulary(items, search, SEARCH_LIMIT).map((r) => r.item)
+      if (!hasFilters) return ranked
+      return ranked.filter(passesFilters)
+    }
+
+    // ── Filter + sort mode (no search query) ──
+    return sortItems(items.filter(passesFilters), sort)
+  }, [items, search, status, type, source, tag, theme, sort])
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 md:pb-6">
@@ -179,7 +180,7 @@ export function LibraryPage() {
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Library size={20} className="text-slate-500" />
-          <h1 className="text-xl font-bold text-slate-900">Library</h1>
+          <h1 className="text-xl font-bold text-slate-900">Vocabulary</h1>
           <span className="text-sm text-slate-400">({items.length})</span>
         </div>
         {activeFilterCount > 0 && (
@@ -246,6 +247,36 @@ export function LibraryPage() {
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Source</p>
             <FilterPills options={SOURCE_OPTIONS} value={source} onChange={setSource} />
           </div>
+          {allThemes.length > 0 && (
+            <div className="px-3 py-2.5 space-y-1">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Theme</p>
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
+                <button
+                  onClick={() => setTheme('all')}
+                  className={`shrink-0 px-3 py-1 text-xs rounded-full border font-medium transition-colors ${
+                    theme === 'all'
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
+                  }`}
+                >
+                  All themes
+                </button>
+                {allThemes.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setTheme(t)}
+                    className={`shrink-0 px-3 py-1 text-xs rounded-full border font-medium transition-colors ${
+                      theme === t
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
+                    }`}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {allTags.length > 0 && (
             <div className="px-3 py-2.5 space-y-1">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tag</p>

@@ -50,6 +50,7 @@ export interface VocabItem {
   sourceType?: SourceType
   sourceText?: string
   tags: string[]
+  themes: string[]
 
   definitionEn?: string
   translations?: {

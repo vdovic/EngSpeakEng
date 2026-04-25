@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
   Mic, PenLine, BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
-  Loader2, AlertCircle, RefreshCw, Target
+  Loader2, AlertCircle, RefreshCw, Target, Layers
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
+import { useThemesStore } from '@/store/themesStore'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { LogUsageModal } from '@/components/LogUsageModal'
@@ -153,6 +154,84 @@ function ListField({ label, items, editing, onChange }: {
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Inline theme assignment panel ─────────────────────────────────────────────
+
+function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: string[] }) {
+  const allThemes = useThemesStore((s) => s.themes)
+  const { assignThemes } = useVocabStore()
+  const [open, setOpen] = useState(false)
+
+  const available = allThemes.filter((t) => !assigned.includes(t))
+
+  function toggle(theme: string) {
+    const next = assigned.includes(theme)
+      ? assigned.filter((t) => t !== theme)
+      : [...assigned, theme]
+    assignThemes(itemId, next).catch(() => {})
+  }
+
+  if (allThemes.length === 0) {
+    return (
+      <div className="text-xs text-slate-400 flex items-center gap-1.5">
+        <Layers size={12} />
+        <span>No themes yet — create some in the <a href="/themes" className="text-brand-600 hover:underline">Themes</a> tab.</span>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5 items-center mb-2">
+        {assigned.map((t) => (
+          <span
+            key={t}
+            className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-medium"
+          >
+            {t}
+            <button
+              onClick={() => toggle(t)}
+              className="text-indigo-400 hover:text-indigo-700 transition-colors"
+              title={`Remove from ${t}`}
+            >
+              <X size={10} />
+            </button>
+          </span>
+        ))}
+        {assigned.length === 0 && (
+          <span className="text-xs text-slate-400">No themes assigned</span>
+        )}
+      </div>
+      {available.length > 0 && (
+        <div className="relative inline-block">
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="flex items-center gap-1 text-xs text-brand-600 font-medium hover:text-brand-700 transition-colors"
+          >
+            <Plus size={12} />
+            Add theme
+          </button>
+          {open && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+              <div className="absolute left-0 top-6 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[160px]">
+                {available.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => { toggle(t); setOpen(false) }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -606,6 +685,13 @@ export function ItemDetailPage() {
           onChange={(v) => patch('memoryCue', v)}
           multiline
         />
+      </Section>
+
+      <div className="my-3" />
+
+      {/* Themes */}
+      <Section title="Themes" icon={<Layers size={14} />}>
+        <ThemeAssignment itemId={item.id} assigned={item.themes ?? []} />
       </Section>
 
       <div className="my-3" />

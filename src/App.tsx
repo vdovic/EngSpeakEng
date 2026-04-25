@@ -8,6 +8,7 @@ import { LibraryPage } from '@/pages/LibraryPage'
 import { ItemDetailPage } from '@/pages/ItemDetailPage'
 import { ActiveWeekPage } from '@/pages/ActiveWeekPage'
 import { DailyChallengePage } from '@/pages/DailyChallengePage'
+import { ThemesPage } from '@/pages/ThemesPage'
 
 // Lazy-load StatsPage — recharts adds ~370 KB; split it to keep initial bundle lean
 const StatsPage = lazy(() => import('@/pages/StatsPage').then((m) => ({ default: m.StatsPage })))
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="/week"      element={<ActiveWeekPage />} />
           <Route path="/stats"     element={<Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-7 h-7 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /></div>}><StatsPage /></Suspense>} />
           <Route path="/challenge" element={<DailyChallengePage />} />
+          <Route path="/themes"    element={<ThemesPage />} />
         </Routes>
       </main>
     </div>

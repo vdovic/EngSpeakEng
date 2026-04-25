@@ -83,7 +83,7 @@ export function DashboardPage() {
         />
         <StatCard
           icon={<BookOpen size={18} className="text-slate-600" />}
-          label="Inbox"
+          label="New words"
           value={inboxCount}
           bg="bg-slate-50"
           onClick={() => navigate('/inbox')}

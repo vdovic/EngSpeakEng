@@ -1,13 +1,14 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, BookOpen, RefreshCw, Library, Target, BarChart2, Zap } from 'lucide-react'
+import { LayoutDashboard, BookOpen, RefreshCw, Library, Target, BarChart2, Zap, Layers } from 'lucide-react'
 
 const links = [
   { to: '/',          icon: LayoutDashboard, label: 'Home' },
-  { to: '/inbox',     icon: BookOpen,        label: 'Inbox' },
+  { to: '/inbox',     icon: BookOpen,        label: 'New Words' },
   { to: '/review',    icon: RefreshCw,       label: 'Review' },
-  { to: '/challenge', icon: Zap,             label: 'Challenge' },
-  { to: '/library',   icon: Library,         label: 'Library' },
-  { to: '/week',      icon: Target,          label: 'This Week' },
+  { to: '/challenge', icon: Zap,             label: 'Daily Challenge' },
+  { to: '/library',   icon: Library,         label: 'Vocabulary' },
+  { to: '/themes',    icon: Layers,          label: 'Themes' },
+  { to: '/week',      icon: Target,          label: "This Week's Focus" },
   { to: '/stats',     icon: BarChart2,       label: 'Stats' },
 ]
 

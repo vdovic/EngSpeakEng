@@ -23,6 +23,8 @@ interface VocabStore {
   /** Record one challenge exposure for an item. Advances the SRS counter on
    *  correct answers; on incorrect it keeps the count and retries sooner. */
   recordExposure: (id: string, correct: boolean) => Promise<void>
+  /** Replace the full themes array for an item. */
+  assignThemes: (id: string, themes: string[]) => Promise<void>
 }
 
 function uid(): string {
@@ -48,7 +50,10 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
 
   // ── load ────────────────────────────────────────────────────────────────────
   load: async () => {
-    let all = await db.items.filter((i) => !i.archived).toArray()
+    let all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
+      ...i,
+      themes: i.themes ?? [],
+    }))
 
     // Always fetch the migration file so we can top-up any items that were
     // missing from an earlier deployment (e.g., the file previously had only
@@ -74,7 +79,10 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
           await db.items.add(item).catch(() => { /* skip duplicates */ })
         }
       }
-      all = await db.items.filter((i) => !i.archived).toArray()
+      all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
+        ...i,
+        themes: i.themes ?? [],
+      }))
     } else if (migrationSeed.length > all.length) {
       // Top-up: add any migration items not yet in the DB (identified by id).
       // This handles the case where an earlier deployment had fewer items.
@@ -85,7 +93,10 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         for (const item of missing) {
           await db.items.add(item).catch(() => { /* skip term collisions */ })
         }
-        all = await db.items.filter((i) => !i.archived).toArray()
+        all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
+          ...i,
+          themes: i.themes ?? [],
+        }))
       }
     }
 
@@ -114,6 +125,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       sourceType: draft.sourceType,
       sourceText: draft.sourceText,
       tags: draft.tags ?? [],
+      themes: [],
       definitionEn: draft.definitionEn,
       translations: {},
       synonyms: [],
@@ -361,6 +373,11 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     set((s) => ({
       items: s.items.map((i) => (i.id === id ? { ...i, weeklyFocus } : i)),
     }))
+  },
+
+  // ── assignThemes ─────────────────────────────────────────────────────────────
+  assignThemes: async (id, themes) => {
+    await applyPatch(id, { themes, updatedAt: new Date().toISOString() }, set)
   },
 
   // ── recordExposure ──────────────────────────────────────────────────────────
