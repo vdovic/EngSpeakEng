@@ -110,7 +110,7 @@ export function NavBar() {
           </div>
           <div className="leading-none">
             <span className="block text-[15px] font-extrabold text-slate-900 tracking-tight">ESE</span>
-            <span className="block text-[9px] text-slate-400 tracking-wide mt-0.5">Personalized English</span>
+            <span className="block text-[9px] text-slate-400 tracking-wide mt-0.5">Advanced Vocabulary, Tailored to You</span>
           </div>
         </div>
 

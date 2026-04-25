@@ -178,7 +178,7 @@ function HomeHero({
 
         {/* Headline */}
         <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight mb-3">
-          Build your personal<br className="hidden sm:block" /> English system
+          Move your vocabulary forward
         </h1>
 
         {/* Core message */}
