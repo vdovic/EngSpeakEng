@@ -148,58 +148,65 @@ export function ThemeDetailPage() {
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 md:pb-8">
 
       {/* ── Top bar: back + name + actions ── */}
-      <div className="flex items-center gap-2 mb-6">
-        <button
-          onClick={() => navigate('/themes')}
-          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 shrink-0 transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
+      <div className="mb-6">
+        {/* Row 1: back arrow + title */}
+        <div className="flex items-start gap-2 mb-1">
+          <button
+            onClick={() => navigate('/themes')}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 shrink-0 transition-colors mt-0.5"
+          >
+            <ArrowLeft size={20} />
+          </button>
 
-        {renaming ? (
-          <>
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submitRename()
-                if (e.key === 'Escape') { setDraft(themeName); setRenaming(false) }
-              }}
-              className="flex-1 min-w-0 text-xl font-bold text-slate-900 bg-transparent border-b-2 border-brand-500 outline-none pb-0.5"
-            />
-            <button
-              onClick={submitRename}
-              className="p-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors shrink-0"
-              title="Save"
-            >
-              <Check size={14} />
-            </button>
-            <button
-              onClick={() => { setDraft(themeName); setRenaming(false) }}
-              className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0"
-              title="Cancel"
-            >
-              <X size={14} />
-            </button>
-          </>
-        ) : (
-          <>
-            <h1 className="text-xl font-bold text-slate-900 flex-1 min-w-0 truncate">
+          {renaming ? (
+            <>
+              <input
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitRename()
+                  if (e.key === 'Escape') { setDraft(themeName); setRenaming(false) }
+                }}
+                className="flex-1 min-w-0 text-xl font-bold text-slate-900 bg-transparent border-b-2 border-brand-500 outline-none pb-0.5"
+              />
+              <button
+                onClick={submitRename}
+                className="p-1.5 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition-colors shrink-0"
+                title="Save"
+              >
+                <Check size={14} />
+              </button>
+              <button
+                onClick={() => { setDraft(themeName); setRenaming(false) }}
+                className="p-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors shrink-0"
+                title="Cancel"
+              >
+                <X size={14} />
+              </button>
+            </>
+          ) : (
+            <h1 className="text-xl font-bold text-slate-900 leading-tight">
               {themeName}
             </h1>
-            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full shrink-0 font-medium">
+          )}
+        </div>
+
+        {/* Row 2: word count + actions (only in non-renaming mode) */}
+        {!renaming && (
+          <div className="flex items-center gap-2 pl-9">
+            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-medium">
               {themeWords.length} word{themeWords.length !== 1 ? 's' : ''}
             </span>
             <button
               onClick={() => { setDraft(themeName); setRenaming(true) }}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors shrink-0"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
               title="Rename theme"
             >
               <Pencil size={15} />
             </button>
             {confirmDelete ? (
-              <div className="flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1">
                 <span className="text-xs text-red-600 font-medium whitespace-nowrap">Delete?</span>
                 <button
                   onClick={handleDelete}
@@ -217,13 +224,13 @@ export function ThemeDetailPage() {
             ) : (
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                 title="Delete theme"
               >
                 <Trash2 size={15} />
               </button>
             )}
-          </>
+          </div>
         )}
       </div>
 
@@ -285,6 +292,8 @@ export function ThemeDetailPage() {
         >
           {isProcessing ? (
             <><Loader2 size={14} className="animate-spin" /> Scanning…</>
+          ) : themeWords.length === 0 ? (
+            <><Sparkles size={14} /> Run AI assignment</>
           ) : (
             <><RefreshCw size={14} /> Re-run AI assignment</>
           )}

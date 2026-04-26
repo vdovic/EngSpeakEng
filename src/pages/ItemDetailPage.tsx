@@ -181,7 +181,6 @@ function ListField({ label, items, editing, onChange }: {
 function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: string[] }) {
   const allThemes = useThemesStore((s) => s.themes)
   const { assignThemes } = useVocabStore()
-  const [open, setOpen] = useState(false)
 
   const available = allThemes.filter((t) => !assigned.includes(t))
 
@@ -202,53 +201,39 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
   }
 
   return (
-    <div>
-      <div className="flex flex-wrap gap-1.5 items-center mb-2">
-        {assigned.map((t) => (
-          <span
-            key={t}
-            className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-medium"
-          >
-            {t}
-            <button
-              onClick={() => toggle(t)}
-              className="text-indigo-400 hover:text-indigo-700 transition-colors"
-              title={`Remove from ${t}`}
-            >
-              <X size={10} />
-            </button>
-          </span>
-        ))}
-        {assigned.length === 0 && (
-          <span className="text-xs text-slate-400">No themes assigned</span>
-        )}
-      </div>
-      {available.length > 0 && (
-        <div className="relative inline-block">
+    <div className="flex flex-wrap gap-1.5 items-center">
+      {/* Assigned themes — click × to remove */}
+      {assigned.map((t) => (
+        <span
+          key={t}
+          className="inline-flex items-center gap-1 bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-medium"
+        >
+          {t}
           <button
-            onClick={() => setOpen((o) => !o)}
-            className="flex items-center gap-1 text-xs text-brand-600 font-medium hover:text-brand-700 transition-colors"
+            onClick={() => toggle(t)}
+            className="text-indigo-400 hover:text-indigo-700 transition-colors"
+            title={`Remove from ${t}`}
           >
-            <Plus size={12} />
-            Add theme
+            <X size={10} />
           </button>
-          {open && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-              <div className="absolute left-0 top-6 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[160px]">
-                {available.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => { toggle(t); setOpen(false) }}
-                    className="w-full text-left px-3 py-1.5 text-xs text-slate-700 hover:bg-brand-50 hover:text-brand-700 transition-colors"
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+        </span>
+      ))}
+
+      {/* Available themes — click to add */}
+      {available.map((t) => (
+        <button
+          key={t}
+          onClick={() => toggle(t)}
+          className="inline-flex items-center gap-0.5 text-xs text-slate-500 border border-dashed border-slate-300 px-2 py-0.5 rounded-full hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+          title={`Add to ${t}`}
+        >
+          <Plus size={10} />
+          {t}
+        </button>
+      ))}
+
+      {assigned.length === 0 && available.length === 0 && (
+        <span className="text-xs text-slate-400">No themes assigned</span>
       )}
     </div>
   )
