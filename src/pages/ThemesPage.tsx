@@ -306,13 +306,13 @@ export function ThemesPage() {
               key={name}
               name={name}
               count={themeCounts.get(name) ?? 0}
-              onNavigate={() => navigate(`/library?theme=${encodeURIComponent(name)}`)}
+              onNavigate={() => navigate(`/themes/${encodeURIComponent(name)}`)}
               onRename={(next) => handleRename(name, next)}
               onDelete={() => handleDelete(name)}
             />
           ))}
           <p className="text-xs text-slate-400 pt-1 pl-1">
-            Click any theme to browse its words in Vocabulary.
+            Click any theme to view and manage its words.
           </p>
         </div>
       ) : (
