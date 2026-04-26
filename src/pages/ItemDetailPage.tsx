@@ -3,13 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
   Mic, PenLine, BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
-  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown
+  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
-import { LogUsageModal } from '@/components/LogUsageModal'
 import { RelatedWordsSection } from '@/components/RelatedWordsSection'
 import { usagePoints, progressTowardMastery } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
@@ -258,13 +257,13 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries } = useVocabStore()
+  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs } = useVocabStore()
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<VocabItem | null>(null)
-  const [showLogModal, setShowLogModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [retrying, setRetrying] = useState(false)
 
   async function handleRetryEnrich() {
@@ -475,17 +474,43 @@ export function ItemDetailPage() {
         {!editing && (
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              {/* Usage dots */}
+              {/* Usage dots + clear */}
               <div className="flex items-center gap-1">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
-                    className={`w-2.5 h-2.5 rounded-full border-2 ${
+                    className={`w-2.5 h-2.5 rounded-full border-2 transition-colors ${
                       i < usesDone ? 'bg-brand-600 border-brand-600' : 'bg-white border-slate-300'
                     }`}
                   />
                 ))}
                 <span className="text-xs text-slate-400 ml-1.5">{usesDone}/3 used</span>
+                {usesDone > 0 && !showClearConfirm && (
+                  <button
+                    onClick={() => setShowClearConfirm(true)}
+                    className="ml-1 p-0.5 rounded text-slate-300 hover:text-red-400 transition-colors"
+                    title="Clear usage progress"
+                  >
+                    <RotateCcw size={11} />
+                  </button>
+                )}
+                {showClearConfirm && (
+                  <span className="ml-1.5 flex items-center gap-1">
+                    <span className="text-xs text-red-500">Clear?</span>
+                    <button
+                      onClick={async () => { await clearUsageLogs(item.id); setShowClearConfirm(false) }}
+                      className="text-xs text-red-600 hover:text-red-800 font-semibold"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setShowClearConfirm(false)}
+                      className="text-xs text-slate-400 hover:text-slate-600"
+                    >
+                      No
+                    </button>
+                  </span>
+                )}
               </div>
               {/* Challenge exposure dots */}
               <div className="flex items-center gap-0.5">
@@ -503,8 +528,8 @@ export function ItemDetailPage() {
               </div>
             </div>
             <button
-              onClick={() => setShowLogModal(true)}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors shrink-0"
+              onClick={() => logUsage(item.id, { usedAt: new Date().toISOString(), channel: 'speaking' })}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors shrink-0 active:scale-95"
             >
               <Plus size={12} />
               I used it
@@ -851,9 +876,6 @@ export function ItemDetailPage() {
         </div>
       )}
 
-      {showLogModal && (
-        <LogUsageModal itemId={item.id} term={item.term} onClose={() => setShowLogModal(false)} />
-      )}
     </div>
   )
 }

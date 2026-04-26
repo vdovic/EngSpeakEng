@@ -18,6 +18,7 @@ interface VocabStore {
   updateItem: (id: string, patch: Partial<VocabItem>) => Promise<void>
   deleteItem: (id: string) => Promise<void>
   logUsage: (id: string, log: Omit<UsageLog, 'id'>) => Promise<void>
+  clearUsageLogs: (id: string) => Promise<void>
   recordReview: (id: string, outcome: ReviewOutcome) => Promise<void>
   toggleWeeklyFocus: (id: string) => Promise<void>
   /** Record one challenge exposure for an item. Advances the SRS counter on
@@ -315,6 +316,28 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     const usageCount = logs.length
 
     const updatedActivation = { ...item.activation, usageLogs: logs, usageCount }
+    const updatedItem = { ...item, activation: updatedActivation }
+    const newStatus: ItemStatus = deriveStatus(updatedItem)
+
+    await db.items.update(id, {
+      activation: updatedActivation,
+      status: newStatus,
+      updatedAt: new Date().toISOString(),
+    })
+
+    set((s) => ({
+      items: s.items.map((i) =>
+        i.id === id ? { ...i, activation: updatedActivation, status: newStatus } : i
+      ),
+    }))
+  },
+
+  // ── clearUsageLogs ───────────────────────────────────────────────────────────
+  clearUsageLogs: async (id) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+
+    const updatedActivation = { ...item.activation, usageLogs: [], usageCount: 0 }
     const updatedItem = { ...item, activation: updatedActivation }
     const newStatus: ItemStatus = deriveStatus(updatedItem)
 
