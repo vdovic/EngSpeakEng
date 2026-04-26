@@ -486,20 +486,22 @@ function FocusAreaCard({
   total,
   mastered,
   onNavigate,
+  onAssign,
+  isAssigning,
 }: {
   name: string
   total: number
   mastered: number
   onNavigate: () => void
+  onAssign?: () => void
+  isAssigning?: boolean
 }) {
   const pct   = total > 0 ? Math.round((mastered / total) * 100) : 0
   const emoji = THEME_EMOJI[name] ?? '📌'
+  const empty = total === 0
 
   return (
-    <button
-      onClick={onNavigate}
-      className="bg-white border border-slate-200 rounded-2xl p-5 text-left flex flex-col hover:border-brand-200 hover:shadow-sm transition-all group"
-    >
+    <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col hover:border-brand-200 hover:shadow-sm transition-all group">
       <div className="flex items-start justify-between mb-3">
         <div className="w-11 h-11 rounded-2xl bg-brand-50 flex items-center justify-center text-2xl">
           {emoji}
@@ -510,21 +512,52 @@ function FocusAreaCard({
       </div>
       <p className="text-sm font-bold text-slate-900 mb-0.5 truncate">{name}</p>
       <p className="text-xs text-slate-400 mb-4">{total} word{total !== 1 ? 's' : ''}</p>
-      <div className="mt-auto w-full">
-        <div className="flex items-center justify-between text-[10px] mb-1.5">
-          <span className="text-slate-400">{pct}% mastered</span>
-          <span className="flex items-center gap-0.5 text-brand-500 font-semibold group-hover:underline">
-            Open <ChevronRight size={10} />
-          </span>
+
+      {empty ? (
+        /* No words yet — offer AI assignment */
+        <div className="mt-auto flex flex-col gap-2">
+          <button
+            onClick={onAssign}
+            disabled={isAssigning}
+            className="w-full py-2 bg-brand-50 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+          >
+            {isAssigning ? (
+              <>
+                <Loader2 size={12} className="animate-spin" />
+                Scanning…
+              </>
+            ) : (
+              'Assign words with AI →'
+            )}
+          </button>
+          <button
+            onClick={onNavigate}
+            className="text-center text-[10px] text-slate-400 hover:text-brand-500 transition-colors"
+          >
+            or open theme
+          </button>
         </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-brand-500 to-violet-500 rounded-full transition-all"
-            style={{ width: `${total > 0 ? Math.max(pct, 3) : 0}%` }}
-          />
+      ) : (
+        /* Has words — show progress bar and open link */
+        <div className="mt-auto w-full">
+          <div className="flex items-center justify-between text-[10px] mb-1.5">
+            <span className="text-slate-400">{pct}% mastered</span>
+            <button
+              onClick={onNavigate}
+              className="flex items-center gap-0.5 text-brand-500 font-semibold hover:underline"
+            >
+              Open <ChevronRight size={10} />
+            </button>
+          </div>
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-brand-500 to-violet-500 rounded-full transition-all"
+              style={{ width: `${Math.max(pct, 3)}%` }}
+            />
+          </div>
         </div>
-      </div>
-    </button>
+      )}
+    </div>
   )
 }
 
@@ -584,6 +617,8 @@ function FocusAreasPreview({
                 total={total}
                 mastered={mastered}
                 onNavigate={() => onNavigateToTheme(name)}
+                onAssign={() => onAddTheme(name)}
+                isAssigning={processingTheme === name}
               />
             ))}
             {/* Add area card — shown when fewer than 3 themes */}
