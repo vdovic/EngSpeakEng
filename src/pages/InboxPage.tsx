@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Inbox, Search, X, Check, Zap, Star, Layers,
-  Trash2, MoreVertical, BookOpen, ArrowRight,
+  Trash2, MoreVertical, BookOpen, ArrowRight, ChevronDown,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -19,6 +19,8 @@ interface ToastState {
   message: string
   detail?: string
   undoPatches?: UndoPatch[]
+  ctaLabel?: string
+  onCta?: () => void
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
@@ -34,18 +36,17 @@ function Toast({
   onUndo: (patches: UndoPatch[]) => void
   onDismiss: () => void
 }) {
-  // Use a ref so the effect always calls the latest dismiss without resetting the timer
   const dismissRef = useRef(onDismiss)
   dismissRef.current = onDismiss
 
   useEffect(() => {
-    const timer = setTimeout(() => dismissRef.current(), 4500)
+    const timer = setTimeout(() => dismissRef.current(), 5000)
     return () => clearTimeout(timer)
   }, [toast.key])
 
   return (
     <div
-      className={`fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl max-w-sm w-[calc(100%-2rem)] transition-all ${
+      className={`fixed left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-xl max-w-md w-[calc(100%-2rem)] transition-all ${
         bulkBarVisible ? 'bottom-36 md:bottom-24' : 'bottom-20 md:bottom-6'
       }`}
     >
@@ -53,10 +54,20 @@ function Toast({
         <p className="text-sm font-medium leading-snug">{toast.message}</p>
         {toast.detail && <p className="text-xs text-slate-400 mt-0.5 leading-snug">{toast.detail}</p>}
       </div>
+      {/* CTA link */}
+      {toast.onCta && (
+        <button
+          onClick={() => { toast.onCta!(); onDismiss() }}
+          className="shrink-0 text-xs font-bold text-brand-300 hover:text-brand-200 transition-colors whitespace-nowrap"
+        >
+          {toast.ctaLabel ?? '→'}
+        </button>
+      )}
+      {/* Undo */}
       {toast.undoPatches && toast.undoPatches.length > 0 && (
         <button
           onClick={() => onUndo(toast.undoPatches!)}
-          className="shrink-0 text-xs font-bold text-brand-400 hover:text-brand-300 px-1 transition-colors"
+          className="shrink-0 text-xs font-bold text-slate-400 hover:text-white px-1 transition-colors"
         >
           Undo
         </button>
@@ -409,6 +420,51 @@ function BulkActionBar({
   )
 }
 
+// ── Journey guide ─────────────────────────────────────────────────────────────
+
+function JourneyGuide() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden bg-white">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+      >
+        <BookOpen size={13} className="text-brand-500 shrink-0" />
+        <span className="text-xs font-semibold text-slate-700 flex-1">3 ways to activate a word</span>
+        <ChevronDown size={13} className={`text-slate-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-100 px-4 pt-3 pb-4 space-y-3">
+          <div className="flex gap-3 items-start">
+            <div className="w-2 h-2 rounded-full bg-brand-500 mt-1.5 shrink-0" />
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <span className="font-bold text-slate-800">Learning</span> — enters your SRS Review queue. Words come back at growing intervals (1 day → 3 → 7 → 14…) until recalled 3 times. Best for most words.
+            </p>
+          </div>
+          <div className="flex gap-3 items-start">
+            <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <span className="font-bold text-slate-800">Challenge</span> — jumps into today's Daily Challenge quiz (multiple choice + fill-in). Best for words you want to test right now with active recall.
+            </p>
+          </div>
+          <div className="flex gap-3 items-start">
+            <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 shrink-0" />
+            <p className="text-xs text-slate-600 leading-relaxed">
+              <span className="font-bold text-slate-800">This Week</span> — adds to your weekly focus board. Best for a small set of words you're consciously practising this week (speaking, writing).
+            </p>
+          </div>
+          <p className="text-[10px] text-slate-400 italic border-t border-slate-100 pt-2.5">
+            All three paths move the word out of Inbox into Learning. You can mix and match — or select multiple words for bulk actions.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export function InboxPage() {
@@ -478,9 +534,9 @@ export function InboxPage() {
 
   // ── Toast helper ──────────────────────────────────────────────────────────────
 
-  function showToast(message: string, detail?: string, undoPatches?: UndoPatch[]) {
+  function showToast(message: string, detail?: string, undoPatches?: UndoPatch[], ctaLabel?: string, onCta?: () => void) {
     toastKeyRef.current += 1
-    setToast({ key: toastKeyRef.current, message, detail, undoPatches })
+    setToast({ key: toastKeyRef.current, message, detail, undoPatches, ctaLabel, onCta })
   }
 
   async function handleUndo(patches: UndoPatch[]) {
@@ -530,21 +586,21 @@ export function InboxPage() {
   async function handleMoveLearning(id: string) {
     const snap = captureSnapshot([id], ['status'])
     const { moved, skipped } = await moveToLearning([id])
-    if (moved > 0) showToast('Moved to Learning', undefined, snap)
+    if (moved > 0) showToast('Added to Review queue', 'Word appears in Review & Daily Challenge.', snap, 'Review now →', () => navigate('/review'))
     else if (skipped > 0) showToast('Already in Learning or beyond — skipped.')
   }
 
   async function handleAddChallenge(id: string) {
     const snap = captureSnapshot([id], ['status', 'nextChallengeDate'])
     const { added, skipped } = await addToChallenge([id])
-    if (added > 0) showToast('Added to Daily Challenge', undefined, snap)
+    if (added > 0) showToast('Added to Daily Challenge', 'Word is ready for today\'s quiz.', snap, 'Start Challenge →', () => navigate('/challenge'))
     else if (skipped > 0) showToast('Already due for challenge — skipped.')
   }
 
   async function handleAddWeek(id: string) {
     const snap = captureSnapshot([id], ['status', 'weeklyFocus'])
     const { added, skipped } = await addToWeekFocus([id])
-    if (added > 0) showToast("Added to This Week's Focus", undefined, snap)
+    if (added > 0) showToast("Added to This Week's Focus", 'Word is now on your weekly board.', snap, 'See Active Words →', () => navigate('/week'))
     else if (skipped > 0) showToast('Already in This Week — skipped.')
   }
 
@@ -567,9 +623,11 @@ export function InboxPage() {
     const { moved, skipped } = await moveToLearning(selectedIds)
     clearSelection()
     showToast(
-      `${moved} word${moved !== 1 ? 's' : ''} moved to Learning`,
-      skipped > 0 ? `${skipped} already in Learning — skipped.` : undefined,
+      `${moved} word${moved !== 1 ? 's' : ''} added to Review queue`,
+      skipped > 0 ? `${skipped} already in Learning — skipped.` : 'Words appear in Review & Daily Challenge.',
       snap,
+      'Review now →',
+      () => navigate('/review'),
     )
   }
 
@@ -582,6 +640,8 @@ export function InboxPage() {
       `${added} word${added !== 1 ? 's' : ''} added to Daily Challenge`,
       skipped > 0 ? `${skipped} already due — skipped.` : undefined,
       snap,
+      'Start Challenge →',
+      () => navigate('/challenge'),
     )
   }
 
@@ -594,6 +654,8 @@ export function InboxPage() {
       `${added} word${added !== 1 ? 's' : ''} added to This Week's Focus`,
       skipped > 0 ? `${skipped} already in This Week — skipped.` : undefined,
       snap,
+      'See Active Words →',
+      () => navigate('/week'),
     )
   }
 
@@ -665,7 +727,7 @@ export function InboxPage() {
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Inbox size={20} className="text-slate-500" />
-          <h1 className="text-xl font-bold text-slate-900">New Words</h1>
+          <h1 className="text-xl font-bold text-slate-900">Inbox</h1>
           {inboxItems.length > 0 && (
             <span className="bg-slate-200 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full">
               {inboxItems.length}
@@ -755,7 +817,7 @@ export function InboxPage() {
           >
             {anySelected
               ? `${selectedIds.length} selected — clear`
-              : `Select all ${filtered.length === inboxItems.length ? 'new words' : `${filtered.length} visible`}`}
+              : `Select all ${filtered.length === inboxItems.length ? 'inbox items' : `${filtered.length} visible`}`}
           </button>
           {filtered.length < inboxItems.length && (
             <span className="text-xs text-slate-400">
@@ -771,7 +833,7 @@ export function InboxPage() {
           <Inbox size={40} className="mx-auto mb-3 opacity-40" />
           {inboxItems.length === 0 ? (
             <>
-              <p className="font-medium text-slate-600">No new words yet</p>
+              <p className="font-medium text-slate-600">Inbox is empty</p>
               <p className="text-sm mt-1">Capture words and phrases as you encounter them.</p>
               <button
                 onClick={() => setShowAdd(true)}
@@ -794,11 +856,9 @@ export function InboxPage() {
         </div>
       )}
 
-      {/* ── Instruction tip ── */}
+      {/* ── Journey guide ── */}
       {inboxItems.length > 0 && filtered.length > 0 && (
-        <p className="text-xs text-slate-400 mb-3">
-          Use the buttons below each word to activate it. Select multiple words for batch actions.
-        </p>
+        <JourneyGuide />
       )}
 
       {/* ── Item list ── */}

@@ -5,9 +5,8 @@ import { StatusBadge } from './StatusBadge'
 import { TypeBadge } from './TypeBadge'
 import { UsageProgress } from './UsageProgress'
 import { usagePoints } from '@/lib/mastery'
+import { MAX_EXPOSURE } from '@/lib/constants'
 import { format } from 'date-fns'
-
-const MAX_EXPOSURE = 8
 
 function ExposureDots({ count }: { count: number }) {
   const filled = Math.min(count, MAX_EXPOSURE)

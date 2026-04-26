@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { Badge, BadgeId } from '@/types/vocabulary'
+import { todayDateKey, yesterdayDateKey } from '@/lib/dateUtils'
 
 // ── Badge catalogue ───────────────────────────────────────────────────────────
 
@@ -28,17 +29,7 @@ export const BADGE_THRESHOLDS: Record<BadgeId, { metric: 'completions' | 'streak
   'diligent':      { metric: 'completions', target: 30 },
 }
 
-// ── Date helpers ──────────────────────────────────────────────────────────────
-
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function yesterdayKey(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().slice(0, 10)
-}
+// ── Local helpers ─────────────────────────────────────────────────────────────
 
 function defaultDeadline(): string {
   return new Date(new Date().getFullYear() + 1, 0, 1).toISOString().slice(0, 10)
@@ -80,7 +71,7 @@ export const useGamificationStore = create<GamificationStore>()(
       goalDeadline: defaultDeadline(),
 
       addPoints: (n) => {
-        const today = todayKey()
+        const today = todayDateKey()
         set((s) => ({
           points: s.points + n,
           pointsHistory: {
@@ -92,11 +83,11 @@ export const useGamificationStore = create<GamificationStore>()(
 
       recordChallengeCompletion: () => {
         const { streakDays, lastChallengeDate } = get()
-        const today = todayKey()
+        const today = todayDateKey()
         if (lastChallengeDate === today) return
 
         const newStreak =
-          lastChallengeDate === yesterdayKey() ? streakDays + 1 : 1
+          lastChallengeDate === yesterdayDateKey() ? streakDays + 1 : 1
 
         set((s) => ({
           streakDays: newStreak,

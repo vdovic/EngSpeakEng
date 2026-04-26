@@ -2,29 +2,47 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
-  Mic, PenLine, BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
-  Loader2, AlertCircle, RefreshCw, Target, Layers
+  BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
+  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
+import { STATUS_FLOW } from '@/lib/constants'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
-import { LogUsageModal } from '@/components/LogUsageModal'
 import { RelatedWordsSection } from '@/components/RelatedWordsSection'
 import { usagePoints, progressTowardMastery } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
 import { format } from 'date-fns'
 
-const STATUS_FLOW: ItemStatus[] = ['inbox', 'learning', 'stable', 'activation', 'mastered']
 
-function Section({ title, icon, children }: { title: string; icon?: React.ReactNode; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  children,
+  defaultOpen = true,
+}: {
+  title: string
+  icon?: React.ReactNode
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200 hover:bg-slate-100 transition-colors text-left"
+      >
         {icon && <span className="text-slate-500">{icon}</span>}
-        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide">{title}</h3>
-      </div>
-      <div className="px-4 py-3">{children}</div>
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex-1">{title}</h3>
+        <ChevronDown
+          size={13}
+          className={`text-slate-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <div className="px-4 py-3">{children}</div>}
     </div>
   )
 }
@@ -239,13 +257,13 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries } = useVocabStore()
+  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs } = useVocabStore()
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<VocabItem | null>(null)
-  const [showLogModal, setShowLogModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [retrying, setRetrying] = useState(false)
 
   async function handleRetryEnrich() {
@@ -456,17 +474,43 @@ export function ItemDetailPage() {
         {!editing && (
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              {/* Usage dots */}
+              {/* Usage dots + clear */}
               <div className="flex items-center gap-1">
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
-                    className={`w-2.5 h-2.5 rounded-full border-2 ${
+                    className={`w-2.5 h-2.5 rounded-full border-2 transition-colors ${
                       i < usesDone ? 'bg-brand-600 border-brand-600' : 'bg-white border-slate-300'
                     }`}
                   />
                 ))}
                 <span className="text-xs text-slate-400 ml-1.5">{usesDone}/3 used</span>
+                {usesDone > 0 && !showClearConfirm && (
+                  <button
+                    onClick={() => setShowClearConfirm(true)}
+                    className="ml-1 p-0.5 rounded text-slate-300 hover:text-red-400 transition-colors"
+                    title="Clear usage progress"
+                  >
+                    <RotateCcw size={11} />
+                  </button>
+                )}
+                {showClearConfirm && (
+                  <span className="ml-1.5 flex items-center gap-1">
+                    <span className="text-xs text-red-500">Clear?</span>
+                    <button
+                      onClick={async () => { await clearUsageLogs(item.id); setShowClearConfirm(false) }}
+                      className="text-xs text-red-600 hover:text-red-800 font-semibold"
+                    >
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => setShowClearConfirm(false)}
+                      className="text-xs text-slate-400 hover:text-slate-600"
+                    >
+                      No
+                    </button>
+                  </span>
+                )}
               </div>
               {/* Challenge exposure dots */}
               <div className="flex items-center gap-0.5">
@@ -484,8 +528,8 @@ export function ItemDetailPage() {
               </div>
             </div>
             <button
-              onClick={() => setShowLogModal(true)}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors shrink-0"
+              onClick={() => logUsage(item.id, { usedAt: new Date().toISOString(), channel: 'speaking' })}
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors shrink-0 active:scale-95"
             >
               <Plus size={12} />
               I used it
@@ -552,7 +596,7 @@ export function ItemDetailPage() {
       <div className="my-3" />
 
       {/* Usage examples */}
-      <Section title="Usage examples" icon={<GitBranch size={14} />}>
+      <Section title="Usage examples" icon={<GitBranch size={14} />} defaultOpen={false}>
         <Field
           label="Natural example"
           value={current.exampleSentence}
@@ -592,7 +636,7 @@ export function ItemDetailPage() {
       <div className="my-3" />
 
       {/* Nuance */}
-      <Section title="Nuance & register">
+      <Section title="Nuance & register" defaultOpen={false}>
         {editing && (
           <div className="mb-3">
             <label className="text-xs font-medium text-slate-500 block mb-1">Register</label>
@@ -640,7 +684,7 @@ export function ItemDetailPage() {
       <div className="my-3" />
 
       {/* Word relationships */}
-      <Section title="Relationships" icon={<Network size={14} />}>
+      <Section title="Relationships" icon={<Network size={14} />} defaultOpen={false}>
         <ListField label="Synonyms" items={current.synonyms} editing={editing} onChange={(v) => patch('synonyms', v)} />
         <ListField label="Antonyms" items={current.antonyms} editing={editing} onChange={(v) => patch('antonyms', v)} />
         <ListField label="Collocations" items={current.collocations} editing={editing} onChange={(v) => patch('collocations', v)} />
@@ -668,7 +712,7 @@ export function ItemDetailPage() {
       )}
 
       {/* Memory */}
-      <Section title="Memory support" icon={<Lightbulb size={14} />}>
+      <Section title="Memory support" icon={<Lightbulb size={14} />} defaultOpen={false}>
         <Field
           label="Etymology"
           value={current.etymology}
@@ -720,31 +764,6 @@ export function ItemDetailPage() {
           <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2">
             <Check size={16} className="text-emerald-600" />
             <span className="font-medium">Mastered!</span>
-          </div>
-        )}
-        {/* Usage log entries */}
-        {item.activation.usageLogs.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-            <p className="text-xs font-medium text-slate-500 mb-1">Usage log</p>
-            {item.activation.usageLogs.slice().reverse().map((log) => (
-              <div key={log.id} className="flex items-start gap-2 text-xs bg-slate-50 rounded-lg p-2.5">
-                <div className="shrink-0 mt-0.5">
-                  {log.channel === 'speaking' ? (
-                    <Mic size={12} className="text-blue-500" />
-                  ) : (
-                    <PenLine size={12} className="text-emerald-500" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-medium text-slate-700 capitalize">{log.channel}</span>
-                    <span className="text-slate-400">{format(new Date(log.usedAt), 'MMM d')}</span>
-                  </div>
-                  {log.note && <p className="text-slate-500">{log.note}</p>}
-                  {log.sentence && <p className="text-slate-700 italic mt-0.5">"{log.sentence}"</p>}
-                </div>
-              </div>
-            ))}
           </div>
         )}
       </Section>
@@ -832,9 +851,6 @@ export function ItemDetailPage() {
         </div>
       )}
 
-      {showLogModal && (
-        <LogUsageModal itemId={item.id} term={item.term} onClose={() => setShowLogModal(false)} />
-      )}
     </div>
   )
 }

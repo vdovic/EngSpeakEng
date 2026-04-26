@@ -30,7 +30,7 @@ const SIDEBAR_GROUPS: NavGroup[] = [
   {
     label: 'Learn',
     links: [
-      { to: '/inbox',     icon: BookOpen,  label: 'New Words',    badge: 'inbox' as const },
+      { to: '/inbox',     icon: BookOpen,  label: 'Inbox',          badge: 'inbox' as const },
       { to: '/review',    icon: RefreshCw, label: 'Review' },
       { to: '/challenge', icon: Zap,       label: 'Daily Challenge' },
     ],
@@ -38,9 +38,9 @@ const SIDEBAR_GROUPS: NavGroup[] = [
   {
     label: 'Organise',
     links: [
-      { to: '/library', icon: Library, label: 'Vocabulary' },
+      { to: '/library', icon: Library, label: 'All Vocabulary' },
       { to: '/themes',  icon: Layers,  label: 'Themes' },
-      { to: '/week',    icon: Target,  label: "This Week's Focus" },
+      { to: '/week',    icon: Target,  label: 'Active This Week' },
     ],
   },
   {

@@ -8,6 +8,7 @@ import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore } from '@/store/themesStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
+import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER } from '@/lib/constants'
 import { VocabItem, ExerciseType, ExerciseResult } from '@/types/vocabulary'
 import { FillBlankExercise } from '@/components/exercises/FillBlankExercise'
 import { MultipleChoiceExercise } from '@/components/exercises/MultipleChoiceExercise'
@@ -26,6 +27,10 @@ type FeedbackState = {
   points: number
   userAnswer: string
   correctAnswer: string
+  /** Displayed in the feedback panel to help remember the word in context */
+  exampleSentence?: string
+  /** Used for "View entry" deep-link in the feedback panel */
+  itemId: string
 } | null
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -46,11 +51,6 @@ function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType 
   return available[Math.floor(Math.random() * available.length)]
 }
 
-const MAX_ITEMS = 25
-
-const STATUS_ORDER: Record<string, number> = {
-  inbox: 0, learning: 1, stable: 2, activation: 3, mastered: 4,
-}
 
 // ── Word picker modal ─────────────────────────────────────────────────────────
 
@@ -254,6 +254,7 @@ export function DailyChallengePage() {
   // '' = due words only (default), theme name = filter by theme
   const [selectedGroup, setSelectedGroup] = useState('')
   const [reshaking, setReshaking] = useState(false)
+  const [sessionSize, setSessionSize] = useState<number>(CHALLENGE_SESSION_CAP)
 
   // Track all item ids used so far (main + bonus) to avoid repeats in bonus
   const usedItemIds = useRef<Set<string>>(new Set())
@@ -266,15 +267,15 @@ export function DailyChallengePage() {
   // ── Slot builders ───────────────────────────────────────────────────────────
 
   /** Build slots from the "due now" pool (default mode). */
-  function buildDueSlots(): ChallengeSlot[] {
+  function buildDueSlots(cap = sessionSize): ChallengeSlot[] {
     const due = shuffle(
       allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)),
-    ).slice(0, MAX_ITEMS)
+    ).slice(0, cap)
     return due.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
   /** Build slots from a specific theme. Due items come first, then not-yet-due ones. */
-  function buildThemeSlots(theme: string): ChallengeSlot[] {
+  function buildThemeSlots(theme: string, cap = sessionSize): ChallengeSlot[] {
     const pool = allItems.filter(
       (i) =>
         (i.themes ?? []).includes(theme) &&
@@ -285,11 +286,24 @@ export function DailyChallengePage() {
     const due = shuffle(pool.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     return [...due, ...notDue]
-      .slice(0, MAX_ITEMS)
+      .slice(0, cap)
       .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
-  // Build challenge slots on mount (main round only)
+  // Build challenge slots ONCE on mount.
+  //
+  // ⚠️  CRITICAL: dependency array is intentionally [] (not [allItems]).
+  //
+  // When the user answers an exercise, recordExposure() mutates a VocabItem
+  // in the Zustand store, which updates the `allItems` reference. If this
+  // effect depended on `allItems`, it would re-fire after every answer,
+  // rebuild the slot list from scratch, and call setPhase('preview') — sending
+  // the user back to the setup page after the very first exercise answer.
+  //
+  // App.tsx guarantees `loaded === true` before any route renders (it shows a
+  // full-page spinner until the store is populated), so `allItems` is always
+  // non-empty and current when this effect first runs. No race condition.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const initial = buildDueSlots()
 
@@ -301,7 +315,7 @@ export function DailyChallengePage() {
     initial.forEach((s) => usedItemIds.current.add(s.item.id))
     setSlots(initial)
     setPhase('preview')
-  }, [allItems]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, []) // ← run once on mount only
 
   // ── Reshuffle ───────────────────────────────────────────────────────────────
 
@@ -324,6 +338,15 @@ export function DailyChallengePage() {
     setSlots(newSlots)
   }
 
+  // ── Session size change ──────────────────────────────────────────────────────
+
+  function handleSessionSizeChange(size: number) {
+    setSessionSize(size)
+    const newSlots = selectedGroup ? buildThemeSlots(selectedGroup, size) : buildDueSlots(size)
+    usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
+    setSlots(newSlots)
+  }
+
   // ── Preview: remove a word ──────────────────────────────────────────────────
   function handleRemove(itemId: string) {
     setSlots((prev) => prev.filter((s) => s.item.id !== itemId))
@@ -340,7 +363,7 @@ export function DailyChallengePage() {
   function startBonusRound() {
     const available = shuffle(
       allItems.filter((i) => !usedItemIds.current.has(i.id) && !i.archived && i.definitionEn),
-    ).slice(0, MAX_ITEMS)
+    ).slice(0, CHALLENGE_SESSION_CAP)
     if (available.length === 0) return
     available.forEach((i) => usedItemIds.current.add(i.id))
     setSlots(available.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) })))
@@ -381,6 +404,8 @@ export function DailyChallengePage() {
         points: result.points,
         userAnswer: result.userAnswer,
         correctAnswer: result.correctAnswer ?? slots[currentIndex]?.item.term ?? '',
+        exampleSentence: slots[currentIndex]?.item.exampleSentence ?? undefined,
+        itemId: result.itemId,
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -446,44 +471,66 @@ export function DailyChallengePage() {
 
         {/* ── Reshuffle + Group toolbar ── */}
         {!isBonus && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            {/* Reshuffle button */}
-            <button
-              onClick={handleReshuffle}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all ${reshaking ? 'animate-spin-once' : ''}`}
-              title="Pick a new random set"
-            >
-              <Shuffle size={15} />
-              Reshuffle
-            </button>
+          <>
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              {/* Reshuffle button */}
+              <button
+                onClick={handleReshuffle}
+                className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all ${reshaking ? 'animate-spin-once' : ''}`}
+                title="Pick a new random set"
+              >
+                <Shuffle size={15} />
+                Reshuffle
+              </button>
 
-            {/* Group / theme selector */}
-            {allThemes.length > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm">
-                <Layers size={14} className="text-slate-400 shrink-0" />
-                <select
-                  value={selectedGroup}
-                  onChange={(e) => handleGroupChange(e.target.value)}
-                  className="text-sm font-medium text-slate-700 bg-transparent border-none outline-none cursor-pointer pr-1"
-                >
-                  <option value="">Due words</option>
-                  <optgroup label="Pick from theme">
-                    {allThemes.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </optgroup>
-                </select>
-              </div>
-            )}
-
-            {/* Context line */}
-            <span className="text-xs text-slate-400 ml-auto">
-              {slots.length} word{slots.length !== 1 ? 's' : ''}
-              {selectedGroup && (
-                <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>
+              {/* Group / theme selector */}
+              {allThemes.length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm">
+                  <Layers size={14} className="text-slate-400 shrink-0" />
+                  <select
+                    value={selectedGroup}
+                    onChange={(e) => handleGroupChange(e.target.value)}
+                    className="text-sm font-medium text-slate-700 bg-transparent border-none outline-none cursor-pointer pr-1"
+                  >
+                    <option value="">Due words</option>
+                    <optgroup label="Pick from theme">
+                      {allThemes.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
               )}
-            </span>
-          </div>
+
+              {/* Context line */}
+              <span className="text-xs text-slate-400 ml-auto">
+                {slots.length} word{slots.length !== 1 ? 's' : ''}
+                {selectedGroup && (
+                  <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>
+                )}
+              </span>
+            </div>
+
+            {/* ── Session size picker ── */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs font-medium text-slate-500 shrink-0">Session size:</span>
+              <div className="flex gap-1.5">
+                {SESSION_SIZES.map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => handleSessionSizeChange(size)}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                      sessionSize === size
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300 hover:text-brand-600'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
 
         {/* Empty-theme state */}
@@ -514,7 +561,7 @@ export function DailyChallengePage() {
         </div>
 
         {/* Add from library button */}
-        {slots.length < MAX_ITEMS && (
+        {slots.length < sessionSize && (
           <button
             onClick={() => setShowPicker(true)}
             className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
@@ -709,38 +756,83 @@ export function DailyChallengePage() {
         )}
       </div>
 
-      {/* Feedback overlay */}
+      {/* ── Feedback panel ── */}
       {feedback && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={dismissFeedback}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') dismissFeedback() }}
-          className={`fixed inset-0 flex flex-col items-center justify-center z-50 cursor-pointer select-none ${
-            feedback.correct ? 'bg-emerald-600/90' : 'bg-red-600/90'
-          }`}
-        >
-          <div className="text-white text-center px-6">
-            {feedback.correct ? (
-              <>
-                <CheckCircle size={56} className="mx-auto mb-4 opacity-90" />
-                <p className="text-3xl font-bold mb-1">Correct!</p>
-                <p className="text-lg opacity-80">+{feedback.points} pts</p>
-              </>
-            ) : (
-              <>
-                <XCircle size={56} className="mx-auto mb-4 opacity-90" />
-                <p className="text-3xl font-bold mb-2">Not quite</p>
-                <p className="text-lg opacity-90">
-                  Answer: <strong>{feedback.correctAnswer}</strong>
+        <>
+          {/* Dim scrim — click to continue (keyboard shortcut still works too) */}
+          <div
+            className="fixed inset-0 z-40 bg-black/20"
+            onClick={dismissFeedback}
+          />
+
+          {/* Bottom sheet */}
+          <div
+            className={`fixed bottom-0 left-0 right-0 z-50 border-t-2 rounded-t-3xl shadow-2xl ${
+              feedback.correct
+                ? 'bg-emerald-50 border-emerald-200'
+                : 'bg-red-50 border-red-200'
+            }`}
+          >
+            <div className="max-w-lg mx-auto px-5 py-5 pb-8">
+
+              {/* Result header */}
+              <div className="flex items-center gap-3 mb-4">
+                {feedback.correct
+                  ? <CheckCircle size={28} className="text-emerald-600 shrink-0" />
+                  : <XCircle    size={28} className="text-red-600 shrink-0" />}
+                <div className="flex-1">
+                  <p className={`text-lg font-bold leading-tight ${
+                    feedback.correct ? 'text-emerald-800' : 'text-red-800'
+                  }`}>
+                    {feedback.correct ? 'Correct!' : 'Not quite'}
+                  </p>
+                  {feedback.correct && (
+                    <p className="text-sm text-emerald-600 font-semibold">+{feedback.points} pts</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Correct answer — shown when wrong */}
+              {!feedback.correct && (
+                <div className={`rounded-xl px-4 py-3 mb-3 bg-red-100 border border-red-200`}>
+                  <p className="text-xs font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Correct answer</p>
+                  <p className="text-base font-bold text-red-900">{feedback.correctAnswer}</p>
+                </div>
+              )}
+
+              {/* Example sentence */}
+              {feedback.exampleSentence && (
+                <p className="text-sm text-slate-600 italic leading-relaxed mb-4">
+                  &ldquo;{feedback.exampleSentence}&rdquo;
                 </p>
-              </>
-            )}
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => { navigate(`/item/${feedback.itemId}`); dismissFeedback() }}
+                  className="px-4 py-3 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors shrink-0"
+                >
+                  View entry
+                </button>
+                <button
+                  onClick={dismissFeedback}
+                  className={`flex-1 py-3 text-sm font-bold text-white rounded-2xl transition-colors ${
+                    feedback.correct
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-red-600 hover:bg-red-700'
+                  }`}
+                >
+                  Continue →
+                </button>
+              </div>
+
+              <p className="text-center text-xs text-slate-400 mt-3">
+                or press any key to continue
+              </p>
+            </div>
           </div>
-          <p className="text-white/50 text-sm mt-10 tracking-wide">
-            tap anywhere or press any key to continue
-          </p>
-        </div>
+        </>
       )}
     </div>
   )

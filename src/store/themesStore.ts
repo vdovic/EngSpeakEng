@@ -68,6 +68,14 @@ export const SUGGESTED_THEMES: { name: string; description: string; emoji: strin
   },
 ]
 
+// ── Default themes seeded on first launch ─────────────────────────────────────
+
+const DEFAULT_THEMES = [
+  'Business & Professional',
+  'Everyday Conversation',
+  'Written Communication',
+].sort((a, b) => a.localeCompare(b))
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 interface ThemesStore {
@@ -81,7 +89,7 @@ interface ThemesStore {
 export const useThemesStore = create<ThemesStore>()(
   persist(
     (set) => ({
-      themes: [],
+      themes: DEFAULT_THEMES,
 
       addTheme: (name) => {
         const trimmed = name.trim()
@@ -107,6 +115,17 @@ export const useThemesStore = create<ThemesStore>()(
         set((s) => ({ themes: s.themes.filter((t) => t !== name) }))
       },
     }),
-    { name: 'speak-english-themes' },
+    {
+      name: 'speak-english-themes',
+      version: 1,
+      migrate: (persisted: unknown, fromVersion: number) => {
+        const state = (persisted ?? {}) as { themes?: string[] }
+        // v0 → v1: seed the three default themes if the list was empty
+        if (fromVersion < 1 && (!state.themes || state.themes.length === 0)) {
+          return { ...state, themes: DEFAULT_THEMES }
+        }
+        return state
+      },
+    },
   ),
 )
