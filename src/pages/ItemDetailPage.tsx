@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
-  Mic, PenLine, BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
+  BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
   Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
@@ -764,31 +764,6 @@ export function ItemDetailPage() {
           <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2">
             <Check size={16} className="text-emerald-600" />
             <span className="font-medium">Mastered!</span>
-          </div>
-        )}
-        {/* Usage log entries */}
-        {item.activation.usageLogs.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-            <p className="text-xs font-medium text-slate-500 mb-1">Usage log</p>
-            {item.activation.usageLogs.slice().reverse().map((log) => (
-              <div key={log.id} className="flex items-start gap-2 text-xs bg-slate-50 rounded-lg p-2.5">
-                <div className="shrink-0 mt-0.5">
-                  {log.channel === 'speaking' ? (
-                    <Mic size={12} className="text-blue-500" />
-                  ) : (
-                    <PenLine size={12} className="text-emerald-500" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-medium text-slate-700 capitalize">{log.channel}</span>
-                    <span className="text-slate-400">{format(new Date(log.usedAt), 'MMM d')}</span>
-                  </div>
-                  {log.note && <p className="text-slate-500">{log.note}</p>}
-                  {log.sentence && <p className="text-slate-700 italic mt-0.5">"{log.sentence}"</p>}
-                </div>
-              </div>
-            ))}
           </div>
         )}
       </Section>
