@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
+import { STATUS_FLOW } from '@/lib/constants'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { RelatedWordsSection } from '@/components/RelatedWordsSection'
@@ -14,7 +15,6 @@ import { usagePoints, progressTowardMastery } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
 import { format } from 'date-fns'
 
-const STATUS_FLOW: ItemStatus[] = ['inbox', 'learning', 'stable', 'activation', 'mastered']
 
 function Section({
   title,

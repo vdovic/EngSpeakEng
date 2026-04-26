@@ -8,6 +8,7 @@ import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore } from '@/store/themesStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
+import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER } from '@/lib/constants'
 import { VocabItem, ExerciseType, ExerciseResult } from '@/types/vocabulary'
 import { FillBlankExercise } from '@/components/exercises/FillBlankExercise'
 import { MultipleChoiceExercise } from '@/components/exercises/MultipleChoiceExercise'
@@ -50,12 +51,6 @@ function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType 
   return available[Math.floor(Math.random() * available.length)]
 }
 
-const MAX_ITEMS = 25
-const SESSION_SIZES = [15, 25, 40] as const
-
-const STATUS_ORDER: Record<string, number> = {
-  inbox: 0, learning: 1, stable: 2, activation: 3, mastered: 4,
-}
 
 // ── Word picker modal ─────────────────────────────────────────────────────────
 
@@ -259,7 +254,7 @@ export function DailyChallengePage() {
   // '' = due words only (default), theme name = filter by theme
   const [selectedGroup, setSelectedGroup] = useState('')
   const [reshaking, setReshaking] = useState(false)
-  const [sessionSize, setSessionSize] = useState<number>(MAX_ITEMS)
+  const [sessionSize, setSessionSize] = useState<number>(CHALLENGE_SESSION_CAP)
 
   // Track all item ids used so far (main + bonus) to avoid repeats in bonus
   const usedItemIds = useRef<Set<string>>(new Set())
@@ -368,7 +363,7 @@ export function DailyChallengePage() {
   function startBonusRound() {
     const available = shuffle(
       allItems.filter((i) => !usedItemIds.current.has(i.id) && !i.archived && i.definitionEn),
-    ).slice(0, MAX_ITEMS)
+    ).slice(0, CHALLENGE_SESSION_CAP)
     if (available.length === 0) return
     available.forEach((i) => usedItemIds.current.add(i.id))
     setSlots(available.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) })))

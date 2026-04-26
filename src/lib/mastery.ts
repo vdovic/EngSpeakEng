@@ -1,7 +1,5 @@
 import { VocabItem, ItemStatus, UsageLog } from '@/types/vocabulary'
-
-const MASTERY_RECALLS = 3
-const MASTERY_USES = 3
+import { MASTERY_RECALLS, MASTERY_USES } from '@/lib/constants'
 
 export function usagePoints(logs: UsageLog[]): number {
   return logs.reduce((sum, l) => sum + (l.channel === 'speaking' || l.channel === 'writing' ? 1 : 0), 0)

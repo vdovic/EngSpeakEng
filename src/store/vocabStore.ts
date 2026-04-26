@@ -80,7 +80,6 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     if (all.length === 0) {
       // Fresh install
       const seed = migrationSeed.length > 0 ? migrationSeed : createSeedData()
-      console.info(`[load] Seeding from migration data: ${seed.length} items`)
       try {
         await db.items.bulkAdd(seed)
       } catch {
@@ -98,7 +97,6 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       const existingIds = new Set(all.map((i) => i.id))
       const missing = migrationSeed.filter((i) => !existingIds.has(i.id))
       if (missing.length > 0) {
-        console.info(`[load] Top-up: adding ${missing.length} missing migration items`)
         for (const item of missing) {
           await db.items.add(item).catch(() => { /* skip term collisions */ })
         }

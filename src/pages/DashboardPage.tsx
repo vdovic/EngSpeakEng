@@ -21,13 +21,12 @@ import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
+import { CHALLENGE_SESSION_CAP } from '@/lib/constants'
+import { todayDateKey } from '@/lib/dateUtils'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { subDays, startOfDay, isWithinInterval } from 'date-fns'
 
 // ── Module-level constants ─────────────────────────────────────────────────────
-
-/** Mirrors DailyChallengePage MAX_ITEMS — keeps home count consistent with what the session actually shows */
-const CHALLENGE_SESSION_CAP = 25
 
 /** Emoji map built once from SUGGESTED_THEMES at module load */
 const THEME_EMOJI: Record<string, string> = Object.fromEntries(
@@ -954,8 +953,7 @@ export function DashboardPage() {
       .filter((l) => new Date(l.usedAt) >= cutoff).length
   }, [items])
 
-  const todayKey = new Date().toISOString().slice(0, 10)
-  const challengeDoneToday = lastChallengeDate === todayKey
+  const challengeDoneToday = lastChallengeDate === todayDateKey()
 
   const themeStats = useMemo<ThemeStat[]>(
     () =>
