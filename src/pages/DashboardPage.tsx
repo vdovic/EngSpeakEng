@@ -24,6 +24,7 @@ import { isDueChallengeNow } from '@/lib/challengeSchedule'
 import { CHALLENGE_SESSION_CAP } from '@/lib/constants'
 import { todayDateKey } from '@/lib/dateUtils'
 import { QuickAddModal } from '@/components/QuickAddModal'
+import { StarterPacksSection } from '@/components/StarterPacksSection'
 import { subDays, startOfDay, isWithinInterval } from 'date-fns'
 
 // ── Module-level constants ─────────────────────────────────────────────────────
@@ -1088,6 +1089,9 @@ export function DashboardPage() {
 
       {/* 3b. How learning works */}
       <HowItWorks />
+
+      {/* 3c. Starter Packs — curated vocabulary packs to import in one click */}
+      <StarterPacksSection showAll={false} />
 
       {/* 4. Focus Areas */}
       <FocusAreasPreview

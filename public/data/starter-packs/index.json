@@ -1,0 +1,62 @@
+[
+  {
+    "id": "business-essentials",
+    "title": "Business English Essentials",
+    "description": "Core vocabulary every professional needs — strategy, leadership, communication, and execution.",
+    "emoji": "💼",
+    "category": "Business",
+    "difficulty": "B2",
+    "wordCount": 52,
+    "estimatedTime": "2–3 weeks",
+    "theme": "Business & Professional",
+    "isFeatured": true
+  },
+  {
+    "id": "meetings-presentations",
+    "title": "Meetings & Presentations",
+    "description": "Language for chairing discussions, presenting data, and moving decisions forward.",
+    "emoji": "📊",
+    "category": "Business",
+    "difficulty": "B2",
+    "wordCount": 41,
+    "estimatedTime": "2 weeks",
+    "theme": "Meetings & Presentations",
+    "isFeatured": true
+  },
+  {
+    "id": "phrasal-verbs-work",
+    "title": "Phrasal Verbs for Work",
+    "description": "40 high-frequency multi-word verbs native speakers use every day in professional contexts.",
+    "emoji": "🔗",
+    "category": "Business",
+    "difficulty": "B2",
+    "wordCount": 40,
+    "estimatedTime": "2 weeks",
+    "theme": "Phrasal Verbs",
+    "isFeatured": false
+  },
+  {
+    "id": "writing-email",
+    "title": "Writing & Email Language",
+    "description": "Formal phrases, connectors, and vocabulary for professional emails, reports, and documents.",
+    "emoji": "✉️",
+    "category": "Writing",
+    "difficulty": "B2",
+    "wordCount": 41,
+    "estimatedTime": "2 weeks",
+    "theme": "Written Communication",
+    "isFeatured": false
+  },
+  {
+    "id": "everyday-fluency",
+    "title": "Everyday Fluency Upgrade",
+    "description": "Connectors, discourse markers, and idiomatic phrases that make your English sound natural and fluid.",
+    "emoji": "☕",
+    "category": "Speaking",
+    "difficulty": "C1",
+    "wordCount": 39,
+    "estimatedTime": "2 weeks",
+    "theme": "Everyday Conversation",
+    "isFeatured": true
+  }
+]

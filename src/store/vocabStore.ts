@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { db } from '@/lib/db'
 import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus } from '@/types/vocabulary'
+import { StarterPack } from '@/types/starterPacks'
 import { calculateNextReview, isDueToday } from '@/lib/srs'
 import { deriveStatus } from '@/lib/mastery'
 import { createSeedData } from '@/lib/seed'
 import { getNextChallengeDate } from '@/lib/challengeSchedule'
 import { generateCandidates, validateRelatedEntries } from '@/lib/relatedEntries'
+import { useThemesStore } from '@/store/themesStore'
 
 interface VocabStore {
   items: VocabItem[]
@@ -34,6 +36,9 @@ interface VocabStore {
   addToWeekFocus: (ids: string[]) => Promise<{ added: number; skipped: number }>
   /** Archive (soft-delete) multiple items at once. */
   deleteItems: (ids: string[]) => Promise<void>
+  /** Import all words from a StarterPack into the inbox (no AI enrichment triggered).
+   *  Returns the count and the IDs of newly added items for immediate activation. */
+  importPack: (pack: StarterPack) => Promise<{ imported: number; skipped: number; ids: string[] }>
 }
 
 function uid(): string {
@@ -469,6 +474,81 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       }
     })
     set((s) => ({ items: s.items.filter((i) => !ids.includes(i.id)) }))
+  },
+
+  // ── importPack ──────────────────────────────────────────────────────────────
+  // Bulk-imports all words from a starter pack into the inbox.
+  // Uses db.items.bulkAdd (NOT addItem) so AI enrichment is NOT triggered.
+  // Words already in the library (by term) are silently skipped.
+  importPack: async (pack: StarterPack) => {
+    const now = new Date().toISOString()
+    const existingTerms = new Set(get().items.map((i) => i.term.toLowerCase()))
+
+    const toAdd: VocabItem[] = []
+    let skipped = 0
+
+    for (const word of pack.words) {
+      if (existingTerms.has(word.term.toLowerCase())) {
+        skipped++
+        continue
+      }
+      const item: VocabItem = {
+        id: uid(),
+        term: word.term,
+        type: word.type,
+        status: 'inbox',
+        createdAt: now,
+        updatedAt: now,
+        sourceType: undefined,
+        sourceText: undefined,
+        tags: word.tags ?? [],
+        themes: word.themes ?? [],
+        definitionEn: word.definitionEn,
+        translations: {},
+        exampleSentence: word.exampleSentence,
+        synonyms: word.synonyms ?? [],
+        antonyms: word.antonyms ?? [],
+        nuance: word.nuance,
+        register: word.register,
+        collocations: [],
+        sentenceFrames: [],
+        relatedPhrases: [],
+        partOfSpeech: word.partOfSpeech,
+        realLifeTask: word.realLifeTask,
+        review: {
+          intervalDays: 0,
+          ease: 2.5,
+          reviewCount: 0,
+          successfulRecalls: 0,
+          sentenceProduced: false,
+        },
+        activation: { requiredUses: 3, usageCount: 0, usageLogs: [] },
+        weeklyFocus: false,
+        archived: false,
+        // undefined = pre-enriched seed data, no AI generation needed
+        generationStatus: undefined,
+      }
+      toAdd.push(item)
+      existingTerms.add(word.term.toLowerCase())
+    }
+
+    if (toAdd.length > 0) {
+      // bulkAdd skips duplicates via error catching; items already there stay untouched
+      try {
+        await db.items.bulkAdd(toAdd)
+      } catch {
+        // If bulkAdd fails (e.g. partial constraint errors), add one by one
+        for (const item of toAdd) {
+          await db.items.add(item).catch(() => { /* skip any remaining duplicates */ })
+        }
+      }
+      set((s) => ({ items: [...toAdd, ...s.items] }))
+    }
+
+    // Auto-create the pack's theme in themesStore (no-op if it already exists)
+    useThemesStore.getState().addTheme(pack.theme)
+
+    return { imported: toAdd.length, skipped, ids: toAdd.map((i) => i.id) }
   },
 
   // ── recordExposure ──────────────────────────────────────────────────────────
