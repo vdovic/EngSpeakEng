@@ -14,7 +14,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Flame, BookOpen, RefreshCw, Zap, Trophy,
-  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2, Star, ChevronDown,
+  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2, Star, ChevronDown, SlidersHorizontal,
 } from 'lucide-react'
 import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -954,7 +954,7 @@ function HowItWorks() {
 
 // ── DashboardPage ─────────────────────────────────────────────────────────────
 
-export function DashboardPage() {
+export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => void }) {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
 
@@ -1115,6 +1115,27 @@ export function DashboardPage() {
 
       {/* 6. AI Insight */}
       <AIInsightCard insight={insight} />
+
+      {/* 7. Re-personalise — available for repeat users */}
+      {onOpenOnboarding && (
+        <div className="mt-6 mb-2">
+          <button
+            onClick={onOpenOnboarding}
+            className="w-full flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:border-brand-200 hover:bg-brand-50/30 transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-brand-100 flex items-center justify-center shrink-0 group-hover:bg-brand-200 transition-colors">
+                <SlidersHorizontal size={16} className="text-brand-600" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold text-slate-800 leading-snug">Personalise my setup</p>
+                <p className="text-xs text-slate-400 mt-0.5">Re-run the guided setup to refresh your focus areas</p>
+              </div>
+            </div>
+            <ChevronRight size={16} className="text-slate-300 group-hover:text-brand-400 transition-colors shrink-0" />
+          </button>
+        </div>
+      )}
 
       {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} />}
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, lazy, Suspense, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { NavBar } from '@/components/NavBar'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -11,17 +11,33 @@ import { DailyChallengePage } from '@/pages/DailyChallengePage'
 import { ThemesPage } from '@/pages/ThemesPage'
 import { ThemeDetailPage } from '@/pages/ThemeDetailPage'
 import { Spinner } from '@/components/Spinner'
+import { OnboardingModal } from '@/components/OnboardingModal'
 
 // Lazy-load StatsPage — recharts adds ~370 KB; split it to keep initial bundle lean
 const StatsPage = lazy(() => import('@/pages/StatsPage').then((m) => ({ default: m.StatsPage })))
 import { useVocabStore } from '@/store/vocabStore'
+import { useOnboardingStore } from '@/store/onboardingStore'
 
 export default function App() {
   const { load, loaded } = useVocabStore()
+  const { completed: onboardingCompleted, reset: resetOnboarding } = useOnboardingStore()
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   useEffect(() => {
     load()
   }, [load])
+
+  // Show onboarding once data is loaded and user hasn't completed it yet
+  useEffect(() => {
+    if (loaded && !onboardingCompleted) {
+      setShowOnboarding(true)
+    }
+  }, [loaded, onboardingCompleted])
+
+  function handleOpenOnboarding() {
+    resetOnboarding()        // clear previous selections so steps start fresh
+    setShowOnboarding(true)
+  }
 
   if (!loaded) {
     return (
@@ -39,7 +55,7 @@ export default function App() {
       <NavBar />
       <main className="flex-1 overflow-y-auto min-h-screen">
         <Routes>
-          <Route path="/"        element={<DashboardPage />} />
+          <Route path="/"        element={<DashboardPage onOpenOnboarding={handleOpenOnboarding} />} />
           <Route path="/inbox"   element={<InboxPage />} />
           <Route path="/review"  element={<ReviewPage />} />
           <Route path="/library" element={<LibraryPage />} />
@@ -51,6 +67,10 @@ export default function App() {
           <Route path="/themes/:themeName" element={<ThemeDetailPage />} />
         </Routes>
       </main>
+
+      {showOnboarding && (
+        <OnboardingModal onClose={() => setShowOnboarding(false)} />
+      )}
     </div>
   )
 }
