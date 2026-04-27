@@ -80,6 +80,10 @@ export interface VocabItem {
   activation: ActivationData
 
   weeklyFocus: boolean
+  /** ISO timestamp when the item was added to Focus This Week */
+  focusAddedAt?: string
+  /** Computed priority score — higher = kept longer on weekly reset */
+  focusPriority?: number
   archived: boolean
 
   // ── AI enrichment ──────────────────────────────────────────────────────────

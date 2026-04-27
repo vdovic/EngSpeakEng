@@ -14,7 +14,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus, Flame, BookOpen, RefreshCw, Zap, Trophy,
-  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2, Star, ChevronDown, SlidersHorizontal,
+  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2, ChevronDown, SlidersHorizontal, Target, CheckCircle2,
 } from 'lucide-react'
 import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -760,70 +760,102 @@ function AIInsightCard({ insight }: { insight: Insight }) {
   )
 }
 
-// ── ThisWeekPreview ───────────────────────────────────────────────────────────
+// ── FocusThisWeekPreview ──────────────────────────────────────────────────────
 
-function ThisWeekPreview({
-  onNavigate,
-}: {
-  onNavigate: () => void
-}) {
-  const weekItems = useWeeklyFocusItems()
-  if (weekItems.length === 0) return null
+function FocusThisWeekPreview({ onNavigate }: { onNavigate: () => void }) {
+  const focusItems = useWeeklyFocusItems()
+  const FOCUS_MAX = 50
 
-  const preview = weekItems.slice(0, 5)
+  // Always show — if empty, show an enticing CTA
+  const preview = focusItems.slice(0, 5)
+  const usedCount = focusItems.filter((i) => i.activation.usageLogs.length >= 3).length
 
   return (
     <section className="mb-8">
-      <div className="flex items-end justify-between mb-4">
+      <div className="flex items-start justify-between mb-3">
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Star size={16} className="text-amber-500" fill="currentColor" />
-            Active This Week
+            <Target size={16} className="text-amber-500" />
+            Focus This Week
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">{weekItems.length} word{weekItems.length !== 1 ? 's' : ''} in focus</p>
+          {focusItems.length > 0 ? (
+            <p className="text-xs text-slate-500 mt-0.5">
+              {focusItems.length} / {FOCUS_MAX} words · {usedCount} used 3× this week
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500 mt-0.5">
+              Words the system selected for you to use this week
+            </p>
+          )}
         </div>
         <button
           onClick={onNavigate}
-          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0"
+          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0 mt-1"
         >
-          See all <ChevronRight size={12} />
+          {focusItems.length > 0 ? 'See all' : 'Set up'} <ChevronRight size={12} />
         </button>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 shadow-sm">
-        {preview.map((item) => {
-          const uses = item.activation.usageLogs.length
-          return (
-            <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-900 truncate">{item.term}</p>
-                {item.definitionEn && (
-                  <p className="text-xs text-slate-400 truncate leading-snug mt-0.5">{item.definitionEn}</p>
-                )}
-              </div>
-              {/* Usage dots: 3 needed for full week use */}
-              <div className="flex gap-1 shrink-0">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-2 rounded-full ${
-                      i < uses ? 'bg-amber-400' : 'bg-slate-200'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          )
-        })}
-        {weekItems.length > 5 && (
+      {focusItems.length === 0 ? (
+        /* Empty state — still shows the section, invites action */
+        <button
+          onClick={onNavigate}
+          className="w-full bg-amber-50 border border-amber-200 border-dashed rounded-2xl p-5 text-center hover:bg-amber-100 transition-colors"
+        >
+          <Target size={24} className="mx-auto mb-2 text-amber-400" />
+          <p className="text-sm font-semibold text-amber-800 mb-1">No focus words yet</p>
+          <p className="text-xs text-amber-600">
+            Complete Daily Challenges and the system will auto-select words for real-life practice.
+          </p>
+        </button>
+      ) : (
+        <>
+          <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 shadow-sm mb-3">
+            {preview.map((item) => {
+              const uses = item.activation.usageLogs.length
+              const done = uses >= 3
+              return (
+                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                  {done
+                    ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                    : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-200 shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold truncate ${done ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                      {item.term}
+                    </p>
+                  </div>
+                  {/* Usage dots */}
+                  <div className="flex gap-1 shrink-0">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className={`w-2 h-2 rounded-full transition-colors ${
+                          i < uses ? (done ? 'bg-emerald-400' : 'bg-amber-400') : 'bg-slate-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+            {focusItems.length > 5 && (
+              <button
+                onClick={onNavigate}
+                className="w-full py-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors text-center"
+              >
+                +{focusItems.length - 5} more →
+              </button>
+            )}
+          </div>
           <button
             onClick={onNavigate}
-            className="w-full py-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors text-center"
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 active:scale-[0.98] transition-all"
           >
-            +{weekItems.length - 5} more →
+            <Zap size={13} /> Practice Focus Words
           </button>
-        )}
-      </div>
+        </>
+      )}
     </section>
   )
 }
@@ -1102,8 +1134,8 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         processingTheme={processingTheme}
       />
 
-      {/* 4b. Active This Week preview */}
-      <ThisWeekPreview onNavigate={() => navigate('/week')} />
+      {/* 4b. Focus This Week preview */}
+      <FocusThisWeekPreview onNavigate={() => navigate('/week')} />
 
       {/* 5. Progress */}
       <ProgressSummaryCard

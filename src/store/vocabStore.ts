@@ -8,6 +8,14 @@ import { createSeedData } from '@/lib/seed'
 import { getNextChallengeDate } from '@/lib/challengeSchedule'
 import { generateCandidates, validateRelatedEntries } from '@/lib/relatedEntries'
 import { useThemesStore } from '@/store/themesStore'
+import {
+  getWeekStart,
+  FOCUS_WEEK_LS_KEY,
+  FOCUS_MAX,
+  calcFocusPriority,
+  getRuleBCandidates,
+  computeWeeklyReset,
+} from '@/lib/focusWeek'
 
 interface VocabStore {
   items: VocabItem[]
@@ -39,6 +47,24 @@ interface VocabStore {
   /** Import all words from a StarterPack into the inbox (no AI enrichment triggered).
    *  Returns the count and the IDs of newly added items for immediate activation. */
   importPack: (pack: StarterPack) => Promise<{ imported: number; skipped: number; ids: string[] }>
+  /**
+   * Add/remove a single item from Focus This Week.
+   * On add: computes priority, sets focusAddedAt, enforces the 50-word cap.
+   * On remove: clears focus fields.
+   */
+  setFocusThisWeek: (id: string, inFocus: boolean) => Promise<void>
+  /**
+   * Bulk-add multiple items to Focus This Week.
+   * Respects the 50-word cap — lowest-priority items are evicted to make room.
+   * Returns { added, evicted } counts.
+   */
+  addToFocusThisWeek: (ids: string[]) => Promise<{ added: number; evicted: number }>
+  /**
+   * Rule B auto-promote: adds struggling words (≥2 failures in recent reviews)
+   * to Focus This Week automatically.
+   * Returns the number of words auto-promoted.
+   */
+  autoPromoteToFocus: () => Promise<number>
 }
 
 function uid(): string {
@@ -112,6 +138,35 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       }
     }
 
+    // ── Weekly Focus reset ────────────────────────────────────────────────────
+    // If a new week has started since the last load, evict the lowest-priority
+    // focus items (keep top 65%) to make room for fresh struggling/new words.
+    const storedWeek = localStorage.getItem(FOCUS_WEEK_LS_KEY)
+    const currentWeek = getWeekStart()
+    if (storedWeek && storedWeek !== currentWeek) {
+      const focusItems = all.filter((i) => i.weeklyFocus)
+      const activeThemes = useThemesStore.getState().themes
+      const { removedIds } = computeWeeklyReset(focusItems, activeThemes)
+      if (removedIds.length > 0) {
+        const now = new Date().toISOString()
+        for (const id of removedIds) {
+          await db.items.update(id, {
+            weeklyFocus: false,
+            focusAddedAt: undefined,
+            focusPriority: undefined,
+            updatedAt: now,
+          })
+        }
+        // Refresh all after reset
+        all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
+          ...i,
+          themes: i.themes ?? [],
+        }))
+      }
+    }
+    // Always update the stored week key
+    localStorage.setItem(FOCUS_WEEK_LS_KEY, currentWeek)
+
     set({ items: all, loaded: true })
 
     // Re-trigger enrichment for any items that were 'pending' when the app
@@ -122,6 +177,9 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         // enrichItem handles its own errors; this prevents unhandled rejections
       })
     }
+
+    // Rule B auto-promote: add newly struggling words to Focus (fire-and-forget)
+    get().autoPromoteToFocus().catch(() => {})
   },
 
   // ── addItem ─────────────────────────────────────────────────────────────────
@@ -398,15 +456,95 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     }))
   },
 
-  // ── toggleWeeklyFocus ────────────────────────────────────────────────────────
+  // ── toggleWeeklyFocus ─────────────────────────────────────────────────────────
+  // Kept for backwards compatibility — delegates to setFocusThisWeek.
   toggleWeeklyFocus: async (id) => {
     const item = get().items.find((i) => i.id === id)
     if (!item) return
-    const weeklyFocus = !item.weeklyFocus
-    await db.items.update(id, { weeklyFocus })
-    set((s) => ({
-      items: s.items.map((i) => (i.id === id ? { ...i, weeklyFocus } : i)),
-    }))
+    await get().setFocusThisWeek(id, !item.weeklyFocus)
+  },
+
+  // ── setFocusThisWeek ──────────────────────────────────────────────────────────
+  setFocusThisWeek: async (id, inFocus) => {
+    const now = new Date().toISOString()
+    const items = get().items
+    const item = items.find((i) => i.id === id)
+    if (!item) return
+
+    if (!inFocus) {
+      // Removing from focus — clear metadata
+      const patch = { weeklyFocus: false, focusAddedAt: undefined, focusPriority: undefined, updatedAt: now }
+      await applyPatch(id, patch, set)
+      return
+    }
+
+    // Adding to focus — compute priority
+    const activeThemes = useThemesStore.getState().themes
+    const priority = calcFocusPriority(item, activeThemes)
+
+    // Enforce cap: if adding this item would exceed FOCUS_MAX, evict lowest-priority
+    const currentFocus = items.filter((i) => i.weeklyFocus)
+    if (currentFocus.length >= FOCUS_MAX) {
+      const lowestPriority = [...currentFocus]
+        .sort((a, b) => (a.focusPriority ?? 0) - (b.focusPriority ?? 0))[0]
+      if (lowestPriority && (lowestPriority.focusPriority ?? 0) < priority) {
+        const evictPatch = { weeklyFocus: false, focusAddedAt: undefined, focusPriority: undefined, updatedAt: now }
+        await applyPatch(lowestPriority.id, evictPatch, set)
+      } else {
+        return // cap reached and new item has lower priority — skip
+      }
+    }
+
+    const addPatch = { weeklyFocus: true, focusAddedAt: now, focusPriority: priority, updatedAt: now }
+    await applyPatch(id, addPatch, set)
+  },
+
+  // ── addToFocusThisWeek ────────────────────────────────────────────────────────
+  addToFocusThisWeek: async (ids) => {
+    const now = new Date().toISOString()
+    const activeThemes = useThemesStore.getState().themes
+    let added = 0
+    let evicted = 0
+
+    for (const id of ids) {
+      const items = get().items
+      const item = items.find((i) => i.id === id)
+      if (!item || item.weeklyFocus) continue
+
+      const priority = calcFocusPriority(item, activeThemes)
+      const currentFocus = items.filter((i) => i.weeklyFocus)
+
+      if (currentFocus.length >= FOCUS_MAX) {
+        const lowestPriority = [...currentFocus]
+          .sort((a, b) => (a.focusPriority ?? 0) - (b.focusPriority ?? 0))[0]
+        if (!lowestPriority || (lowestPriority.focusPriority ?? 0) >= priority) continue
+        const evictPatch = { weeklyFocus: false, focusAddedAt: undefined, focusPriority: undefined, updatedAt: now }
+        await applyPatch(lowestPriority.id, evictPatch, set)
+        evicted++
+      }
+
+      await applyPatch(id, { weeklyFocus: true, focusAddedAt: now, focusPriority: priority, updatedAt: now }, set)
+      added++
+    }
+
+    return { added, evicted }
+  },
+
+  // ── autoPromoteToFocus ────────────────────────────────────────────────────────
+  // Rule B: auto-add struggling words (failures > successes, reviewed ≥ 3 times).
+  // Capped so it never floods the focus list.
+  autoPromoteToFocus: async () => {
+    const items = get().items
+    const focusCount = items.filter((i) => i.weeklyFocus).length
+    const available = FOCUS_MAX - focusCount
+    if (available <= 0) return 0
+
+    const candidates = getRuleBCandidates(items)
+    const toAdd = candidates.slice(0, Math.min(available, 5)) // max 5 auto-adds per run
+    if (toAdd.length === 0) return 0
+
+    const { added } = await get().addToFocusThisWeek(toAdd.map((i) => i.id))
+    return added
   },
 
   // ── assignThemes ─────────────────────────────────────────────────────────────
@@ -548,6 +686,12 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     // Auto-create the pack's theme in themesStore (no-op if it already exists)
     useThemesStore.getState().addTheme(pack.theme)
 
+    // Rule C: auto-add first 15–20 imported words to Focus This Week
+    if (toAdd.length > 0) {
+      const focusIds = toAdd.slice(0, Math.min(20, toAdd.length)).map((i) => i.id)
+      get().addToFocusThisWeek(focusIds).catch(() => {})
+    }
+
     return { imported: toAdd.length, skipped, ids: toAdd.map((i) => i.id) }
   },
 
@@ -577,6 +721,14 @@ export function useDueItems(): VocabItem[] {
   )
 }
 
+/** Returns Focus This Week items sorted by priority desc (highest priority first). */
 export function useWeeklyFocusItems(): VocabItem[] {
-  return useVocabStore((s) => s.items.filter((i) => i.weeklyFocus && i.status !== 'mastered'))
+  return useVocabStore((s) =>
+    s.items
+      .filter((i) => i.weeklyFocus && i.status !== 'mastered')
+      .sort((a, b) => (b.focusPriority ?? 0) - (a.focusPriority ?? 0)),
+  )
 }
+
+/** Alias — prefer this name in new code. */
+export const useFocusThisWeekItems = useWeeklyFocusItems

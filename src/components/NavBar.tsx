@@ -40,7 +40,7 @@ const SIDEBAR_GROUPS: NavGroup[] = [
     links: [
       { to: '/library', icon: Library, label: 'All Vocabulary' },
       { to: '/themes',  icon: Layers,  label: 'Themes' },
-      { to: '/week',    icon: Target,  label: 'Active This Week' },
+      { to: '/week',    icon: Target,  label: 'Focus This Week' },
     ],
   },
   {

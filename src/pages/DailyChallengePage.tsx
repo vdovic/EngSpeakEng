@@ -266,12 +266,22 @@ export function DailyChallengePage() {
 
   // ── Slot builders ───────────────────────────────────────────────────────────
 
-  /** Build slots from the "due now" pool (default mode). */
+  /** Build slots from the "due now" pool (default mode).
+   *  Focus This Week words are prioritised: they fill at least 60% of slots when available. */
   function buildDueSlots(cap = sessionSize): ChallengeSlot[] {
-    const due = shuffle(
-      allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)),
-    ).slice(0, cap)
-    return due.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
+    const allDue = allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate))
+    const focusDue  = shuffle(allDue.filter((i) => i.weeklyFocus))
+    const normalDue = shuffle(allDue.filter((i) => !i.weeklyFocus))
+
+    // Reserve at least 60% for focus words (if enough exist)
+    const focusTarget = Math.ceil(cap * 0.6)
+    const focusPick   = focusDue.slice(0, Math.min(focusTarget, focusDue.length))
+    const normalPick  = normalDue.slice(0, cap - focusPick.length)
+    const combined    = shuffle([...focusPick, ...normalPick])
+
+    return combined
+      .slice(0, cap)
+      .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
   /** Build slots from a specific theme. Due items come first, then not-yet-due ones. */

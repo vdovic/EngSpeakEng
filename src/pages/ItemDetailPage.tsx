@@ -332,7 +332,7 @@ export function ItemDetailPage() {
         <button
           onClick={() => toggleWeeklyFocus(item.id)}
           className={`p-1.5 rounded-lg transition-colors ${item.weeklyFocus ? 'text-amber-500 hover:text-amber-600' : 'text-slate-400 hover:text-slate-600'}`}
-          title={item.weeklyFocus ? 'Remove from Active This Week' : 'Add to Active This Week'}
+          title={item.weeklyFocus ? 'Remove from Focus This Week' : 'Add to Focus This Week'}
         >
           {item.weeklyFocus ? <Star size={18} fill="currentColor" /> : <StarOff size={18} />}
         </button>
