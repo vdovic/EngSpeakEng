@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Lightbulb, ChevronDown } from 'lucide-react'
+import { Lightbulb, ChevronDown, CheckCircle, XCircle } from 'lucide-react'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
 import { WordPeek } from './WordPeek'
 
@@ -71,6 +71,8 @@ function pickDistractors(item: VocabItem, others: VocabItem[], n: number): Vocab
 export function FillBlankExercise({ item, allItems, onAnswer }: Props) {
   const [answer, setAnswer] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  // null = not yet judged, true/false = result of typed submission
+  const [typedResult, setTypedResult] = useState<boolean | null>(null)
 
   // Hint state
   const [hintOpen, setHintOpen]   = useState(false)
@@ -122,6 +124,7 @@ export function FillBlankExercise({ item, allItems, onAnswer }: Props) {
     if (!answer.trim() || submitted) return
     setSubmitted(true)
     const correct = answer.trim().toLowerCase() === item.term.toLowerCase()
+    setTypedResult(correct)
     onAnswer({
       itemId: item.id,
       exerciseType: 'fill-blank',
@@ -204,9 +207,36 @@ export function FillBlankExercise({ item, allItems, onAnswer }: Props) {
         onKeyDown={(e) => e.key === 'Enter' && !hintOpen && handleSubmit()}
         placeholder="Type your answer…"
         disabled={submitted || hintOpen}
-        className="w-full px-4 py-3 text-base border-2 border-slate-200 rounded-xl focus:outline-none focus:border-brand-400 placeholder:text-slate-300 disabled:opacity-60"
+        className={`w-full px-4 py-3 text-base border-2 rounded-xl focus:outline-none placeholder:text-slate-300 transition-colors ${
+          typedResult === true
+            ? 'border-emerald-400 bg-emerald-50 text-emerald-900'
+            : typedResult === false
+            ? 'border-red-400 bg-red-50 text-red-900'
+            : 'border-slate-200 focus:border-brand-400 disabled:opacity-60'
+        }`}
         autoFocus={!hintOpen}
       />
+
+      {/* ── In-card result feedback for typed answers ── */}
+      {typedResult !== null && (
+        <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium ${
+          typedResult
+            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          {typedResult ? (
+            <>
+              <CheckCircle size={16} className="text-emerald-500 shrink-0" />
+              <span>Correct! <span className="font-normal text-emerald-600">+10 pts</span></span>
+            </>
+          ) : (
+            <>
+              <XCircle size={16} className="text-red-500 shrink-0" />
+              <span>The answer was <strong>{item.term}</strong></span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Normal submit (only when hint not open) ── */}
       {!hintOpen && !hintUsed && (
