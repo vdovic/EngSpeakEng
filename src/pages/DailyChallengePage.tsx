@@ -753,7 +753,7 @@ export function DailyChallengePage() {
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         {exerciseType === 'fill-blank' && (
-          <FillBlankExercise key={`${item.id}-fill`} item={item} onAnswer={handleAnswer} />
+          <FillBlankExercise key={`${item.id}-fill`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
         {exerciseType === 'multiple-choice' && (
           <MultipleChoiceExercise key={`${item.id}-mc`} item={item} allItems={allItems} onAnswer={handleAnswer} />

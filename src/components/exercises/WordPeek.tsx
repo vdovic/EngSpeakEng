@@ -4,6 +4,8 @@ import { VocabItem } from '@/types/vocabulary'
 
 interface Props {
   item: VocabItem
+  /** When true the panel is forced open (e.g. after a wrong hint pick). */
+  forceOpen?: boolean
 }
 
 /**
@@ -14,8 +16,9 @@ interface Props {
  * The "Open full page →" link opens the detail page in a new tab so the
  * learner never loses their exercise session.
  */
-export function WordPeek({ item }: Props) {
+export function WordPeek({ item, forceOpen = false }: Props) {
   const [open, setOpen] = useState(false)
+  const isOpen = open || forceOpen
 
   return (
     <div className="mt-5 pt-4 border-t border-slate-100">
@@ -26,16 +29,16 @@ export function WordPeek({ item }: Props) {
       >
         <BookOpen size={13} className="shrink-0" />
         <span className="flex-1 text-left">
-          {open ? 'Hide word details' : "Don't know this word? See full description"}
+          {isOpen ? 'Hide word details' : "Don't know this word? See full description"}
         </span>
         <ChevronDown
           size={13}
-          className={`shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
 
       {/* Expanded content */}
-      {open && (
+      {isOpen && (
         <div className="mt-4 space-y-4 text-sm">
 
           {/* Word heading — always shown first so the learner knows which word this is */}
