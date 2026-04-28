@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
-  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers,
+  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -14,6 +14,10 @@ import { FillBlankExercise } from '@/components/exercises/FillBlankExercise'
 import { MultipleChoiceExercise } from '@/components/exercises/MultipleChoiceExercise'
 import { SynonymMatchExercise } from '@/components/exercises/SynonymMatchExercise'
 import { SentenceCreateExercise } from '@/components/exercises/SentenceCreateExercise'
+import { WordDetailModal } from '@/components/WordDetailModal'
+import {
+  saveSession, loadTodaySession, clearSession, todayKey,
+} from '@/lib/challengeSession'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,9 +31,7 @@ type FeedbackState = {
   points: number
   userAnswer: string
   correctAnswer: string
-  /** Displayed in the feedback panel to help remember the word in context */
   exampleSentence?: string
-  /** Used for "View entry" deep-link in the feedback panel */
   itemId: string
 } | null
 
@@ -50,7 +52,6 @@ function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType 
   if (item.synonyms.length >= 1 && allItems.length >= 4) available.push('synonym-match')
   return available[Math.floor(Math.random() * available.length)]
 }
-
 
 // ── Word picker modal ─────────────────────────────────────────────────────────
 
@@ -89,28 +90,17 @@ function WordPickerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      {/* Dim backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-
-      {/* Bottom sheet */}
       <div className="relative bg-white rounded-t-2xl shadow-2xl flex flex-col max-h-[85vh]">
-        {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 bg-slate-200 rounded-full" />
         </div>
-
-        {/* Header */}
         <div className="flex items-center gap-2 px-4 pb-3 pt-1">
           <h2 className="flex-1 text-base font-bold text-slate-900">Add from library</h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-          >
+          <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
             <X size={18} />
           </button>
         </div>
-
-        {/* Search */}
         <div className="px-4 pb-3">
           <div className="relative">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -127,13 +117,9 @@ function WordPickerModal({
             {available.length} word{available.length !== 1 ? 's' : ''} available
           </p>
         </div>
-
-        {/* Scrollable list */}
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
           {available.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 text-sm">
-              No matching words found
-            </div>
+            <div className="py-12 text-center text-slate-400 text-sm">No matching words found</div>
           ) : (
             available.map((item) => (
               <button
@@ -176,19 +162,12 @@ function WordPickerModal({
 
 // ── Preview row ───────────────────────────────────────────────────────────────
 
-function PreviewRow({
-  item,
-  onRemove,
-}: {
-  item: VocabItem
-  onRemove: () => void
-}) {
+function PreviewRow({ item, onRemove }: { item: VocabItem; onRemove: () => void }) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
       <div className="flex items-stretch">
-        {/* Expand / collapse area */}
         <button
           onClick={() => setOpen((o) => !o)}
           className="flex-1 flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors min-w-0"
@@ -199,13 +178,8 @@ function PreviewRow({
               <span className="ml-2 text-xs text-slate-400 italic">{item.partOfSpeech}</span>
             )}
           </div>
-          <ChevronDown
-            size={14}
-            className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-          />
+          <ChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
-
-        {/* Remove button — visually separated */}
         <button
           onClick={onRemove}
           className="px-3 border-l border-slate-100 text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0"
@@ -214,7 +188,6 @@ function PreviewRow({
           <X size={14} />
         </button>
       </div>
-
       {open && (
         <div className="px-4 pb-3 pt-2.5 border-t border-slate-100 space-y-1.5">
           {item.definitionEn ? (
@@ -223,9 +196,7 @@ function PreviewRow({
             <p className="text-sm text-slate-400 italic">No definition yet.</p>
           )}
           {item.exampleSentence && (
-            <p className="text-xs text-slate-400 italic">
-              &ldquo;{item.exampleSentence}&rdquo;
-            </p>
+            <p className="text-xs text-slate-400 italic">&ldquo;{item.exampleSentence}&rdquo;</p>
           )}
         </div>
       )}
@@ -251,95 +222,135 @@ export function DailyChallengePage() {
   const [phase, setPhase] = useState<'loading' | 'preview' | 'exercising' | 'complete'>('loading')
   const [newBadges, setNewBadges] = useState<ReturnType<typeof checkBadges>>([])
   const [isBonus, setIsBonus] = useState(false)
-  // '' = due words only (default), theme name = filter by theme
   const [selectedGroup, setSelectedGroup] = useState('')
   const [reshaking, setReshaking] = useState(false)
   const [sessionSize, setSessionSize] = useState<number>(CHALLENGE_SESSION_CAP)
 
-  // Track all item ids used so far (main + bonus) to avoid repeats in bonus
-  const usedItemIds = useRef<Set<string>>(new Set())
-  // Stores the advance() fn that runs when the feedback overlay is dismissed
-  const pendingAdvance = useRef<(() => void) | null>(null)
+  // Inline word detail modal (replaces navigate-away "View entry")
+  const [wordDetailItem, setWordDetailItem] = useState<VocabItem | null>(null)
 
-  // Set of ids currently in preview slots (drives picker exclusion list)
+  // Resume banner shown briefly when auto-resuming a saved session
+  const [resumeBanner, setResumeBanner] = useState<string | null>(null)
+
+  const usedItemIds = useRef<Set<string>>(new Set())
+  const pendingAdvance = useRef<(() => void) | null>(null)
   const slotIds = useMemo(() => new Set(slots.map((s) => s.item.id)), [slots])
 
-  // ── Slot builders ───────────────────────────────────────────────────────────
+  // ── Slot builders ────────────────────────────────────────────────────────────
 
-  /** Build slots from the "due now" pool (default mode).
-   *  Focus This Week words are prioritised: they fill at least 60% of slots when available. */
   function buildDueSlots(cap = sessionSize): ChallengeSlot[] {
     const allDue = allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate))
     const focusDue  = shuffle(allDue.filter((i) => i.weeklyFocus))
     const normalDue = shuffle(allDue.filter((i) => !i.weeklyFocus))
-
-    // Reserve at least 60% for focus words (if enough exist)
     const focusTarget = Math.ceil(cap * 0.6)
     const focusPick   = focusDue.slice(0, Math.min(focusTarget, focusDue.length))
     const normalPick  = normalDue.slice(0, cap - focusPick.length)
-    const combined    = shuffle([...focusPick, ...normalPick])
-
-    return combined
+    return shuffle([...focusPick, ...normalPick])
       .slice(0, cap)
       .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
-  /** Build slots from a specific theme. Due items come first, then not-yet-due ones. */
   function buildThemeSlots(theme: string, cap = sessionSize): ChallengeSlot[] {
     const pool = allItems.filter(
-      (i) =>
-        (i.themes ?? []).includes(theme) &&
-        i.definitionEn &&
-        !i.archived &&
-        (i.exposureCount ?? 0) < 8,
+      (i) => (i.themes ?? []).includes(theme) && i.definitionEn && !i.archived && (i.exposureCount ?? 0) < 8,
     )
-    const due = shuffle(pool.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
+    const due    = shuffle(pool.filter((i) =>  isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     return [...due, ...notDue]
       .slice(0, cap)
       .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
   }
 
-  // Build challenge slots ONCE on mount.
+  // ── Mount: restore session OR build fresh ────────────────────────────────────
   //
-  // ⚠️  CRITICAL: dependency array is intentionally [] (not [allItems]).
+  // ⚠️  Dependency array is intentionally []. allItems is always populated
+  // before this route renders (App.tsx holds a full-page spinner until loaded).
+  // Adding allItems would re-fire after every recordExposure() call and reset
+  // the user back to the preview screen mid-challenge.
   //
-  // When the user answers an exercise, recordExposure() mutates a VocabItem
-  // in the Zustand store, which updates the `allItems` reference. If this
-  // effect depended on `allItems`, it would re-fire after every answer,
-  // rebuild the slot list from scratch, and call setPhase('preview') — sending
-  // the user back to the setup page after the very first exercise answer.
-  //
-  // App.tsx guarantees `loaded === true` before any route renders (it shows a
-  // full-page spinner until the store is populated), so `allItems` is always
-  // non-empty and current when this effect first runs. No race condition.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const initial = buildDueSlots()
+    const saved = loadTodaySession()
 
+    if (saved && !saved.isBonus) {
+      // Hydrate slots from current allItems (items may have been updated)
+      const restoredSlots: ChallengeSlot[] = saved.slots
+        .map((s) => {
+          const item = allItems.find((i) => i.id === s.itemId)
+          return item ? { item, exerciseType: s.exerciseType } : null
+        })
+        .filter((s): s is ChallengeSlot => s !== null)
+
+      if (restoredSlots.length > 0) {
+        restoredSlots.forEach((s) => usedItemIds.current.add(s.item.id))
+        setSlots(restoredSlots)
+        setResults(saved.results)
+
+        if (saved.completed) {
+          // Completed today — show summary (user can restart or use same words)
+          setPhase('complete')
+          return
+        }
+
+        if (saved.currentIndex > 0) {
+          // In-progress session — auto-resume, skip preview
+          setCurrentIndex(saved.currentIndex)
+          setPhase('exercising')
+          const n = saved.currentIndex + 1
+          const total = restoredSlots.length
+          setResumeBanner(`Resuming your challenge · ${n}/${total}`)
+          return
+        }
+      }
+    }
+
+    // No valid saved session — build fresh
+    const initial = buildDueSlots()
     if (initial.length === 0) {
       setPhase('complete')
       return
     }
-
     initial.forEach((s) => usedItemIds.current.add(s.item.id))
     setSlots(initial)
     setPhase('preview')
-  }, []) // ← run once on mount only
+  }, []) // run once on mount only
 
-  // ── Reshuffle ───────────────────────────────────────────────────────────────
+  // Auto-dismiss resume banner after 3 s
+  useEffect(() => {
+    if (!resumeBanner) return
+    const t = setTimeout(() => setResumeBanner(null), 3000)
+    return () => clearTimeout(t)
+  }, [resumeBanner])
+
+  // ── Persist session after each answer / phase change ──────────────────────────
+  //
+  // Only persists main (non-bonus) rounds so bonus play doesn't overwrite
+  // the day's real session data.
+  //
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (isBonus || slots.length === 0) return
+    if (phase !== 'exercising' && phase !== 'complete') return
+    saveSession({
+      date: todayKey(),
+      slots: slots.map((s) => ({ itemId: s.item.id, exerciseType: s.exerciseType })),
+      currentIndex,
+      results,
+      completed: phase === 'complete',
+      isBonus: false,
+    })
+  }, [phase, currentIndex, results]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Reshuffle ─────────────────────────────────────────────────────────────────
 
   function handleReshuffle() {
     const newSlots = selectedGroup ? buildThemeSlots(selectedGroup) : buildDueSlots()
     if (newSlots.length === 0) return
     usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
     setSlots(newSlots)
-    // Brief visual shake animation
     setReshaking(true)
     setTimeout(() => setReshaking(false), 400)
   }
-
-  // ── Group change ────────────────────────────────────────────────────────────
 
   function handleGroupChange(group: string) {
     setSelectedGroup(group)
@@ -348,8 +359,6 @@ export function DailyChallengePage() {
     setSlots(newSlots)
   }
 
-  // ── Session size change ──────────────────────────────────────────────────────
-
   function handleSessionSizeChange(size: number) {
     setSessionSize(size)
     const newSlots = selectedGroup ? buildThemeSlots(selectedGroup, size) : buildDueSlots(size)
@@ -357,19 +366,47 @@ export function DailyChallengePage() {
     setSlots(newSlots)
   }
 
-  // ── Preview: remove a word ──────────────────────────────────────────────────
   function handleRemove(itemId: string) {
     setSlots((prev) => prev.filter((s) => s.item.id !== itemId))
-    usedItemIds.current.delete(itemId) // allow re-adding later via picker
+    usedItemIds.current.delete(itemId)
   }
 
-  // ── Preview: add a word from the picker ────────────────────────────────────
   function handleAdd(item: VocabItem) {
     usedItemIds.current.add(item.id)
     setSlots((prev) => [...prev, { item, exerciseType: pickExerciseType(item, allItems) }])
   }
 
-  // ── Start bonus round ───────────────────────────────────────────────────────
+  // ── Restart with same words (from complete screen) ────────────────────────────
+
+  function restartSameWords() {
+    clearSession()
+    const newSlots = slots.map((s) => ({
+      item: s.item,
+      exerciseType: pickExerciseType(s.item, allItems),
+    }))
+    usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
+    setSlots(newSlots)
+    setCurrentIndex(0)
+    setResults([])
+    setIsBonus(false)
+    setFeedback(null)
+    setPhase('preview')
+  }
+
+  function startFreshChallenge() {
+    clearSession()
+    const fresh = buildDueSlots()
+    usedItemIds.current = new Set(fresh.map((s) => s.item.id))
+    setSlots(fresh)
+    setCurrentIndex(0)
+    setResults([])
+    setIsBonus(false)
+    setFeedback(null)
+    setPhase(fresh.length === 0 ? 'complete' : 'preview')
+  }
+
+  // ── Bonus round ───────────────────────────────────────────────────────────────
+
   function startBonusRound() {
     const available = shuffle(
       allItems.filter((i) => !usedItemIds.current.has(i.id) && !i.archived && i.definitionEn),
@@ -383,7 +420,8 @@ export function DailyChallengePage() {
     setPhase('preview')
   }
 
-  // ── Answer handler ─────────────────────────────────────────────────────────
+  // ── Answer handler ────────────────────────────────────────────────────────────
+
   const handleAnswer = useCallback(
     (result: ExerciseResult) => {
       recordExposure(result.itemId, result.correct)
@@ -436,7 +474,8 @@ export function DailyChallengePage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [feedback, dismissFeedback])
 
-  // ── Loading ────────────────────────────────────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────────────────────────
+
   if (phase === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -445,16 +484,14 @@ export function DailyChallengePage() {
     )
   }
 
-  // ── Preview ────────────────────────────────────────────────────────────────
+  // ── Preview ───────────────────────────────────────────────────────────────────
+
   if (phase === 'preview') {
     return (
-      <div className="max-w-lg mx-auto px-4 py-4 pb-32">
+      <div className="max-w-lg mx-auto px-4 py-4 pb-36">
         {/* Top bar */}
         <div className="flex items-center gap-3 mb-6">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500"
-          >
+          <button onClick={() => navigate(-1)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
             <ArrowLeft size={20} />
           </button>
           <div className="flex items-center gap-2">
@@ -479,21 +516,17 @@ export function DailyChallengePage() {
           </p>
         </div>
 
-        {/* ── Reshuffle + Group toolbar ── */}
+        {/* Toolbar */}
         {!isBonus && (
           <>
             <div className="flex items-center gap-2 mb-3 flex-wrap">
-              {/* Reshuffle button */}
               <button
                 onClick={handleReshuffle}
                 className={`flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 active:scale-95 transition-all ${reshaking ? 'animate-spin-once' : ''}`}
-                title="Pick a new random set"
               >
                 <Shuffle size={15} />
                 Reshuffle
               </button>
-
-              {/* Group / theme selector */}
               {allThemes.length > 0 && (
                 <div className="flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm">
                   <Layers size={14} className="text-slate-400 shrink-0" />
@@ -504,24 +537,17 @@ export function DailyChallengePage() {
                   >
                     <option value="">Due words</option>
                     <optgroup label="Pick from theme">
-                      {allThemes.map((t) => (
-                        <option key={t} value={t}>{t}</option>
-                      ))}
+                      {allThemes.map((t) => <option key={t} value={t}>{t}</option>)}
                     </optgroup>
                   </select>
                 </div>
               )}
-
-              {/* Context line */}
               <span className="text-xs text-slate-400 ml-auto">
                 {slots.length} word{slots.length !== 1 ? 's' : ''}
-                {selectedGroup && (
-                  <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>
-                )}
+                {selectedGroup && <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>}
               </span>
             </div>
 
-            {/* ── Session size picker ── */}
             <div className="flex items-center gap-2 mb-4">
               <span className="text-xs font-medium text-slate-500 shrink-0">Session size:</span>
               <div className="flex gap-1.5">
@@ -543,34 +569,22 @@ export function DailyChallengePage() {
           </>
         )}
 
-        {/* Empty-theme state */}
         {slots.length === 0 && selectedGroup && (
           <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl text-center">
             <p className="text-sm font-medium text-slate-600 mb-1">No words in "{selectedGroup}"</p>
-            <p className="text-xs text-slate-400 mb-3">
-              Open any word's detail page to assign it to this theme, or choose a different group.
-            </p>
-            <button
-              onClick={() => handleGroupChange('')}
-              className="text-xs font-semibold text-brand-600 hover:text-brand-700"
-            >
+            <p className="text-xs text-slate-400 mb-3">Choose a different group or go back to due words.</p>
+            <button onClick={() => handleGroupChange('')} className="text-xs font-semibold text-brand-600 hover:text-brand-700">
               ← Back to due words
             </button>
           </div>
         )}
 
-        {/* Word list */}
         <div className="space-y-2 mb-4">
           {slots.map(({ item }) => (
-            <PreviewRow
-              key={item.id}
-              item={item}
-              onRemove={() => handleRemove(item.id)}
-            />
+            <PreviewRow key={item.id} item={item} onRemove={() => handleRemove(item.id)} />
           ))}
         </div>
 
-        {/* Add from library button */}
         {slots.length < sessionSize && (
           <button
             onClick={() => setShowPicker(true)}
@@ -581,10 +595,10 @@ export function DailyChallengePage() {
           </button>
         )}
 
-        {/* Pinned start button */}
-        <div className="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-none">
+        {/* ── Pinned start CTA — z-40 clears the mobile NavBar (z-30) ── */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-[5.5rem] md:pb-6 pt-3 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-none">
           <button
-            onClick={() => setPhase('exercising')}
+            onClick={() => { clearSession(); setPhase('exercising') }}
             disabled={slots.length === 0}
             className="pointer-events-auto w-full max-w-lg mx-auto flex items-center justify-center gap-2 py-4 bg-brand-600 text-white rounded-2xl font-bold text-base hover:bg-brand-700 active:scale-[0.98] transition-all shadow-lg shadow-brand-200 disabled:opacity-40 disabled:pointer-events-none"
           >
@@ -598,7 +612,6 @@ export function DailyChallengePage() {
           </button>
         </div>
 
-        {/* Word picker modal */}
         {showPicker && (
           <WordPickerModal
             allItems={allItems}
@@ -611,17 +624,18 @@ export function DailyChallengePage() {
     )
   }
 
-  // ── Complete ───────────────────────────────────────────────────────────────
+  // ── Complete ──────────────────────────────────────────────────────────────────
+
   if (phase === 'complete') {
     const totalPoints = results.reduce((s, r) => s + r.points, 0)
     const correctCount = results.filter((r) => r.correct).length
     const total = results.length
-    const bonusAvailable = allItems.some(
+    const bonusAvailable = !isBonus && allItems.some(
       (i) => !usedItemIds.current.has(i.id) && !i.archived && i.definitionEn,
     )
 
     return (
-      <div className="max-w-md mx-auto px-4 py-10 pb-24 text-center">
+      <div className="max-w-md mx-auto px-4 py-10 pb-32 text-center">
         <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-amber-200">
           <Trophy size={28} className="text-amber-500" />
         </div>
@@ -639,8 +653,8 @@ export function DailyChallengePage() {
           <>
             <div className="grid grid-cols-3 gap-3 mb-6">
               <ScoreCard label="Points earned" value={`+${totalPoints}`} color="text-brand-600" bg="bg-brand-50" />
-              <ScoreCard label="Correct" value={`${correctCount}/${total}`} color="text-emerald-600" bg="bg-emerald-50" />
-              <ScoreCard label="Streak" value={`${streakDays}d`} color="text-orange-600" bg="bg-orange-50" />
+              <ScoreCard label="Correct"       value={`${correctCount}/${total}`} color="text-emerald-600" bg="bg-emerald-50" />
+              <ScoreCard label="Streak"        value={`${streakDays}d`} color="text-orange-600" bg="bg-orange-50" />
             </div>
             <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3 mb-6 flex items-center justify-between">
               <span className="text-sm text-slate-600">Total points</span>
@@ -651,9 +665,7 @@ export function DailyChallengePage() {
 
         {newBadges.length > 0 && (
           <div className="mb-6">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              New badges unlocked!
-            </p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">New badges unlocked!</p>
             <div className="flex flex-wrap gap-2 justify-center">
               {newBadges.map((b) => (
                 <div key={b.id} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-full px-3 py-1.5">
@@ -682,16 +694,36 @@ export function DailyChallengePage() {
               Start bonus round
             </button>
           )}
+
+          {/* Same-day repeat options */}
+          {!isBonus && slots.length > 0 && (
+            <button
+              onClick={restartSameWords}
+              className="w-full py-3 border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+            >
+              <RotateCcw size={15} />
+              Same words again
+            </button>
+          )}
+
           <button
-            onClick={() => navigate('/')}
+            onClick={startFreshChallenge}
             className={`w-full py-3 rounded-xl font-semibold transition-colors ${
-              bonusAvailable
+              bonusAvailable || (!isBonus && slots.length > 0)
                 ? 'border border-slate-200 text-slate-700 hover:bg-slate-50'
                 : 'bg-brand-600 text-white hover:bg-brand-700'
             }`}
           >
+            Start fresh challenge
+          </button>
+
+          <button
+            onClick={() => navigate('/')}
+            className="w-full py-3 border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
+          >
             Back to home
           </button>
+
           <button
             onClick={() => navigate('/stats')}
             className="w-full py-3 border border-slate-200 text-slate-700 rounded-xl font-medium hover:bg-slate-50 transition-colors"
@@ -703,13 +735,30 @@ export function DailyChallengePage() {
     )
   }
 
-  // ── Exercising ─────────────────────────────────────────────────────────────
+  // ── Exercising ────────────────────────────────────────────────────────────────
+
   const currentSlot = slots[currentIndex]
+  if (!currentSlot) {
+    // Guard against edge-case index mismatch after session restore
+    return null
+  }
   const { item, exerciseType } = currentSlot
   const progress = (currentIndex / slots.length) * 100
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 min-h-screen relative">
+
+      {/* Resume banner (auto-dismisses after 3 s) */}
+      {resumeBanner && (
+        <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-brand-50 border border-brand-100 rounded-xl text-xs font-medium text-brand-700">
+          <RotateCcw size={12} className="shrink-0" />
+          {resumeBanner}
+          <button onClick={() => setResumeBanner(null)} className="ml-auto text-brand-400 hover:text-brand-700">
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       {/* Top bar */}
       <div className="flex items-center gap-3 mb-4">
         <button
@@ -728,14 +777,14 @@ export function DailyChallengePage() {
         <div className="ml-auto flex items-center gap-2">
           <Flame size={14} className="text-orange-500" />
           <span className="text-xs font-semibold text-orange-600">{streakDays}d</span>
-          <span className="text-xs text-slate-400 ml-2">
+          <span className="text-xs font-semibold text-slate-700 ml-2 tabular-nums">
             {currentIndex + 1}/{slots.length}
           </span>
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="h-1.5 bg-slate-200 rounded-full mb-6 overflow-hidden">
+      <div className="h-2 bg-slate-200 rounded-full mb-6 overflow-hidden">
         <div
           className="h-full bg-brand-500 rounded-full transition-all duration-500"
           style={{ width: `${progress}%` }}
@@ -766,23 +815,14 @@ export function DailyChallengePage() {
         )}
       </div>
 
-      {/* ── Feedback panel ── */}
+      {/* ── Feedback overlay ── */}
       {feedback && (
         <>
-          {/* Dim scrim — click to continue (keyboard shortcut still works too) */}
-          <div
-            className="fixed inset-0 z-40 bg-black/20"
-            onClick={dismissFeedback}
-          />
+          <div className="fixed inset-0 z-40 bg-black/20" onClick={dismissFeedback} />
 
-          {/* Bottom sheet */}
-          <div
-            className={`fixed bottom-0 left-0 right-0 z-50 border-t-2 rounded-t-3xl shadow-2xl ${
-              feedback.correct
-                ? 'bg-emerald-50 border-emerald-200'
-                : 'bg-red-50 border-red-200'
-            }`}
-          >
+          <div className={`fixed bottom-0 left-0 right-0 z-50 border-t-2 rounded-t-3xl shadow-2xl ${
+            feedback.correct ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'
+          }`}>
             <div className="max-w-lg mx-auto px-5 py-5 pb-8">
 
               {/* Result header */}
@@ -791,9 +831,7 @@ export function DailyChallengePage() {
                   ? <CheckCircle size={28} className="text-emerald-600 shrink-0" />
                   : <XCircle    size={28} className="text-red-600 shrink-0" />}
                 <div className="flex-1">
-                  <p className={`text-lg font-bold leading-tight ${
-                    feedback.correct ? 'text-emerald-800' : 'text-red-800'
-                  }`}>
+                  <p className={`text-lg font-bold leading-tight ${feedback.correct ? 'text-emerald-800' : 'text-red-800'}`}>
                     {feedback.correct ? 'Correct!' : 'Not quite'}
                   </p>
                   {feedback.correct && (
@@ -802,9 +840,9 @@ export function DailyChallengePage() {
                 </div>
               </div>
 
-              {/* Correct answer — shown when wrong */}
+              {/* Correct answer (when wrong) */}
               {!feedback.correct && (
-                <div className={`rounded-xl px-4 py-3 mb-3 bg-red-100 border border-red-200`}>
+                <div className="rounded-xl px-4 py-3 mb-3 bg-red-100 border border-red-200">
                   <p className="text-xs font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Correct answer</p>
                   <p className="text-base font-bold text-red-900">{feedback.correctAnswer}</p>
                 </div>
@@ -819,36 +857,41 @@ export function DailyChallengePage() {
 
               {/* Action buttons */}
               <div className="flex gap-3 mt-2">
+                {/* Opens word detail INLINE — session is preserved */}
                 <button
-                  onClick={() => { navigate(`/item/${feedback.itemId}`); dismissFeedback() }}
+                  onClick={() => {
+                    const it = allItems.find((i) => i.id === feedback.itemId)
+                    if (it) setWordDetailItem(it)
+                  }}
                   className="px-4 py-3 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors shrink-0"
                 >
-                  View entry
+                  Word details
                 </button>
                 <button
                   onClick={dismissFeedback}
                   className={`flex-1 py-3 text-sm font-bold text-white rounded-2xl transition-colors ${
-                    feedback.correct
-                      ? 'bg-emerald-600 hover:bg-emerald-700'
-                      : 'bg-red-600 hover:bg-red-700'
+                    feedback.correct ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'
                   }`}
                 >
                   Continue →
                 </button>
               </div>
 
-              <p className="text-center text-xs text-slate-400 mt-3">
-                or press any key to continue
-              </p>
+              <p className="text-center text-xs text-slate-400 mt-3">or press any key to continue</p>
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Inline word detail modal (z-[60] — above feedback overlay) ── */}
+      {wordDetailItem && (
+        <WordDetailModal item={wordDetailItem} onClose={() => setWordDetailItem(null)} />
       )}
     </div>
   )
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function ScoreCard({ label, value, color, bg }: { label: string; value: string; color: string; bg: string }) {
   return (
