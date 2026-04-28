@@ -318,8 +318,8 @@ function ReviewCard({ item, mode, onOutcome }: CardProps) {
 export function ReviewPage() {
   const navigate = useNavigate()
   const dueItems = useDueItems()
-  const recordReview  = useVocabStore((s) => s.recordReview)
-  const markAsLearned = useVocabStore((s) => s.markAsLearned)
+  const recordReview = useVocabStore((s) => s.recordReview)
+  const updateItem   = useVocabStore((s) => s.updateItem)
   const tip = useTip()
 
   const [queue, setQueue]   = useState<VocabItem[]>(() => [...dueItems])
@@ -330,12 +330,12 @@ export function ReviewPage() {
   const item = queue[current]
   const mode = useMemo(() => (item ? pickMode(item) : 'recall-meaning'), [item])
 
-  async function handleMarkLearned() {
+  async function handleMarkMastered() {
     if (!item) return
-    await markAsLearned(item.id)
+    await updateItem(item.id, { status: 'mastered' })
     // Remove from the current session queue without affecting the counter
     setQueue((q) => q.filter((qi) => qi.id !== item.id))
-    setToast('Marked as Learned · find it under All Vocabulary → Learned')
+    setToast('Marked as Mastered · find it under All Vocabulary → Mastered')
     setTimeout(() => setToast(null), 2500)
   }
 
@@ -450,12 +450,12 @@ export function ReviewPage() {
           View full item
         </button>
         <button
-          onClick={handleMarkLearned}
+          onClick={handleMarkMastered}
           className="hover:text-violet-600 flex items-center gap-1.5 transition-colors"
-          title="Mark as Learned — removes this word from Review and Daily Challenge"
+          title="Mark as Mastered — removes this word from Review and Daily Challenge"
         >
           <GraduationCap size={13} />
-          Learned
+          Mastered
         </button>
       </div>
 

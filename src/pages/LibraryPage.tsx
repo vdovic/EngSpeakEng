@@ -7,16 +7,13 @@ import { VocabCard } from '@/components/VocabCard'
 import { ItemStatus, ItemType, SourceType, VocabItem } from '@/types/vocabulary'
 import { searchVocabulary } from '@/utils/vocabSearch'
 
-type StatusFilter = ItemStatus | 'all' | 'learned'
-
-const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+const STATUS_OPTIONS: { value: ItemStatus | 'all'; label: string }[] = [
   { value: 'all',        label: 'All' },
   { value: 'inbox',      label: 'New' },
   { value: 'learning',   label: 'Learning' },
   { value: 'stable',     label: 'Stabilising' },
   { value: 'activation', label: 'Activating' },
-  { value: 'mastered',   label: 'Mastered' },
-  { value: 'learned',    label: '🎓 Learned' },
+  { value: 'mastered',   label: '🎓 Mastered' },
 ]
 
 const TYPE_OPTIONS: { value: ItemType | 'all'; label: string }[] = [
@@ -108,7 +105,7 @@ export function LibraryPage() {
   const [searchParams] = useSearchParams()
 
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
-  const [status, setStatus] = useState<StatusFilter>('all')
+  const [status, setStatus] = useState<ItemStatus | 'all'>('all')
   const [type, setType] = useState<ItemType | 'all'>('all')
   const [source, setSource] = useState<SourceType | 'all'>('all')
   const [tag, setTag] = useState<string | 'all'>('all')
@@ -154,14 +151,7 @@ export function LibraryPage() {
       status !== 'all' || type !== 'all' || source !== 'all' || tag !== 'all' || theme !== 'all'
 
     function passesFilters(i: VocabItem) {
-      // ── Learned filter is a special view: show ONLY learned words ──
-      if (status === 'learned') {
-        if (!i.learned) return false
-      } else {
-        // All other views exclude learned words (they live in the Learned filter)
-        if (i.learned) return false
-        if (status !== 'all' && i.status !== status) return false
-      }
+      if (status !== 'all' && i.status !== status) return false
       if (type !== 'all' && i.type !== type) return false
       if (source !== 'all' && i.sourceType !== source) return false
       if (tag !== 'all' && !i.tags.includes(tag)) return false
@@ -176,7 +166,7 @@ export function LibraryPage() {
       // a query is active so relevance ranking is preserved.
       const SEARCH_LIMIT = 200 // high enough to show everything that matches
       const ranked = searchVocabulary(items, search, SEARCH_LIMIT).map((r) => r.item)
-      if (!hasFilters) return ranked.filter(passesFilters)
+      if (!hasFilters) return ranked
       return ranked.filter(passesFilters)
     }
 
@@ -191,7 +181,7 @@ export function LibraryPage() {
         <div className="flex items-center gap-2">
           <Library size={20} className="text-slate-500" />
           <h1 className="text-xl font-bold text-slate-900">Vocabulary</h1>
-          <span className="text-sm text-slate-400">({items.filter((i) => !i.learned).length})</span>
+          <span className="text-sm text-slate-400">({items.length})</span>
         </div>
         {activeFilterCount > 0 && (
           <button
@@ -347,9 +337,7 @@ export function LibraryPage() {
         <>
           {(activeFilterCount > 0 || search) && (
             <p className="text-xs text-slate-400 mb-2 pl-0.5">
-              {status === 'learned'
-                ? `${filtered.length} learned word${filtered.length !== 1 ? 's' : ''}`
-                : `${filtered.length} of ${items.filter((i) => !i.learned).length} items`}
+              {filtered.length} of {items.length} items
               {search.trim() && (
                 <span className="ml-1 text-brand-500 font-medium">· ranked by relevance</span>
               )}

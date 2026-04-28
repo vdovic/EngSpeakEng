@@ -12,7 +12,7 @@ import { STATUS_FLOW } from '@/lib/constants'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { RelatedWordsSection } from '@/components/RelatedWordsSection'
-import { usagePoints, progressTowardMastery } from '@/lib/mastery'
+import { usagePoints, progressTowardMastery, deriveStatus } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
 import { format } from 'date-fns'
 
@@ -243,7 +243,7 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs, markAsLearned, reactivateLearned } = useVocabStore()
+  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs } = useVocabStore()
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
@@ -728,20 +728,20 @@ export function ItemDetailPage() {
       {/* Unified mastery + memory system */}
       <MasteryMemorySection item={item} />
 
-      {/* Learned state */}
+      {/* Mastered state */}
       {!editing && (
         <div className="mt-6">
-          {item.learned ? (
+          {item.status === 'mastered' ? (
             <div className="flex items-start gap-3 p-4 bg-violet-50 border border-violet-200 rounded-xl">
               <GraduationCap size={18} className="text-violet-600 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-violet-800">Marked as Learned</p>
+                <p className="text-sm font-semibold text-violet-800">Mastered</p>
                 <p className="text-xs text-violet-600 mt-0.5 leading-relaxed">
                   This word won't appear in Review or Daily Challenge. Reactivate it to bring it back.
                 </p>
               </div>
               <button
-                onClick={() => reactivateLearned(item.id)}
+                onClick={() => updateItem(item.id, { status: deriveStatus({ ...item, status: 'learning' }) })}
                 className="shrink-0 px-3 py-1.5 text-xs font-semibold text-violet-700 bg-white border border-violet-300 rounded-lg hover:bg-violet-100 transition-colors"
               >
                 Reactivate
@@ -749,11 +749,11 @@ export function ItemDetailPage() {
             </div>
           ) : (
             <button
-              onClick={() => markAsLearned(item.id)}
+              onClick={() => updateItem(item.id, { status: 'mastered' })}
               className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-violet-600 transition-colors"
             >
               <GraduationCap size={13} />
-              Mark as Learned
+              Mark as Mastered
             </button>
           )}
         </div>

@@ -34,6 +34,19 @@ class VocabDatabase extends Dexie {
     this.version(4).stores({
       items: 'id, status, type, weeklyFocus, archived, learned, &term, *tags, *themes',
     })
+
+    // v5 — remove separate learned concept; merge into mastered status.
+    // Any item that was manually marked learned is promoted to mastered.
+    this.version(5)
+      .stores({
+        items: 'id, status, type, weeklyFocus, archived, &term, *tags, *themes',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('items')
+          .filter((item) => item.learned === true)
+          .modify({ status: 'mastered', learned: undefined }),
+      )
   }
 }
 
