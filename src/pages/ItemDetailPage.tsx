@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
-  BookText, Lightbulb, Network, GitBranch, Clock, Trash2,
-  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw
+  BookText, Lightbulb, Network, GitBranch, Trash2,
+  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw,
+  TrendingUp, Info, Zap,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -271,7 +272,6 @@ export function ItemDetailPage() {
 
   const current = editing ? draft! : item
   const usesDone = usagePoints(item.activation.usageLogs)
-  const mastery = progressTowardMastery(item)
 
   function startEdit() {
     setDraft(JSON.parse(JSON.stringify(item!)) as VocabItem)
@@ -725,89 +725,8 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
-      {/* Progress — mastery checklist + usage log */}
-      <Section title="Progress" icon={<Target size={14} />}>
-        <div className="space-y-2.5">
-          <MasteryRow
-            label="Successful recalls"
-            done={mastery.recalls.done}
-            needed={mastery.recalls.needed}
-          />
-          <MasteryRow
-            label="Own sentence written"
-            done={mastery.sentence ? 1 : 0}
-            needed={1}
-            boolStyle
-          />
-          <MasteryRow
-            label="Real-life uses"
-            done={mastery.uses.done}
-            needed={mastery.uses.needed}
-          />
-        </div>
-        {item.status === 'mastered' && (
-          <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2">
-            <Check size={16} className="text-emerald-600" />
-            <span className="font-medium">Mastered!</span>
-          </div>
-        )}
-      </Section>
-
-      <div className="my-3" />
-
-      {/* Review data */}
-      <Section title="Review history" icon={<Clock size={14} />}>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <span className="text-xs text-slate-500">Reviewed</span>
-            <p className="font-semibold text-slate-800">{item.review.reviewCount}×</p>
-          </div>
-          <div>
-            <span className="text-xs text-slate-500">Successful</span>
-            <p className="font-semibold text-slate-800">{item.review.successfulRecalls}×</p>
-          </div>
-          <div>
-            <span className="text-xs text-slate-500">Interval</span>
-            <p className="font-semibold text-slate-800">{item.review.intervalDays} days</p>
-          </div>
-          <div>
-            <span className="text-xs text-slate-500">Ease</span>
-            <p className="font-semibold text-slate-800">{item.review.ease.toFixed(2)}</p>
-          </div>
-          {item.review.lastReviewedAt && (
-            <div>
-              <span className="text-xs text-slate-500">Last reviewed</span>
-              <p className="font-semibold text-slate-800">
-                {format(new Date(item.review.lastReviewedAt), 'MMM d, yyyy')}
-              </p>
-            </div>
-          )}
-          {item.review.nextReviewAt && (
-            <div>
-              <span className="text-xs text-slate-500">Next review</span>
-              <p className="font-semibold text-slate-800">
-                {format(new Date(item.review.nextReviewAt), 'MMM d, yyyy')}
-              </p>
-            </div>
-          )}
-        </div>
-        {editing && (
-          <div className="mt-3 flex items-center gap-2">
-            <label className="text-xs font-medium text-slate-600">Own sentence written:</label>
-            <button
-              onClick={() => patch('review', { ...current.review, sentenceProduced: !current.review.sentenceProduced })}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                current.review.sentenceProduced
-                  ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
-                  : 'bg-white text-slate-500 border-slate-200'
-              }`}
-            >
-              {current.review.sentenceProduced ? <Check size={12} /> : null}
-              {current.review.sentenceProduced ? 'Yes' : 'No'}
-            </button>
-          </div>
-        )}
-      </Section>
+      {/* Unified mastery + memory system */}
+      <MasteryMemorySection item={item} />
 
       {/* Delete */}
       {!editing && (
@@ -874,6 +793,282 @@ function MasteryRow({
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+
+function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span className="relative inline-flex items-center">
+      <span
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onClick={(e) => { e.stopPropagation(); setVisible((v) => !v) }}
+        className="cursor-help"
+      >
+        {children}
+      </span>
+      {visible && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 w-44 px-3 py-2 text-xs bg-slate-800 text-slate-100 rounded-xl shadow-xl leading-relaxed text-center pointer-events-none">
+          {text}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800" />
+        </span>
+      )}
+    </span>
+  )
+}
+
+// ── Stat cell (used inside Memory System grid) ────────────────────────────────
+
+function StatCell({
+  label,
+  value,
+  tooltip,
+  valueColor = 'text-slate-800',
+}: {
+  label: string
+  value: string
+  tooltip: string
+  valueColor?: string
+}) {
+  return (
+    <div>
+      <Tooltip text={tooltip}>
+        <span className="flex items-center gap-1 text-xs text-slate-500 select-none">
+          {label}
+          <Info size={10} className="text-slate-300 shrink-0" />
+        </span>
+      </Tooltip>
+      <p className={`text-sm font-semibold mt-0.5 ${valueColor}`}>{value}</p>
+    </div>
+  )
+}
+
+// ── Word state derived from review data ───────────────────────────────────────
+
+type WordState = 'new' | 'learning' | 'struggling' | 'strong'
+
+function getWordState(item: VocabItem): WordState {
+  const { reviewCount, successfulRecalls } = item.review
+  if (reviewCount === 0) return 'new'
+  const rate = successfulRecalls / reviewCount
+  if (reviewCount >= 3 && rate < 0.5) return 'struggling'
+  if (successfulRecalls >= 5 && rate >= 0.7) return 'strong'
+  return 'learning'
+}
+
+const STATE_CONFIG: Record<WordState, {
+  label: string
+  badge: string
+  panel: string
+  action: string
+}> = {
+  new: {
+    label: 'New',
+    badge: 'text-amber-700 bg-amber-50 border border-amber-200',
+    panel: 'bg-amber-50 border-amber-200 text-amber-800',
+    action: 'Start practising — add this word to your Daily Challenge.',
+  },
+  learning: {
+    label: 'Learning',
+    badge: 'text-blue-700 bg-blue-50 border border-blue-200',
+    panel: 'bg-blue-50 border-blue-200 text-blue-800',
+    action: 'Keep practising a few more times to build confidence.',
+  },
+  struggling: {
+    label: 'Struggling',
+    badge: 'text-red-700 bg-red-50 border border-red-200',
+    panel: 'bg-red-50 border-red-200 text-red-800',
+    action: 'Try writing your own sentence to reinforce the meaning.',
+  },
+  strong: {
+    label: 'Strong',
+    badge: 'text-emerald-700 bg-emerald-50 border border-emerald-200',
+    panel: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+    action: 'Try using this word in your next real-life conversation.',
+  },
+}
+
+// ── MasteryMemorySection ──────────────────────────────────────────────────────
+
+function MasteryMemorySection({ item }: { item: VocabItem }) {
+  const mastery = progressTowardMastery(item)
+  const [showDetails, setShowDetails] = useState(false)
+  const [howOpen, setHowOpen] = useState(false)
+
+  const state = getWordState(item)
+  const cfg = STATE_CONFIG[state]
+
+  const { reviewCount, successfulRecalls, intervalDays, ease, lastReviewedAt, nextReviewAt } = item.review
+
+  // Human-friendly interval label
+  const intervalLabel =
+    intervalDays === 0 ? 'Due now' :
+    intervalDays === 1 ? 'Tomorrow' :
+    intervalDays < 14  ? `In ${intervalDays} days` :
+    intervalDays < 60  ? `In ${Math.round(intervalDays / 7)} weeks` :
+    `In ${Math.round(intervalDays / 30)} months`
+
+  // Ease interpretation
+  const easeColor = ease < 1.8 ? 'text-red-600' : ease > 2.5 ? 'text-emerald-600' : 'text-slate-800'
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+
+      {/* ── Header ── */}
+      <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
+        <TrendingUp size={14} className="text-slate-500 shrink-0" />
+        <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex-1">Mastery</h3>
+        <span className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${cfg.badge}`}>
+          {cfg.label}
+        </span>
+      </div>
+
+      <div className="px-4 py-4 space-y-5">
+
+        {/* Summary line */}
+        <p className="text-xs text-slate-500 leading-relaxed">
+          We track both how well you remember this word and how actively you use it.
+        </p>
+
+        {/* ── A: Your Progress ── */}
+        <div>
+          <SectionDivider label="Your progress" />
+          <p className="text-[10px] text-slate-400 mb-3 leading-relaxed">
+            Your real-world progress with this word
+          </p>
+          <div className="space-y-2.5">
+            <MasteryRow label="Successful recalls" done={mastery.recalls.done} needed={mastery.recalls.needed} />
+            <MasteryRow label="Own sentence written" done={mastery.sentence ? 1 : 0} needed={1} boolStyle />
+            <MasteryRow label="Real-life uses" done={mastery.uses.done} needed={mastery.uses.needed} />
+          </div>
+          {item.status === 'mastered' && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 rounded-xl px-3 py-2 border border-emerald-100">
+              <Check size={15} className="text-emerald-600 shrink-0" />
+              <span className="font-semibold">Mastered!</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── B: Memory System ── */}
+        <div>
+          <SectionDivider label="Memory system" />
+          <p className="text-[10px] text-slate-400 mb-3 leading-relaxed">
+            We adjust when to show this word based on how well you remember it
+          </p>
+
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <StatCell
+              label="Reviewed"
+              value={`${reviewCount}×`}
+              tooltip="How many times you've practised this word"
+            />
+            <StatCell
+              label="Successful"
+              value={`${successfulRecalls}×`}
+              tooltip="How many times you got it right"
+            />
+            <StatCell
+              label="Next review"
+              value={intervalLabel}
+              tooltip="When you'll see this word again"
+            />
+            <StatCell
+              label="Ease"
+              value={ease.toFixed(2)}
+              tooltip="How easy this word is for you — affects how often it returns"
+              valueColor={easeColor}
+            />
+          </div>
+
+          {/* Advanced details toggle */}
+          {!showDetails ? (
+            <button
+              onClick={() => setShowDetails(true)}
+              className="mt-3 flex items-center gap-1 text-xs text-slate-400 hover:text-brand-600 transition-colors"
+            >
+              <ChevronDown size={11} />
+              Show details
+            </button>
+          ) : (
+            <div className="mt-3 bg-slate-50 border border-slate-100 rounded-xl p-3 space-y-2 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span className="text-slate-400">Interval</span>
+                <span>{intervalDays} day{intervalDays !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span className="text-slate-400">Ease factor</span>
+                <span className={easeColor}>
+                  {ease.toFixed(2)}
+                  {ease < 1.8 ? ' · hard for you' : ease > 2.5 ? ' · easy for you' : ' · normal'}
+                </span>
+              </div>
+              {lastReviewedAt && (
+                <div className="flex justify-between text-slate-600">
+                  <span className="text-slate-400">Last reviewed</span>
+                  <span>{format(new Date(lastReviewedAt), 'MMM d, yyyy')}</span>
+                </div>
+              )}
+              {nextReviewAt && (
+                <div className="flex justify-between text-slate-600">
+                  <span className="text-slate-400">Next due</span>
+                  <span>{format(new Date(nextReviewAt), 'MMM d, yyyy')}</span>
+                </div>
+              )}
+              <button
+                onClick={() => setShowDetails(false)}
+                className="flex items-center gap-1 text-slate-400 hover:text-brand-600 transition-colors pt-0.5"
+              >
+                <ChevronDown size={11} className="rotate-180" />
+                Hide details
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── How it works expandable ── */}
+        <div className="border-t border-slate-100 pt-3">
+          <button
+            onClick={() => setHowOpen((v) => !v)}
+            className="flex items-center gap-1.5 w-full text-xs font-medium text-slate-400 hover:text-brand-600 transition-colors"
+          >
+            <ChevronDown size={12} className={`shrink-0 transition-transform duration-200 ${howOpen ? 'rotate-180' : ''}`} />
+            How your memory works
+          </button>
+          {howOpen && (
+            <ol className="mt-3 space-y-2 pl-5 text-xs text-slate-500 list-decimal leading-relaxed">
+              <li>You practise a word in Daily Challenge</li>
+              <li>We track how easy or hard it was for you</li>
+              <li>Easy words appear less often — up to months apart</li>
+              <li>Hard words come back sooner — sometimes the very next day</li>
+            </ol>
+          )}
+        </div>
+
+        {/* ── Actionable guidance ── */}
+        <div className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl border ${cfg.panel}`}>
+          <Zap size={13} className="shrink-0 mt-0.5" />
+          <p className="text-xs leading-relaxed font-medium">{cfg.action}</p>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
+// ── SectionDivider ────────────────────────────────────────────────────────────
+
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <div className="h-px flex-1 bg-slate-100" />
+      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider shrink-0">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-slate-100" />
     </div>
   )
 }
