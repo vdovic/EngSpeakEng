@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2, AlertCircle, GraduationCap } from 'lucide-react'
 import { VocabItem } from '@/types/vocabulary'
 import { StatusBadge } from './StatusBadge'
 import { TypeBadge } from './TypeBadge'
@@ -46,7 +46,14 @@ export function VocabCard({ item, compact = false }: Props) {
         </span>
         <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
           <TypeBadge type={item.type} />
-          <StatusBadge status={item.status} />
+          {item.learned ? (
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-violet-50 text-violet-700">
+              <GraduationCap size={10} />
+              LEARNED
+            </span>
+          ) : (
+            <StatusBadge status={item.status} />
+          )}
           {/* Generation status badges */}
           {isPending && (
             <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">

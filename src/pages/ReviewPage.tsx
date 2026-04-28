@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronRight, CheckCircle, ArrowLeft, X } from 'lucide-react'
+import { CheckCircle, ArrowLeft, X, GraduationCap } from 'lucide-react'
 import { useVocabStore, useDueItems } from '@/store/vocabStore'
 import { VocabItem, ReviewOutcome } from '@/types/vocabulary'
 import { TypeBadge } from '@/components/TypeBadge'
@@ -318,7 +318,8 @@ function ReviewCard({ item, mode, onOutcome }: CardProps) {
 export function ReviewPage() {
   const navigate = useNavigate()
   const dueItems = useDueItems()
-  const recordReview = useVocabStore((s) => s.recordReview)
+  const recordReview  = useVocabStore((s) => s.recordReview)
+  const markAsLearned = useVocabStore((s) => s.markAsLearned)
   const tip = useTip()
 
   const [queue, setQueue]   = useState<VocabItem[]>(() => [...dueItems])
@@ -328,6 +329,15 @@ export function ReviewPage() {
 
   const item = queue[current]
   const mode = useMemo(() => (item ? pickMode(item) : 'recall-meaning'), [item])
+
+  async function handleMarkLearned() {
+    if (!item) return
+    await markAsLearned(item.id)
+    // Remove from the current session queue without affecting the counter
+    setQueue((q) => q.filter((qi) => qi.id !== item.id))
+    setToast('Marked as Learned · find it under All Vocabulary → Learned')
+    setTimeout(() => setToast(null), 2500)
+  }
 
   async function handleOutcome(outcome: ReviewOutcome) {
     if (!item) return
@@ -431,7 +441,7 @@ export function ReviewPage() {
         onOutcome={handleOutcome}
       />
 
-      {/* Skip / view item */}
+      {/* Bottom actions */}
       <div className="mt-4 flex justify-between text-xs text-slate-400">
         <button
           onClick={() => navigate(`/item/${item.id}`)}
@@ -440,10 +450,12 @@ export function ReviewPage() {
           View full item
         </button>
         <button
-          onClick={() => setCurrent((c) => c + 1)}
-          className="hover:text-slate-600 flex items-center gap-1 transition-colors"
+          onClick={handleMarkLearned}
+          className="hover:text-violet-600 flex items-center gap-1.5 transition-colors"
+          title="Mark as Learned — removes this word from Review and Daily Challenge"
         >
-          Skip <ChevronRight size={14} />
+          <GraduationCap size={13} />
+          Learned
         </button>
       </div>
 

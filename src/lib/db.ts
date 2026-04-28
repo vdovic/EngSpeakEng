@@ -28,6 +28,12 @@ class VocabDatabase extends Dexie {
     this.version(3).stores({
       items: 'id, status, type, weeklyFocus, archived, &term, *tags, *themes',
     })
+
+    // v4 — add learned index for filtering.
+    // No data wipe — existing items default to learned: undefined (falsy).
+    this.version(4).stores({
+      items: 'id, status, type, weeklyFocus, archived, learned, &term, *tags, *themes',
+    })
   }
 }
 

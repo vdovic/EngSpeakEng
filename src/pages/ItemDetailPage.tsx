@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
   BookText, Lightbulb, Network, GitBranch, Trash2,
   Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw,
-  TrendingUp, Info, Zap,
+  TrendingUp, Info, Zap, GraduationCap,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -243,7 +243,7 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs } = useVocabStore()
+  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs, markAsLearned, reactivateLearned } = useVocabStore()
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
@@ -728,9 +728,40 @@ export function ItemDetailPage() {
       {/* Unified mastery + memory system */}
       <MasteryMemorySection item={item} />
 
-      {/* Delete */}
+      {/* Learned state */}
       {!editing && (
         <div className="mt-6">
+          {item.learned ? (
+            <div className="flex items-start gap-3 p-4 bg-violet-50 border border-violet-200 rounded-xl">
+              <GraduationCap size={18} className="text-violet-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-violet-800">Marked as Learned</p>
+                <p className="text-xs text-violet-600 mt-0.5 leading-relaxed">
+                  This word won't appear in Review or Daily Challenge. Reactivate it to bring it back.
+                </p>
+              </div>
+              <button
+                onClick={() => reactivateLearned(item.id)}
+                className="shrink-0 px-3 py-1.5 text-xs font-semibold text-violet-700 bg-white border border-violet-300 rounded-lg hover:bg-violet-100 transition-colors"
+              >
+                Reactivate
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => markAsLearned(item.id)}
+              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-violet-600 transition-colors"
+            >
+              <GraduationCap size={13} />
+              Mark as Learned
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Delete */}
+      {!editing && (
+        <div className="mt-4">
           {showDeleteConfirm ? (
             <div className="p-3 bg-red-50 rounded-xl border border-red-200 flex items-center justify-between">
               <p className="text-sm text-red-700">Delete "{item.term}"?</p>

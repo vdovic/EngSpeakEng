@@ -85,6 +85,10 @@ export interface VocabItem {
   /** Computed priority score — higher = kept longer on weekly reset */
   focusPriority?: number
   archived: boolean
+  /** True when the user has manually marked this word as "Learned".
+   *  Learned words are hidden from Review and Daily Challenge but remain
+   *  visible in the Library when the "Learned" filter is active. */
+  learned?: boolean
 
   // ── AI enrichment ──────────────────────────────────────────────────────────
   // Set by addItem() and updated by enrichItem() in the store.

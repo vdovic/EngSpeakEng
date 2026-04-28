@@ -239,7 +239,7 @@ export function DailyChallengePage() {
   // ── Slot builders ────────────────────────────────────────────────────────────
 
   function buildDueSlots(cap = sessionSize): ChallengeSlot[] {
-    const allDue = allItems.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate))
+    const allDue = allItems.filter((i) => !i.learned && isDueChallengeNow(i.exposureCount, i.nextChallengeDate))
     const focusDue  = shuffle(allDue.filter((i) => i.weeklyFocus))
     const normalDue = shuffle(allDue.filter((i) => !i.weeklyFocus))
     const focusTarget = Math.ceil(cap * 0.6)
@@ -252,7 +252,7 @@ export function DailyChallengePage() {
 
   function buildThemeSlots(theme: string, cap = sessionSize): ChallengeSlot[] {
     const pool = allItems.filter(
-      (i) => (i.themes ?? []).includes(theme) && i.definitionEn && !i.archived && (i.exposureCount ?? 0) < 8,
+      (i) => (i.themes ?? []).includes(theme) && i.definitionEn && !i.archived && !i.learned && (i.exposureCount ?? 0) < 8,
     )
     const due    = shuffle(pool.filter((i) =>  isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))

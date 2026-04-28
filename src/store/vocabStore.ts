@@ -65,6 +65,10 @@ interface VocabStore {
    * Returns the number of words auto-promoted.
    */
   autoPromoteToFocus: () => Promise<number>
+  /** Mark a word as "Learned" — removes it from Review and Daily Challenge. */
+  markAsLearned: (id: string) => Promise<void>
+  /** Reactivate a "Learned" word — puts it back into Review and Daily Challenge. */
+  reactivateLearned: (id: string) => Promise<void>
 }
 
 function uid(): string {
@@ -711,12 +715,25 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       set,
     )
   },
+
+  // ── markAsLearned / reactivateLearned ────────────────────────────────────────
+  markAsLearned: async (id) => {
+    await applyPatch(id, { learned: true, updatedAt: new Date().toISOString() }, set)
+  },
+
+  reactivateLearned: async (id) => {
+    await applyPatch(id, { learned: false, updatedAt: new Date().toISOString() }, set)
+  },
 }))
 
 export function useDueItems(): VocabItem[] {
   return useVocabStore((s) =>
     s.items.filter(
-      (i) => i.status !== 'inbox' && i.status !== 'mastered' && isDueToday(i.review.nextReviewAt)
+      (i) =>
+        !i.learned &&
+        i.status !== 'inbox' &&
+        i.status !== 'mastered' &&
+        isDueToday(i.review.nextReviewAt)
     )
   )
 }
