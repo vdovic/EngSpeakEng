@@ -68,6 +68,13 @@ function pickSynonymDistractors(
 export function SynonymMatchExercise({ item, allItems, onAnswer }: Props) {
   const [defExpanded, setDefExpanded] = useState(false)
 
+  // ⚠️  allItems is intentionally NOT in the deps array — same reason as
+  // MultipleChoiceExercise: recordExposure() fires a new allItems reference
+  // right after the user taps an answer.  Re-running this memo would pick a
+  // NEW random correctSynonym, making a previously-unselected button turn
+  // green while `selected` is already set.  Each question remounts fresh
+  // (key={item.id-syn}), so options are always recomputed on mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const { correctSynonym, options } = useMemo(() => {
     const syns = item.synonyms.filter(Boolean)
     const correctSynonym = syns[Math.floor(Math.random() * syns.length)] ?? item.synonyms[0]
@@ -81,7 +88,7 @@ export function SynonymMatchExercise({ item, allItems, onAnswer }: Props) {
       correctSynonym,
       options: shuffle([correctSynonym, ...distractors]),
     }
-  }, [item, allItems])
+  }, [item])
 
   const [selected, setSelected] = useState<string | null>(null)
 

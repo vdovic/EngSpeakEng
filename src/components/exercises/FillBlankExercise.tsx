@@ -103,12 +103,16 @@ export function FillBlankExercise({ item, allItems, onAnswer }: Props) {
 
   // ── Hint options ─────────────────────────────────────────────────────────────
 
+  // ⚠️  allItems intentionally omitted from deps — see MultipleChoiceExercise
+  // for the full explanation.  Keeping allItems here would reshuffle the hint
+  // grid whenever the store updates, which looks broken to the user.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const hintOptions = useMemo(() => {
     const others = allItems.filter((i) => i.id !== item.id && i.term)
     if (others.length < 3) return []            // not enough vocab for a real hint
     const distractors = pickDistractors(item, others, 3).map((i) => i.term)
     return shuffle([item.term, ...distractors])
-  }, [item, allItems])
+  }, [item])
 
   const canHint = hintOptions.length === 4
 

@@ -51,11 +51,20 @@ function pickDistractors(item: VocabItem, others: VocabItem[], n: number): Vocab
  * mismatched (e.g. a noun distractor for a phrasal-verb question).
  */
 export function MultipleChoiceExercise({ item, allItems, onAnswer }: Props) {
+  // ⚠️  allItems is intentionally NOT in the deps array.
+  // recordExposure() runs immediately after the user picks an answer, which
+  // emits a new allItems reference from the Zustand store.  If allItems were
+  // a dep, the useMemo would re-run mid-question: options reshuffle while
+  // `selected` is already set, causing a different button to show as green
+  // before the feedback overlay even appears.  Since each question mounts as
+  // a fresh component instance (key={item.id-mc}), dropping allItems from deps
+  // is safe — options are always fresh on mount and stable during the question.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const options = useMemo(() => {
     const others = allItems.filter((i) => i.id !== item.id && i.term)
     const distractors = pickDistractors(item, others, 3).map((i) => i.term)
     return shuffle([item.term, ...distractors])
-  }, [item, allItems])
+  }, [item])
 
   const [selected, setSelected] = useState<string | null>(null)
 
