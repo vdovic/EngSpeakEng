@@ -38,13 +38,18 @@ export function WordPeek({ item }: Props) {
       {open && (
         <div className="mt-4 space-y-4 text-sm">
 
+          {/* Word heading — always shown first so the learner knows which word this is */}
+          <div className="flex items-baseline gap-2 pb-3 border-b border-slate-100">
+            <span className="text-2xl font-bold text-slate-900 leading-tight">{item.term}</span>
+            {item.partOfSpeech && (
+              <span className="text-xs text-slate-400 italic shrink-0">{item.partOfSpeech}</span>
+            )}
+          </div>
+
           {/* Definition + part of speech */}
           {item.definitionEn && (
             <Section label="Definition">
               <p className="text-slate-800 leading-relaxed">{item.definitionEn}</p>
-              {item.partOfSpeech && (
-                <p className="text-xs text-slate-400 italic mt-0.5">{item.partOfSpeech}</p>
-              )}
             </Section>
           )}
 
