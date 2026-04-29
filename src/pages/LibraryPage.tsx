@@ -1,18 +1,20 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, SlidersHorizontal, Library, X } from 'lucide-react'
+import { Search, Library, X, ChevronDown } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { VocabCard } from '@/components/VocabCard'
-import { ItemStatus, ItemType, SourceType, VocabItem } from '@/types/vocabulary'
+import { ItemStatus, ItemType, VocabItem } from '@/types/vocabulary'
 import { searchVocabulary } from '@/utils/vocabSearch'
+
+// ── Constants ──────────────────────────────────────────────────────────────────
 
 const STATUS_OPTIONS: { value: ItemStatus | 'all'; label: string }[] = [
   { value: 'all',        label: 'All' },
   { value: 'inbox',      label: 'New' },
   { value: 'learning',   label: 'Learning' },
-  { value: 'stable',     label: 'Stabilising' },
-  { value: 'activation', label: 'Activating' },
+  { value: 'stable',     label: 'Stable' },
+  { value: 'activation', label: 'Active' },
   { value: 'mastered',   label: '🎓 Mastered' },
 ]
 
@@ -23,16 +25,13 @@ const TYPE_OPTIONS: { value: ItemType | 'all'; label: string }[] = [
   { value: 'chunk',  label: 'Chunks' },
 ]
 
-const SOURCE_OPTIONS: { value: SourceType | 'all'; label: string }[] = [
-  { value: 'all',      label: 'All sources' },
-  { value: 'meeting',  label: 'Meeting' },
-  { value: 'article',  label: 'Article' },
-  { value: 'email',    label: 'Email' },
-  { value: 'book',     label: 'Book' },
-  { value: 'podcast',  label: 'Podcast' },
-  { value: 'movie',    label: 'Movie' },
-  { value: 'other',    label: 'Other' },
-]
+/** Human-readable display names for known tags */
+const TAG_LABELS: Record<string, string> = {
+  'vocabulary':   'General Vocabulary',
+  'phrasal-verb': 'Phrasal Verbs',
+  'idiom':        'Idioms',
+  'chunks':       'Fixed Phrases',
+}
 
 type SortKey = 'newest' | 'az' | 'due' | 'weak'
 
@@ -43,6 +42,8 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'weak',   label: 'Weakest' },
 ]
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
 function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
   return [...items].sort((a, b) => {
     // Mastered items always sink to the bottom when mixed with other statuses
@@ -50,7 +51,6 @@ function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
     const bMastered = b.status === 'mastered' ? 1 : 0
     if (aMastered !== bMastered) return aMastered - bMastered
 
-    // Primary sort within each group
     switch (sort) {
       case 'az':
         return a.term.localeCompare(b.term)
@@ -62,7 +62,6 @@ function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
         return aT - bT
       }
       case 'weak':
-        // Only meaningful after 2+ reviews; push unreviewed items last
         if (a.review.reviewCount < 2 && b.review.reviewCount < 2) return 0
         if (a.review.reviewCount < 2) return 1
         if (b.review.reviewCount < 2) return -1
@@ -71,7 +70,31 @@ function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
   })
 }
 
-function FilterPills<T extends string>({
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+/** Segment control — visually prominent, used for Sort */
+function SortSegment({ value, onChange }: { value: SortKey; onChange: (v: SortKey) => void }) {
+  return (
+    <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+      {SORT_OPTIONS.map((o) => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+            value === o.value
+              ? 'bg-white text-slate-900 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Wrapping pill buttons — no horizontal scroll */
+function PillGroup<T extends string>({
   options,
   value,
   onChange,
@@ -81,12 +104,12 @@ function FilterPills<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={`shrink-0 px-3 py-1 text-xs rounded-full border font-medium transition-colors ${
+          className={`px-3 py-1 text-xs rounded-full border font-medium transition-colors whitespace-nowrap ${
             value === o.value
               ? 'bg-brand-600 text-white border-brand-600'
               : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
@@ -99,6 +122,8 @@ function FilterPills<T extends string>({
   )
 }
 
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export function LibraryPage() {
   const items = useVocabStore((s) => s.items)
   const allThemes = useThemesStore((s) => s.themes)
@@ -106,21 +131,21 @@ export function LibraryPage() {
 
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [status, setStatus] = useState<ItemStatus | 'all'>('all')
-  const [type, setType] = useState<ItemType | 'all'>('all')
-  const [source, setSource] = useState<SourceType | 'all'>('all')
-  const [tag, setTag] = useState<string | 'all'>('all')
-  const [theme, setTheme] = useState<string | 'all'>(() => searchParams.get('theme') ?? 'all')
-  const [sort, setSort] = useState<SortKey>('newest')
-  const [showFilters, setShowFilters] = useState(false)
+  const [type, setType]     = useState<ItemType | 'all'>('all')
+  const [tag, setTag]       = useState<string>('all')
+  const [theme, setTheme]   = useState<string>(() => searchParams.get('theme') ?? 'all')
+  const [sort, setSort]     = useState<SortKey>('newest')
+  const [moreOpen, setMoreOpen] = useState(false)
 
-  // Sync search box / theme when the URL params change
+  // Sync URL params when they change (e.g. from GlobalSearch "View all" → library?q=…)
   useEffect(() => {
     const q = searchParams.get('q') ?? ''
     if (q) setSearch(q)
     const t = searchParams.get('theme') ?? 'all'
-    if (t !== 'all') { setTheme(t); setShowFilters(true) }
+    if (t !== 'all') { setTheme(t); setMoreOpen(true) }
   }, [searchParams])
 
+  // All tags by frequency (high to low)
   const allTags = useMemo(() => {
     const counts = new Map<string, number>()
     items.forEach((i) => i.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
@@ -129,10 +154,17 @@ export function LibraryPage() {
       .map(([t]) => t)
   }, [items])
 
+  const tagOptions = useMemo(
+    () => [
+      { value: 'all', label: 'All' },
+      ...allTags.map((t) => ({ value: t, label: TAG_LABELS[t] ?? `#${t}` })),
+    ],
+    [allTags],
+  )
+
   const activeFilterCount = [
     status !== 'all',
     type !== 'all',
-    source !== 'all',
     tag !== 'all',
     theme !== 'all',
   ].filter(Boolean).length
@@ -140,44 +172,40 @@ export function LibraryPage() {
   function clearFilters() {
     setStatus('all')
     setType('all')
-    setSource('all')
     setTag('all')
     setTheme('all')
     setSearch('')
   }
 
   const filtered = useMemo(() => {
-    const hasFilters =
-      status !== 'all' || type !== 'all' || source !== 'all' || tag !== 'all' || theme !== 'all'
+    const hasFilters = status !== 'all' || type !== 'all' || tag !== 'all' || theme !== 'all'
 
     function passesFilters(i: VocabItem) {
       if (status !== 'all' && i.status !== status) return false
       if (type !== 'all' && i.type !== type) return false
-      if (source !== 'all' && i.sourceType !== source) return false
       if (tag !== 'all' && !i.tags.includes(tag)) return false
       if (theme !== 'all' && !(i.themes ?? []).includes(theme)) return false
       return true
     }
 
     if (search.trim()) {
-      // ── Ranked search mode ──
-      // Use full-text ranked search (term + synonyms + definition + examples + tags),
-      // then apply the status/type/source/tag/theme filters.  Sort order is ignored while
-      // a query is active so relevance ranking is preserved.
-      const SEARCH_LIMIT = 200 // high enough to show everything that matches
+      // Ranked search mode — relevance order preserved, filters applied on top
+      const SEARCH_LIMIT = 200
       const ranked = searchVocabulary(items, search, SEARCH_LIMIT).map((r) => r.item)
-      if (!hasFilters) return ranked
-      return ranked.filter(passesFilters)
+      return hasFilters ? ranked.filter(passesFilters) : ranked
     }
 
-    // ── Filter + sort mode (no search query) ──
+    // Filter + sort mode (no query)
     return sortItems(items.filter(passesFilters), sort)
-  }, [items, search, status, type, source, tag, theme, sort])
+  }, [items, search, status, type, tag, theme, sort])
+
+  const hasActive = activeFilterCount > 0 || search.trim().length > 0
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-24 md:pb-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Library size={20} className="text-slate-500" />
           <h1 className="text-xl font-bold text-slate-900">Vocabulary</h1>
@@ -194,137 +222,109 @@ export function LibraryPage() {
         )}
       </div>
 
-      {/* Search + filter toggle */}
-      <div className="mb-3 flex gap-2">
-        <div className="relative flex-1">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search terms, definitions, tags…"
-            className="w-full pl-9 pr-8 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-slate-400 bg-white"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
+      {/* ── Search ── */}
+      <div className="relative mb-3">
+        <Search
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search terms, definitions, tags…"
+          className="w-full pl-9 pr-8 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-slate-400 bg-white"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+          >
+            <X size={14} />
+          </button>
+        )}
+      </div>
+
+      {/* ── Sort (always visible) ── */}
+      <div className="mb-3">
+        <SortSegment value={sort} onChange={setSort} />
+      </div>
+
+      {/* ── Status (always visible) ── */}
+      <div className="mb-3">
+        <PillGroup
+          options={STATUS_OPTIONS}
+          value={status}
+          onChange={setStatus}
+        />
+      </div>
+
+      {/* ── More filters (collapsible) ── */}
+      <div className="mb-4">
         <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`relative flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
-            showFilters || activeFilterCount > 0
-              ? 'bg-brand-50 border-brand-300 text-brand-700'
-              : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-          }`}
+          onClick={() => setMoreOpen((o) => !o)}
+          className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
         >
-          <SlidersHorizontal size={16} />
-          <span>Filter</span>
+          <ChevronDown
+            size={13}
+            className={`transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`}
+          />
+          More filters
           {activeFilterCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-brand-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+            <span className="ml-1 bg-brand-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
               {activeFilterCount}
             </span>
           )}
         </button>
+
+        {moreOpen && (
+          <div className="mt-2.5 bg-slate-50 border border-slate-200 rounded-xl divide-y divide-slate-200 overflow-hidden">
+
+            {/* Type */}
+            <div className="px-3 py-2.5 space-y-1.5">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Type</p>
+              <PillGroup options={TYPE_OPTIONS} value={type} onChange={setType} />
+            </div>
+
+            {/* Theme */}
+            {allThemes.length > 0 && (
+              <div className="px-3 py-2.5 space-y-1.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Theme</p>
+                <select
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-slate-700 cursor-pointer"
+                >
+                  <option value="all">All themes</option>
+                  {allThemes.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Tags — all shown, flex-wrap, renamed for clarity */}
+            {tagOptions.length > 1 && (
+              <div className="px-3 py-2.5 space-y-1.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tag</p>
+                <PillGroup options={tagOptions} value={tag} onChange={setTag} />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Filter panel */}
-      {showFilters && (
-        <div className="mb-3 bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200 overflow-hidden">
-          <div className="px-3 py-2.5 space-y-1">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Status</p>
-            <FilterPills options={STATUS_OPTIONS} value={status} onChange={setStatus} />
-          </div>
-          <div className="px-3 py-2.5 space-y-1">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Type</p>
-            <FilterPills options={TYPE_OPTIONS} value={type} onChange={setType} />
-          </div>
-          <div className="px-3 py-2.5 space-y-1">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Source</p>
-            <FilterPills options={SOURCE_OPTIONS} value={source} onChange={setSource} />
-          </div>
-          {allThemes.length > 0 && (
-            <div className="px-3 py-2.5 space-y-1">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Theme</p>
-              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
-                <button
-                  onClick={() => setTheme('all')}
-                  className={`shrink-0 px-3 py-1 text-xs rounded-full border font-medium transition-colors ${
-                    theme === 'all'
-                      ? 'bg-brand-600 text-white border-brand-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
-                  }`}
-                >
-                  All themes
-                </button>
-                {allThemes.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTheme(t)}
-                    className={`shrink-0 px-3 py-1 text-xs rounded-full border font-medium transition-colors ${
-                      theme === t
-                        ? 'bg-brand-600 text-white border-brand-600'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          {allTags.length > 0 && (
-            <div className="px-3 py-2.5 space-y-1">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tag</p>
-              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-0.5">
-                <button
-                  onClick={() => setTag('all')}
-                  className={`shrink-0 px-3 py-1 text-xs rounded-full border font-medium transition-colors ${
-                    tag === 'all'
-                      ? 'bg-brand-600 text-white border-brand-600'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
-                  }`}
-                >
-                  All tags
-                </button>
-                {allTags.map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTag(t)}
-                    className={`shrink-0 px-3 py-1 text-xs rounded-full border font-medium transition-colors ${
-                      tag === t
-                        ? 'bg-brand-600 text-white border-brand-600'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
-                    }`}
-                  >
-                    #{t}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="px-3 py-2.5 space-y-1">
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Sort</p>
-            <FilterPills options={SORT_OPTIONS} value={sort} onChange={setSort} />
-          </div>
-        </div>
-      )}
-
-      {/* Results */}
+      {/* ── Results ── */}
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-slate-400">
           <Library size={36} className="mx-auto mb-3 opacity-40" />
           <p className="font-medium text-slate-600">No items found</p>
-          <p className="text-sm mt-1 text-slate-400">
-            {activeFilterCount > 0 || search
+          <p className="text-sm mt-1">
+            {hasActive
               ? 'Try different filters or clear them.'
               : 'Add your first item to get started.'}
           </p>
-          {(activeFilterCount > 0 || search) && (
+          {hasActive && (
             <button
               onClick={clearFilters}
               className="mt-3 text-sm text-brand-600 hover:underline font-medium"
@@ -335,7 +335,7 @@ export function LibraryPage() {
         </div>
       ) : (
         <>
-          {(activeFilterCount > 0 || search) && (
+          {hasActive && (
             <p className="text-xs text-slate-400 mb-2 pl-0.5">
               {filtered.length} of {items.length} items
               {search.trim() && (

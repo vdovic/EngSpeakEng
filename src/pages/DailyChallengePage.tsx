@@ -8,8 +8,10 @@ import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore } from '@/store/themesStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
-import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER } from '@/lib/constants'
+import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER, MAX_EXPOSURE, MASTERY_USES } from '@/lib/constants'
+import { usagePoints } from '@/lib/mastery'
 import { VocabItem, ExerciseType, ExerciseResult } from '@/types/vocabulary'
+import { StatusBadge } from '@/components/StatusBadge'
 import { FillBlankExercise } from '@/components/exercises/FillBlankExercise'
 import { MultipleChoiceExercise } from '@/components/exercises/MultipleChoiceExercise'
 import { SynonymMatchExercise } from '@/components/exercises/SynonymMatchExercise'
@@ -47,7 +49,10 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType {
-  const available: ExerciseType[] = ['sentence-create', 'fill-blank']
+  const available: ExerciseType[] = ['sentence-create']
+  // Only offer fill-blank once the word has been seen at least twice in challenges —
+  // avoids asking users to type a word they barely know yet.
+  if ((item.exposureCount ?? 0) >= 2) available.push('fill-blank')
   if (item.definitionEn && allItems.length >= 4) available.push('multiple-choice')
   if (item.synonyms.length >= 1 && allItems.length >= 4) available.push('synonym-match')
   return available[Math.floor(Math.random() * available.length)]
@@ -141,15 +146,7 @@ function WordPickerModal({
                       </p>
                     )}
                   </div>
-                  <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full mt-0.5 ${
-                    item.status === 'mastered'   ? 'bg-emerald-50 text-emerald-700' :
-                    item.status === 'activation' ? 'bg-purple-50 text-purple-700'  :
-                    item.status === 'stable'     ? 'bg-blue-50 text-blue-700'      :
-                    item.status === 'learning'   ? 'bg-amber-50 text-amber-700'    :
-                    'bg-slate-100 text-slate-500'
-                  }`}>
-                    {item.status}
-                  </span>
+                  <StatusBadge status={item.status} />
                 </div>
               </button>
             ))
@@ -164,21 +161,58 @@ function WordPickerModal({
 
 function PreviewRow({ item, onRemove }: { item: VocabItem; onRemove: () => void }) {
   const [open, setOpen] = useState(false)
+  const usesDone = usagePoints(item.activation.usageLogs)
+  const challengesDone = item.exposureCount ?? 0
 
   return (
     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
       <div className="flex items-stretch">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="flex-1 flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors min-w-0"
+          className="flex-1 flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors min-w-0"
         >
           <div className="flex-1 min-w-0">
-            <span className="text-sm font-semibold text-slate-900">{item.term}</span>
-            {item.partOfSpeech && (
-              <span className="ml-2 text-xs text-slate-400 italic">{item.partOfSpeech}</span>
-            )}
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-sm font-semibold text-slate-900">{item.term}</span>
+              {item.partOfSpeech && (
+                <span className="text-xs text-slate-400 italic">{item.partOfSpeech}</span>
+              )}
+            </div>
+            {/* Progress indicators */}
+            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+              {/* Usage (real-life practice) */}
+              <div className="flex items-center gap-1">
+                {Array.from({ length: MASTERY_USES }, (_, i) => (
+                  <div
+                    key={i}
+                    className={`w-2 h-2 rounded-full border-2 transition-colors ${
+                      i < usesDone
+                        ? 'bg-brand-500 border-brand-500'
+                        : 'bg-white border-slate-300'
+                    }`}
+                  />
+                ))}
+                <span className="text-[11px] text-slate-400 ml-0.5 tabular-nums">
+                  {usesDone}/{MASTERY_USES} used
+                </span>
+              </div>
+              {/* Challenge exposures */}
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
+                  <div
+                    key={i}
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                      i < challengesDone ? 'bg-brand-400' : 'bg-slate-200'
+                    }`}
+                  />
+                ))}
+                <span className="text-[11px] text-slate-400 ml-1 tabular-nums">
+                  {challengesDone}/{MAX_EXPOSURE} challenges
+                </span>
+              </div>
+            </div>
           </div>
-          <ChevronDown size={14} className={`shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown size={14} className={`shrink-0 text-slate-400 mt-1 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
         </button>
         <button
           onClick={onRemove}

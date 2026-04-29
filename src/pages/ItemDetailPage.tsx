@@ -424,9 +424,11 @@ export function ItemDetailPage() {
                 onChange={(e) => patch('status', e.target.value as ItemStatus)}
                 className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
               >
-                {STATUS_FLOW.map((s) => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
+                <option value="inbox">New</option>
+                <option value="learning">Learning</option>
+                <option value="stable">Stable</option>
+                <option value="activation">Active</option>
+                <option value="mastered">Mastered</option>
               </select>
             ) : (
               <StatusBadge status={current.status} />

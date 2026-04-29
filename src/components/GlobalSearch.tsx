@@ -38,7 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   learning:   'bg-blue-100 text-blue-700',
   stable:     'bg-teal-100 text-teal-700',
   activation: 'bg-amber-100 text-amber-700',
-  mastered:   'bg-emerald-100 text-emerald-700',
+  mastered:   'bg-violet-100 text-violet-700',
 }
 
 const MATCH_LABEL: Record<MatchField, string> = {

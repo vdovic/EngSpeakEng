@@ -135,11 +135,11 @@ function ActivityChart({ data }: { data: ReturnType<typeof getDailyActivity> }) 
 // ── Vocabulary lifecycle bars ─────────────────────────────────────────────────
 
 const STATUS_ROWS = [
-  { key: 'inbox',      label: 'Inbox',      color: 'bg-slate-400' },
-  { key: 'learning',   label: 'Learning',   color: 'bg-blue-500' },
-  { key: 'stable',     label: 'Stable',     color: 'bg-teal-500' },
-  { key: 'activation', label: 'Activation', color: 'bg-amber-500' },
-  { key: 'mastered',   label: 'Mastered',   color: 'bg-emerald-500' },
+  { key: 'inbox',      label: 'New',      color: 'bg-slate-400' },
+  { key: 'learning',   label: 'Learning', color: 'bg-blue-500' },
+  { key: 'stable',     label: 'Stable',   color: 'bg-teal-500' },
+  { key: 'activation', label: 'Active',   color: 'bg-amber-500' },
+  { key: 'mastered',   label: 'Mastered', color: 'bg-violet-500' },
 ]
 
 function LifecycleSection({ items }: { items: { status: string }[] }) {
@@ -563,7 +563,7 @@ export function StatsPage() {
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
         <MetricCard icon={<Zap size={16} className="text-red-500" />}          label="Due now"        value={dueProjection.now}     bg="bg-red-50"     sub="challenge SRS" />
         <MetricCard icon={<Flame size={16} className="text-orange-500" />}     label="Streak"         value={streakDays}             suffix="d"    bg="bg-orange-50" />
-        <MetricCard icon={<CheckCircle size={16} className="text-emerald-600"/>}label="Mastered"      value={masteredCount}          bg="bg-emerald-50" />
+        <MetricCard icon={<CheckCircle size={16} className="text-violet-600"/>} label="Mastered"       value={masteredCount}          bg="bg-violet-50" />
         <MetricCard icon={<Trophy size={16} className="text-amber-500" />}     label="Total pts"      value={points}                 bg="bg-amber-50" />
         <MetricCard icon={<TrendingUp size={16} className="text-brand-600" />} label="Uses this week" value={usesThisWeek}           bg="bg-brand-50" />
         <MetricCard icon={<BookOpen size={16} className="text-slate-500" />}   label="Library"        value={items.length}           bg="bg-slate-50" />
