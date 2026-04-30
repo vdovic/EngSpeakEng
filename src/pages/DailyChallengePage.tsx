@@ -49,12 +49,29 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType {
-  const available: ExerciseType[] = ['sentence-create']
-  // Only offer fill-blank once the word has been seen at least twice in challenges —
-  // avoids asking users to type a word they barely know yet.
-  if ((item.exposureCount ?? 0) >= 2) available.push('fill-blank')
+  const seen = item.exposureCount ?? 0
+  const available: ExerciseType[] = []
+
+  // ── Recognition exercises — safe from the very first encounter ──────────────
+  // The answer is chosen from options; no recall burden on the learner.
   if (item.definitionEn && allItems.length >= 4) available.push('multiple-choice')
   if (item.synonyms.length >= 1 && allItems.length >= 4) available.push('synonym-match')
+
+  // ── Production exercises — only after ≥ 2 successful challenge appearances ──
+  // Asking a learner to write/recall a word they've seen fewer than twice is
+  // frustrating and counterproductive.  Both fill-blank and sentence-create
+  // require active recall, so both share the same threshold.
+  if (seen >= 2) {
+    available.push('fill-blank')
+    available.push('sentence-create')
+  }
+
+  // ── Fallback ─────────────────────────────────────────────────────────────────
+  // Happens when a word is brand-new (seen < 2) AND has no definition/synonyms
+  // yet (enrichment still pending).  sentence-create shows the definition in the
+  // card, making it the most forgiving cold-start exercise.
+  if (available.length === 0) return 'sentence-create'
+
   return available[Math.floor(Math.random() * available.length)]
 }
 
