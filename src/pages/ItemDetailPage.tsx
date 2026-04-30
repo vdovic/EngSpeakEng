@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
   BookText, Lightbulb, Network, GitBranch, Trash2,
@@ -15,6 +15,7 @@ import { RelatedWordsSection } from '@/components/RelatedWordsSection'
 import { usagePoints, progressTowardMastery, deriveStatus } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
 import { format } from 'date-fns'
+import { loadTodaySession } from '@/lib/challengeSession'
 
 
 function Section({
@@ -252,6 +253,13 @@ export function ItemDetailPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [retrying, setRetrying] = useState(false)
 
+  // Detect an in-progress Daily Challenge so we can show a "Return" banner.
+  // loadTodaySession() is synchronous — capture once on mount.
+  const [hasActiveChallenge] = useState(() => {
+    const s = loadTodaySession()
+    return !!s && !s.completed
+  })
+
   async function handleRetryEnrich() {
     if (!item) return
     setRetrying(true)
@@ -356,6 +364,26 @@ export function ItemDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Return-to-Challenge banner ────────────────────────────────────────── */}
+      {hasActiveChallenge && (
+        <div className="mb-4 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <Zap size={16} className="text-amber-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">Daily Challenge in progress</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Your session is saved — pick up where you left off.
+            </p>
+          </div>
+          <Link
+            to="/challenge"
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
+          >
+            <ArrowLeft size={12} />
+            Return
+          </Link>
+        </div>
+      )}
 
       {/* ── Generation status banner ──────────────────────────────────────────── */}
       {item.generationStatus === 'pending' && (
