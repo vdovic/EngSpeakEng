@@ -135,9 +135,9 @@ function MoreDrawer({
         onClick={onClose}
       />
 
-      {/* Sheet — slides up from just above the full nav bar height (including safe area) */}
+      {/* Sheet — anchored at bottom-0 so translate-y-full hides it fully off-screen */}
       <div
-        className={`fixed left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out bottom-nav-safe ${
+        className={`fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
@@ -158,7 +158,7 @@ function MoreDrawer({
         </div>
 
         {/* Links grid — 2 columns */}
-        <div className="grid grid-cols-2 gap-2 p-4">
+        <div className="grid grid-cols-2 gap-2 p-4 pb-6">
           {MOBILE_MORE.map(({ to, icon: Icon, label, badge }) => {
             const count = badgeFor(badge)
             return (
