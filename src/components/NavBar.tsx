@@ -135,12 +135,11 @@ function MoreDrawer({
         onClick={onClose}
       />
 
-      {/* Sheet — slides up from behind the bottom bar */}
+      {/* Sheet — slides up from just above the full nav bar height (including safe area) */}
       <div
-        className={`fixed left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out safe-area-inset-bottom ${
+        className={`fixed left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out bottom-nav-safe ${
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
-        style={{ bottom: '4rem' /* sits just above the 64px bottom bar */ }}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-2">

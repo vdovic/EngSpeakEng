@@ -28,8 +28,35 @@
     display: none;
   }
 
+  /*
+   * Safe-area utilities
+   *
+   * env(safe-area-inset-bottom) is the iPhone "home indicator" zone (~34px on
+   * notch devices, 0px everywhere else).  It only has a non-zero value when
+   * the HTML viewport has  viewport-fit=cover  — which is set in index.html.
+   *
+   * --mobile-nav-h must match the `h-16` (4rem / 64px) bottom nav bar height.
+   */
+
+  :root {
+    --mobile-nav-h: 4rem;
+  }
+
+  /* Pads an element by the safe area only (no nav height).
+     Used on <main> so every page's scrollable content clears the notch. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Pads the nav bar itself so its background fills the home-indicator zone. */
   .safe-area-inset-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Positions a fixed element just above the full mobile nav bar height
+     (nav height + safe area).  Used by the MoreDrawer and similar overlays. */
+  .bottom-nav-safe {
+    bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px));
   }
 
   .line-clamp-1 {
