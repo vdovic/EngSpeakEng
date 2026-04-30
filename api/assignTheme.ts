@@ -27,25 +27,29 @@ function buildPrompt(theme: string, description: string, words: Word[]): string 
   const wordList = words
     .map((w, i) => {
       const type   = w.type       ? ` [${w.type}]`                   : ''
-      const def    = w.definition ? ` — ${w.definition.slice(0, 120)}` : ''
+      const def    = w.definition ? ` — ${w.definition.slice(0, 150)}` : ''
       return `${i + 1}. "${w.term}"${type}${def}`
     })
     .join('\n')
 
-  return `You are classifying English vocabulary words into a learning theme.
+  return `You are classifying English vocabulary words into a learning theme for a language-learning app.
 
-Theme: "${theme}"${description ? `\nContext: ${description}` : ''}
+Theme: "${theme}"${description ? `\nDescription: ${description}` : ''}
 
-Vocabulary words:
+Words to classify:
 ${wordList}
 
-Task: identify which words clearly and directly belong to this theme.
+Task: Identify every word that belongs to this theme. Be inclusive — it is better to include a borderline case than to miss a clear member.
 
-Rules:
-- Only include words with a STRONG, CLEAR connection to this theme
-- Exclude generic words that could fit many different themes
-- Return ONLY a valid JSON array of 1-based numbers, e.g. [2, 5, 8] or []
-- No explanation, no commentary — just the JSON array`
+Special guidance for linguistic/grammatical themes:
+- "Phrasal Verbs": include multi-word verbs made of verb + particle/preposition (give up, carry out, put off, take over, look into). The word type may be "phrase".
+- "Idioms & Expressions": include fixed phrases with non-literal meaning (bite the bullet, on the fence, spill the beans). Type is usually "phrase" or "chunk".
+- "Collocations & Chunks": include fixed word combinations (make a decision, take action, strong coffee). Type is usually "chunk" or "phrase".
+- "Transitions & Connectors": include discourse markers (furthermore, in contrast, as a result, nevertheless).
+- For topic themes (Business, Meetings, etc.): include vocabulary commonly used in that domain.
+
+Return ONLY a valid JSON array of 1-based position numbers, e.g. [1, 3, 7] or [].
+No explanation. No commentary. Just the JSON array.`
 }
 
 const MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5'

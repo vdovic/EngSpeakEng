@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
-  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw,
+  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -808,6 +808,14 @@ export function DailyChallengePage() {
             {isBonus ? 'Bonus Round' : 'Daily Challenge'}
           </span>
         </div>
+        {/* View word details inline — session is always preserved */}
+        <button
+          onClick={() => setWordDetailItem(item)}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+          title="View word details"
+        >
+          <BookOpen size={16} />
+        </button>
         <div className="ml-auto flex items-center gap-2">
           <Flame size={14} className="text-orange-500" />
           <span className="text-xs font-semibold text-orange-600">{streakDays}d</span>
