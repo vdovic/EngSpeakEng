@@ -1,0 +1,51 @@
+{
+  "name": "ESE — Vocabulary Fluency",
+  "short_name": "ESE",
+  "description": "Advanced English vocabulary learning — spaced repetition, daily challenges, and real-life activation.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "lang": "en",
+  "scope": "/",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Daily Challenge",
+      "short_name": "Challenge",
+      "description": "Jump into today's vocabulary challenge",
+      "url": "/challenge",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Review",
+      "short_name": "Review",
+      "description": "Review words due today",
+      "url": "/review",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Add Word",
+      "short_name": "Add",
+      "description": "Capture a new word",
+      "url": "/inbox",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

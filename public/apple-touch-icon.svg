@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Full bleed background (iOS clips to squircle automatically) -->
+  <rect width="180" height="180" fill="url(#bg)"/>
+
+  <!-- Speech bubble body -->
+  <rect x="28" y="28" width="124" height="90" rx="18" fill="white" fill-opacity="0.95"/>
+
+  <!-- Tail -->
+  <path d="M52 118 L36 152 L90 118 Z" fill="white" fill-opacity="0.95"/>
+
+  <!-- Text lines -->
+  <rect x="44" y="48" width="68" height="8" rx="4" fill="#4f46e5" fill-opacity="0.85"/>
+  <rect x="44" y="63" width="50" height="8" rx="4" fill="#4f46e5" fill-opacity="0.55"/>
+  <rect x="44" y="78" width="38" height="8" rx="4" fill="#7c3aed" fill-opacity="0.7"/>
+
+  <!-- Graduation cap -->
+  <polygon points="122,40 146,52 122,64 98,52" fill="#4f46e5" fill-opacity="0.65"/>
+  <rect x="96" y="55" width="50" height="5" rx="2.5" fill="#4f46e5" fill-opacity="0.4"/>
+  <line x1="146" y1="52" x2="146" y2="72" stroke="#4f46e5" stroke-opacity="0.5" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="146" cy="74" r="4" fill="#4f46e5" fill-opacity="0.5"/>
+</svg>
