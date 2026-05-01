@@ -33,20 +33,52 @@ const TAG_LABELS: Record<string, string> = {
   'chunks':       'Fixed Phrases',
 }
 
-type SortKey = 'newest' | 'az' | 'due' | 'weak'
+type SortKey = 'newest' | 'az' | 'due' | 'weak' | 'progress'
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'newest', label: 'Newest' },
-  { value: 'az',     label: 'A → Z' },
-  { value: 'due',    label: 'Due soon' },
-  { value: 'weak',   label: 'Weakest' },
+  { value: 'newest',   label: 'Newest' },
+  { value: 'az',       label: 'A → Z' },
+  { value: 'due',      label: 'Due soon' },
+  { value: 'weak',     label: 'Weakest' },
+  { value: 'progress', label: 'Progress' },
 ]
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
+/**
+ * Composite progress score — used by the 'progress' sort.
+ *
+ * Status is the primary driver (inbox=0 → mastered=4, each worth 1 000 pts).
+ * Within each status, three secondary signals refine the ranking:
+ *   - Challenge exposures  (0–8 steps)   → up to 100 pts
+ *   - SRS successful recalls (0–3+)       → up to  50 pts
+ *   - Real-life uses logged (0–3+)        → up to  30 pts
+ *
+ * Sorting ascending (lowest score first) surfaces words that need the
+ * most work; sorting descending shows the most-mastered words first.
+ */
+const STATUS_SCORE: Record<string, number> = {
+  inbox: 0, learning: 1, stable: 2, activation: 3, mastered: 4,
+}
+
+function progressScore(item: VocabItem): number {
+  const s         = STATUS_SCORE[item.status] ?? 0
+  const challenge = (item.exposureCount ?? 0) / 8                                         // 0–1
+  const recalls   = Math.min(item.review.successfulRecalls / 3, 1)                        // 0–1
+  const usage     = Math.min(
+    item.activation.usageLogs.length / Math.max(item.activation.requiredUses, 1),
+    1,
+  )                                                                                         // 0–1
+  return s * 1_000 + challenge * 100 + recalls * 50 + usage * 30
+}
+
 function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
   return [...items].sort((a, b) => {
-    // Mastered items always sink to the bottom when mixed with other statuses
+    // 'progress' lets the composite score order everything naturally
+    // (mastered items will already rank highest and appear at the bottom).
+    if (sort === 'progress') return progressScore(a) - progressScore(b)
+
+    // All other sorts: mastered items always sink to the bottom
     const aMastered = a.status === 'mastered' ? 1 : 0
     const bMastered = b.status === 'mastered' ? 1 : 0
     if (aMastered !== bMastered) return aMastered - bMastered
@@ -75,12 +107,12 @@ function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
 /** Segment control — visually prominent, used for Sort */
 function SortSegment({ value, onChange }: { value: SortKey; onChange: (v: SortKey) => void }) {
   return (
-    <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
+    <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5 overflow-x-auto scrollbar-hide">
       {SORT_OPTIONS.map((o) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`shrink-0 flex-1 min-w-[4rem] py-1.5 px-2 text-xs font-semibold rounded-lg transition-all whitespace-nowrap ${
             value === o.value
               ? 'bg-white text-slate-900 shadow-sm'
               : 'text-slate-500 hover:text-slate-700'
@@ -335,12 +367,14 @@ export function LibraryPage() {
         </div>
       ) : (
         <>
-          {hasActive && (
+          {(hasActive || sort === 'progress') && (
             <p className="text-xs text-slate-400 mb-2 pl-0.5">
               {filtered.length} of {items.length} items
-              {search.trim() && (
+              {search.trim() ? (
                 <span className="ml-1 text-brand-500 font-medium">· ranked by relevance</span>
-              )}
+              ) : sort === 'progress' ? (
+                <span className="ml-1 text-brand-500 font-medium">· least progress first</span>
+              ) : null}
             </p>
           )}
           <div className="space-y-2">
