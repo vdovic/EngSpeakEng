@@ -7,11 +7,12 @@ import {
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore } from '@/store/themesStore'
-import { isDueChallengeNow } from '@/lib/challengeSchedule'
+import { isDueChallengeNow, intervalLabel } from '@/lib/challengeSchedule'
 import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER, MAX_EXPOSURE, MASTERY_USES } from '@/lib/constants'
 import { usagePoints } from '@/lib/mastery'
 import { VocabItem, ExerciseType, ExerciseResult } from '@/types/vocabulary'
 import { StatusBadge } from '@/components/StatusBadge'
+import { ExposureBar } from '@/components/ExposureBar'
 import { FillBlankExercise } from '@/components/exercises/FillBlankExercise'
 import { MultipleChoiceExercise } from '@/components/exercises/MultipleChoiceExercise'
 import { SynonymMatchExercise } from '@/components/exercises/SynonymMatchExercise'
@@ -35,6 +36,8 @@ type FeedbackState = {
   correctAnswer: string
   exampleSentence?: string
   itemId: string
+  /** exposureCount of the item BEFORE this answer was recorded */
+  oldExposureCount: number
 } | null
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -176,8 +179,18 @@ function WordPickerModal({
 
 // ── Preview row ───────────────────────────────────────────────────────────────
 
-function PreviewRow({ item, onRemove }: { item: VocabItem; onRemove: () => void }) {
+function PreviewRow({
+  item: slotItem,
+  allItems,
+  onRemove,
+}: {
+  item: VocabItem
+  allItems: VocabItem[]
+  onRemove: () => void
+}) {
   const [open, setOpen] = useState(false)
+  // Always pull the live item so the progress dots reflect what recordExposure wrote
+  const item = allItems.find((i) => i.id === slotItem.id) ?? slotItem
   const usesDone = usagePoints(item.activation.usageLogs)
   const challengesDone = item.exposureCount ?? 0
 
@@ -475,6 +488,11 @@ export function DailyChallengePage() {
 
   const handleAnswer = useCallback(
     (result: ExerciseResult) => {
+      // Capture the count BEFORE recordExposure mutates it (it's async, so the
+      // current value is still the old one at this point in the call stack).
+      const oldExposureCount =
+        allItems.find((i) => i.id === result.itemId)?.exposureCount ?? 0
+
       recordExposure(result.itemId, result.correct)
       addPoints(result.points)
       setResults((prev) => [...prev, result])
@@ -505,6 +523,7 @@ export function DailyChallengePage() {
         correctAnswer: result.correctAnswer ?? slots[currentIndex]?.item.term ?? '',
         exampleSentence: slots[currentIndex]?.item.exampleSentence ?? undefined,
         itemId: result.itemId,
+        oldExposureCount,
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -632,7 +651,7 @@ export function DailyChallengePage() {
 
         <div className="space-y-2 mb-4">
           {slots.map(({ item }) => (
-            <PreviewRow key={item.id} item={item} onRemove={() => handleRemove(item.id)} />
+            <PreviewRow key={item.id} item={item} allItems={allItems} onRemove={() => handleRemove(item.id)} />
           ))}
         </div>
 
@@ -710,6 +729,66 @@ export function DailyChallengePage() {
             <div className="bg-slate-50 rounded-xl border border-slate-200 px-4 py-3 mb-6 flex items-center justify-between">
               <span className="text-sm text-slate-600">Total points</span>
               <span className="text-lg font-bold text-brand-700">{points}</span>
+            </div>
+
+            {/* Per-word challenge journey summary */}
+            <div className="bg-white border border-slate-200 rounded-2xl mb-6 overflow-hidden text-left">
+              <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Words practised
+                </p>
+                <p className="text-xs text-slate-400">
+                  Challenge progress (0–{MAX_EXPOSURE} steps)
+                </p>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {results.map((result) => {
+                  const liveItem = allItems.find((i) => i.id === result.itemId)
+                  const currentCount = liveItem?.exposureCount ?? 0
+                  // Derive the count before this exercise:
+                  // recordExposure increments on correct; keeps on incorrect.
+                  const oldCount = result.correct
+                    ? Math.max(0, currentCount - 1)
+                    : currentCount
+                  const isMastered = currentCount >= MAX_EXPOSURE
+                  return (
+                    <div key={result.itemId} className="flex items-center gap-3 px-4 py-2.5">
+                      {result.correct
+                        ? <CheckCircle size={13} className="text-emerald-500 shrink-0" />
+                        : <XCircle    size={13} className="text-red-400 shrink-0" />}
+                      <span className="text-sm font-semibold text-slate-800 flex-1 truncate min-w-0">
+                        {liveItem?.term ?? '…'}
+                      </span>
+                      {/* Dot progress */}
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex gap-0.5">
+                          {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
+                            <div
+                              key={i}
+                              className={`w-2 h-2 rounded-full transition-colors ${
+                                i < currentCount
+                                  ? isMastered
+                                    ? 'bg-emerald-500'
+                                    : 'bg-brand-500'
+                                  : 'bg-slate-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        {result.correct && oldCount < currentCount ? (
+                          <span className="text-[10px] font-bold text-emerald-600 tabular-nums">
+                            +1
+                          </span>
+                        ) : !result.correct ? (
+                          <span className="text-[10px] text-slate-400 tabular-nums">
+                            retry
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           </>
         )}
@@ -793,8 +872,11 @@ export function DailyChallengePage() {
     // Guard against edge-case index mismatch after session restore
     return null
   }
-  const { item, exerciseType } = currentSlot
-  const progress = (currentIndex / slots.length) * 100
+  const { exerciseType } = currentSlot
+  // Always read from the live store so exposure counts reflect what
+  // recordExposure() wrote — slots hold snapshot objects from session start.
+  const item = allItems.find((i) => i.id === currentSlot.item.id) ?? currentSlot.item
+  const progress = (results.length / slots.length) * 100
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 min-h-screen relative">
@@ -842,11 +924,24 @@ export function DailyChallengePage() {
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="h-2 bg-slate-200 rounded-full mb-6 overflow-hidden">
-        <div
-          className="h-full bg-brand-500 rounded-full transition-all duration-500"
-          style={{ width: `${progress}%` }}
+      {/* Session progress bar + word count */}
+      <div className="mb-2">
+        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-brand-500 rounded-full transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Word's 0–8 challenge journey — shows accumulated progress across all days */}
+      <div className="flex items-center gap-2 mb-5 px-0.5">
+        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide shrink-0">
+          Journey:
+        </span>
+        <ExposureBar
+          exposureCount={item.exposureCount}
+          size="sm"
         />
       </div>
 
@@ -909,10 +1004,72 @@ export function DailyChallengePage() {
 
               {/* Example sentence */}
               {feedback.exampleSentence && (
-                <p className="text-sm text-slate-600 italic leading-relaxed mb-4">
+                <p className="text-sm text-slate-600 italic leading-relaxed mb-3">
                   &ldquo;{feedback.exampleSentence}&rdquo;
                 </p>
               )}
+
+              {/* Challenge journey progress: before → after */}
+              {(() => {
+                const oldCount = feedback.oldExposureCount
+                const newCount = feedback.correct
+                  ? Math.min(oldCount + 1, MAX_EXPOSURE)
+                  : oldCount
+                const nextInterval = feedback.correct
+                  ? intervalLabel(newCount)
+                  : '10 min'
+                return (
+                  <div className={`rounded-xl px-3.5 py-2.5 mb-4 ${
+                    feedback.correct
+                      ? 'bg-emerald-100/70 border border-emerald-200'
+                      : 'bg-slate-100 border border-slate-200'
+                  }`}>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">
+                      Challenge journey
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Before dots */}
+                      <div className="flex gap-1">
+                        {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
+                          <div
+                            key={i}
+                            className={`w-3 h-3 rounded-full border-2 transition-colors ${
+                              i < oldCount
+                                ? 'bg-brand-400 border-brand-400'
+                                : 'bg-white border-slate-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      {feedback.correct && oldCount < MAX_EXPOSURE && (
+                        <>
+                          <span className="text-slate-400 text-sm font-bold">→</span>
+                          {/* After dots */}
+                          <div className="flex gap-1">
+                            {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
+                              <div
+                                key={i}
+                                className={`w-3 h-3 rounded-full border-2 transition-colors ${
+                                  i < newCount
+                                    ? 'bg-emerald-500 border-emerald-500'
+                                    : 'bg-white border-slate-300'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
+                      {newCount >= MAX_EXPOSURE
+                        ? '🎉 Challenge mastered!'
+                        : feedback.correct
+                        ? `Step ${oldCount + 1} of ${MAX_EXPOSURE} · next review in ${nextInterval}`
+                        : `Staying at step ${oldCount} of ${MAX_EXPOSURE} · retry in ${nextInterval}`}
+                    </p>
+                  </div>
+                )
+              })()}
 
               {/* Action buttons */}
               <div className="flex gap-3 mt-2">
