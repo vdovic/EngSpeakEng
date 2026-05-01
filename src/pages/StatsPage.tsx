@@ -548,10 +548,10 @@ export function StatsPage() {
                 challenge history, streak tracking, and personalised learning insights.
               </p>
               <button
-                onClick={() => navigate('/inbox')}
+                onClick={() => navigate('/library')}
                 className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 transition-colors"
               >
-                Go to Inbox
+                Go to Vocabulary
                 <ChevronRight size={13} />
               </button>
             </div>

@@ -1,8 +1,7 @@
 import { useEffect, lazy, Suspense, useState } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { NavBar } from '@/components/NavBar'
 import { DashboardPage } from '@/pages/DashboardPage'
-import { InboxPage } from '@/pages/InboxPage'
 import { ReviewPage } from '@/pages/ReviewPage'
 import { LibraryPage } from '@/pages/LibraryPage'
 import { ItemDetailPage } from '@/pages/ItemDetailPage'
@@ -58,7 +57,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto min-h-screen pb-safe md:pb-0">
         <Routes>
           <Route path="/"        element={<DashboardPage onOpenOnboarding={handleOpenOnboarding} />} />
-          <Route path="/inbox"   element={<InboxPage />} />
+          <Route path="/inbox"   element={<Navigate to="/library" replace />} />
           <Route path="/review"  element={<ReviewPage />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/item/:id" element={<ItemDetailPage />} />

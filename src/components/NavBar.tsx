@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, BookOpen, RefreshCw, Library,
+  LayoutDashboard, RefreshCw, Library,
   Target, BarChart2, Zap, Layers, GraduationCap, Sparkles,
   MoreHorizontal, X,
   type LucideIcon,
 } from 'lucide-react'
-import { useVocabStore } from '@/store/vocabStore'
 
 interface NavLinkDef {
   to: string
@@ -32,7 +31,6 @@ const SIDEBAR_GROUPS: NavGroup[] = [
   {
     label: 'Learn',
     links: [
-      { to: '/inbox',     icon: BookOpen,  label: 'Inbox',          badge: 'inbox' as const },
       { to: '/review',    icon: RefreshCw, label: 'Review' },
       { to: '/challenge', icon: Zap,       label: 'Daily Challenge' },
     ],
@@ -60,14 +58,13 @@ const SIDEBAR_GROUPS: NavGroup[] = [
 
 const MOBILE_PRIMARY: NavLinkDef[] = [
   { to: '/',          icon: LayoutDashboard, label: 'Home' },
-  { to: '/inbox',     icon: BookOpen,        label: 'New',       badge: 'inbox' as const },
   { to: '/challenge', icon: Zap,             label: 'Challenge' },
   { to: '/review',    icon: RefreshCw,       label: 'Review' },
+  { to: '/library',   icon: Library,         label: 'Vocabulary' },
   // 5th slot = "More" button (rendered separately below)
 ]
 
 const MOBILE_MORE: NavLinkDef[] = [
-  { to: '/library', icon: Library,     label: 'All Vocabulary' },
   { to: '/week',    icon: Target,      label: 'Focus This Week' },
   { to: '/themes',  icon: Layers,      label: 'Themes' },
   { to: '/stats',   icon: BarChart2,   label: 'Stats' },
@@ -192,13 +189,11 @@ function MoreDrawer({
 // ── NavBar ─────────────────────────────────────────────────────────────────────
 
 export function NavBar() {
-  const items = useVocabStore((s) => s.items)
-  const inboxCount = items.filter((i) => i.status === 'inbox').length
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
 
-  function badgeFor(key?: 'inbox') {
-    if (key === 'inbox' && inboxCount > 0) return inboxCount
+  // No badge items remain — kept for MoreDrawer prop compatibility
+  function badgeFor(_key?: 'inbox') {
     return null
   }
 

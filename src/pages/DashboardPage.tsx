@@ -872,7 +872,7 @@ const HOW_IT_WORKS_STEPS = [
     actionCls: 'text-slate-500',
     description: 'Add words from meetings, articles, or anywhere you encounter new language.',
     howTo: 'Tap + Add or Quick Add',
-    href: '/inbox',
+    href: '/library',
   },
   {
     emoji: '📖',
@@ -881,8 +881,8 @@ const HOW_IT_WORKS_STEPS = [
     badgeCls: 'bg-blue-100 text-blue-700',
     cardBorder: 'border-blue-200 hover:border-blue-300',
     actionCls: 'text-blue-600',
-    description: 'Activate from Inbox. Words enter spaced-repetition Review and the Daily Challenge pool.',
-    howTo: 'Tap "Learning" in Inbox',
+    description: 'Activate new words from Vocabulary. They enter spaced-repetition Review and the Daily Challenge pool.',
+    howTo: 'Tap "Learning" on any new word',
     href: '/review',
   },
   {
@@ -1044,7 +1044,7 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
     if (items.length === 0) {
       return {
         text: 'Start by adding your first words to build your personal vocabulary system. ESE will adapt to your focus areas as you grow.',
-        action: '/inbox',
+        action: '/library',
         actionLabel: 'Add first words',
       }
     }
@@ -1106,7 +1106,7 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         inboxCount={inboxCount}
         onReview={() => navigate('/review')}
         onChallenge={() => navigate('/challenge')}
-        onInbox={() => navigate('/inbox')}
+        onInbox={() => navigate('/library')}
       />
 
       {/* 3. Today's Focus (cockpit) */}
