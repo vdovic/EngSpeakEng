@@ -601,6 +601,22 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
+      {/* Etymology */}
+      {(current.etymology || editing) && (
+        <Section title="Etymology" icon={<BookText size={14} />}>
+          <Field
+            label="Origin"
+            value={current.etymology}
+            placeholder="Root language, base word, historical origin…"
+            editing={editing}
+            onChange={(v) => patch('etymology', v)}
+            multiline
+          />
+        </Section>
+      )}
+
+      {(current.etymology || editing) && <div className="my-3" />}
+
       {/* Related words from within the library */}
       <RelatedWordsSection
         entries={item.relatedEntries ?? []}
@@ -728,14 +744,6 @@ export function ItemDetailPage() {
 
       {/* Memory */}
       <Section title="Memory support" icon={<Lightbulb size={14} />} defaultOpen={false}>
-        <Field
-          label="Etymology"
-          value={current.etymology}
-          placeholder="Origin or root…"
-          editing={editing}
-          onChange={(v) => patch('etymology', v)}
-          multiline
-        />
         <Field
           label="Memory cue / mnemonic"
           value={current.memoryCue}
