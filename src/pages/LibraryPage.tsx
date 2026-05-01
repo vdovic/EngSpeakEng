@@ -4,7 +4,7 @@ import { Search, Library, X, ChevronDown } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { VocabCard } from '@/components/VocabCard'
-import { ItemStatus, ItemType, VocabItem } from '@/types/vocabulary'
+import { ItemStatus, VocabItem } from '@/types/vocabulary'
 import { searchVocabulary } from '@/utils/vocabSearch'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -16,13 +16,6 @@ const STATUS_OPTIONS: { value: ItemStatus | 'all'; label: string }[] = [
   { value: 'stable',     label: 'Stable' },
   { value: 'activation', label: 'Active' },
   { value: 'mastered',   label: '🎓 Mastered' },
-]
-
-const TYPE_OPTIONS: { value: ItemType | 'all'; label: string }[] = [
-  { value: 'all',    label: 'All types' },
-  { value: 'word',   label: 'Words' },
-  { value: 'phrase', label: 'Phrases' },
-  { value: 'chunk',  label: 'Chunks' },
 ]
 
 /** Human-readable display names for known tags */
@@ -184,7 +177,6 @@ export function LibraryPage() {
 
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [status, setStatus] = useState<ItemStatus | 'all'>('all')
-  const [type, setType]     = useState<ItemType | 'all'>('all')
   const [tag, setTag]       = useState<string>('all')
   const [theme, setTheme]   = useState<string>(() => searchParams.get('theme') ?? 'all')
   const [sort, setSort]     = useState<SortKey>('newest')
@@ -217,25 +209,22 @@ export function LibraryPage() {
 
   const activeFilterCount = [
     status !== 'all',
-    type !== 'all',
     tag !== 'all',
     theme !== 'all',
   ].filter(Boolean).length
 
   function clearFilters() {
     setStatus('all')
-    setType('all')
     setTag('all')
     setTheme('all')
     setSearch('')
   }
 
   const filtered = useMemo(() => {
-    const hasFilters = status !== 'all' || type !== 'all' || tag !== 'all' || theme !== 'all'
+    const hasFilters = status !== 'all' || tag !== 'all' || theme !== 'all'
 
     function passesFilters(i: VocabItem) {
       if (status !== 'all' && i.status !== status) return false
-      if (type !== 'all' && i.type !== type) return false
       if (tag !== 'all' && !i.tags.includes(tag)) return false
       if (theme !== 'all' && !(i.themes ?? []).includes(theme)) return false
       return true
@@ -250,7 +239,7 @@ export function LibraryPage() {
 
     // Filter + sort mode (no query)
     return sortItems(items.filter(passesFilters), sort)
-  }, [items, search, status, type, tag, theme, sort])
+  }, [items, search, status, tag, theme, sort])
 
   const hasActive = activeFilterCount > 0 || search.trim().length > 0
 
@@ -332,12 +321,6 @@ export function LibraryPage() {
 
         {moreOpen && (
           <div className="mt-2.5 bg-slate-50 border border-slate-200 rounded-xl divide-y divide-slate-200 overflow-hidden">
-
-            {/* Type */}
-            <div className="px-3 py-2.5 space-y-1.5">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Type</p>
-              <PillGroup options={TYPE_OPTIONS} value={type} onChange={setType} />
-            </div>
 
             {/* Theme */}
             {allThemes.length > 0 && (
