@@ -1047,44 +1047,89 @@ export function LibraryPage() {
             </p>
           )}
 
-          {/* Selection controls — only shown when new words are visible */}
-          {inboxInFiltered.length > 0 && (
-            <div className="flex items-center justify-between mb-3 px-0.5">
-              <button
-                onClick={anySelected ? clearSelection : selectAllVisible}
-                className="text-xs text-brand-600 hover:text-brand-700 font-medium transition-colors"
-              >
-                {anySelected
-                  ? `${selectedIds.length} selected — clear`
-                  : `Select all ${inboxInFiltered.length} new word${inboxInFiltered.length !== 1 ? 's' : ''}`}
-              </button>
-            </div>
-          )}
+          {/* Item list — two sections when both inbox and non-inbox are visible */}
+          {(() => {
+            const inboxItems = filtered.filter((i) => i.status === 'inbox')
+            const otherItems = filtered.filter((i) => i.status !== 'inbox')
+            const hasBoth = inboxItems.length > 0 && otherItems.length > 0
 
-          {/* Journey guide — shown when new words are visible */}
-          {inboxInFiltered.length > 0 && <JourneyGuide />}
+            const inboxSection = inboxItems.length > 0 && (
+              <>
+                {/* Section header + selection control */}
+                {hasBoth && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
+                      New · needs activation
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <button
+                      onClick={anySelected ? clearSelection : selectAllVisible}
+                      className="text-xs text-brand-600 hover:text-brand-700 font-medium transition-colors shrink-0"
+                    >
+                      {anySelected
+                        ? `${selectedIds.length} selected — clear`
+                        : `Select all ${inboxItems.length}`}
+                    </button>
+                  </div>
+                )}
 
-          {/* Item list — InboxCard for new words, VocabCard for the rest */}
-          <div className="space-y-2">
-            {filtered.map((item) =>
-              item.status === 'inbox' ? (
-                <InboxCard
-                  key={item.id}
-                  item={item}
-                  selected={selected.has(item.id)}
-                  onSelect={toggleSelect}
-                  onMoveLearning={handleMoveLearning}
-                  onAddChallenge={handleAddChallenge}
-                  onAddWeek={handleAddWeek}
-                  onAssignTheme={handleAssignThemeSingle}
-                  onDelete={handleDeleteSingle}
-                  onNavigate={(id) => navigate(`/item/${id}`)}
-                />
-              ) : (
-                <VocabCard key={item.id} item={item} />
-              )
-            )}
-          </div>
+                {/* Selection control for inbox-only view */}
+                {!hasBoth && (
+                  <div className="flex items-center justify-between mb-3 px-0.5">
+                    <button
+                      onClick={anySelected ? clearSelection : selectAllVisible}
+                      className="text-xs text-brand-600 hover:text-brand-700 font-medium transition-colors"
+                    >
+                      {anySelected
+                        ? `${selectedIds.length} selected — clear`
+                        : `Select all ${inboxItems.length} new word${inboxItems.length !== 1 ? 's' : ''}`}
+                    </button>
+                  </div>
+                )}
+
+                {/* Journey guide */}
+                <JourneyGuide />
+
+                {/* Inbox cards */}
+                <div className="space-y-2">
+                  {inboxItems.map((item) => (
+                    <InboxCard
+                      key={item.id}
+                      item={item}
+                      selected={selected.has(item.id)}
+                      onSelect={toggleSelect}
+                      onMoveLearning={handleMoveLearning}
+                      onAddChallenge={handleAddChallenge}
+                      onAddWeek={handleAddWeek}
+                      onAssignTheme={handleAssignThemeSingle}
+                      onDelete={handleDeleteSingle}
+                      onNavigate={(id) => navigate(`/item/${id}`)}
+                    />
+                  ))}
+                </div>
+              </>
+            )
+
+            const otherSection = otherItems.length > 0 && (
+              <>
+                {hasBoth && (
+                  <div className="flex items-center gap-2 mt-5 mb-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
+                      Active vocabulary
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  {otherItems.map((item) => (
+                    <VocabCard key={item.id} item={item} />
+                  ))}
+                </div>
+              </>
+            )
+
+            return <>{inboxSection}{otherSection}</>
+          })()}
         </>
       )}
 
