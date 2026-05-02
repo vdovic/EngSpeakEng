@@ -12,6 +12,7 @@ import { TypeBadge } from '@/components/TypeBadge'
 import { ItemStatus, VocabItem } from '@/types/vocabulary'
 import { searchVocabulary } from '@/utils/vocabSearch'
 import { useEtymologyEnricher } from '@/hooks/useEtymologyEnricher'
+import { useRelationshipEnricher } from '@/hooks/useRelationshipEnricher'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -645,6 +646,9 @@ export function LibraryPage() {
   // ── Background etymology enrichment ──────────────────────────────────────────
   const etymologyProgress = useEtymologyEnricher()
 
+  // ── Background relationship graph enrichment ──────────────────────────────────
+  const relationshipProgress = useRelationshipEnricher()
+
   // Sync URL params when they change (e.g. GlobalSearch "View all" → library?q=…)
   useEffect(() => {
     const q = searchParams.get('q') ?? ''
@@ -1206,6 +1210,29 @@ export function LibraryPage() {
 
       {/* ── Add modal ── */}
       {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} />}
+
+      {/* ── Relationship graph enrichment progress toast ── */}
+      {relationshipProgress && (
+        <div
+          className={`fixed right-4 z-50 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 min-w-[220px] transition-all duration-300 ${
+            etymologyProgress ? 'bottom-[168px] md:bottom-[112px]' : 'bottom-20 md:bottom-6'
+          }`}
+        >
+          <Loader2 size={15} className="text-violet-500 animate-spin shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700">Building word graphs</p>
+            <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-violet-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.round((relationshipProgress.done / relationshipProgress.total) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {relationshipProgress.done} / {relationshipProgress.total} words
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Etymology enrichment progress toast ── */}
       {etymologyProgress && (
