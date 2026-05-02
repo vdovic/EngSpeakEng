@@ -29,6 +29,7 @@ Required JSON structure:
   "register": "formal OR neutral OR conversational",
   "collocations": ["3–5 common collocations or fixed expressions"],
   "sentenceFrames": ["2–3 reusable sentence templates using ___ as placeholder"],
+  "relatedPhrases": ["2–4 related phrases, idioms, or expressions that share meaning or context"],
   "etymology": "Brief etymology if memorable and helpful; empty string otherwise",
   "memoryCue": "A vivid mnemonic, image, or memory hook",
   "commonMistakes": "The most common learner error or confusion; empty string if none",
