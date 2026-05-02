@@ -592,9 +592,9 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
-      {/* Etymology */}
-      {(current.etymology || editing) && (
-        <Section title="Etymology" icon={<BookText size={14} />}>
+      {/* Etymology — always shown */}
+      <Section title="Etymology" icon={<BookText size={14} />}>
+        {(current.etymology || editing) ? (
           <Field
             label="Origin"
             value={current.etymology}
@@ -603,10 +603,12 @@ export function ItemDetailPage() {
             onChange={(v) => patch('etymology', v)}
             multiline
           />
-        </Section>
-      )}
+        ) : (
+          <p className="text-sm text-slate-400 italic">Not recorded for this word.</p>
+        )}
+      </Section>
 
-      {(current.etymology || editing) && <div className="my-3" />}
+      <div className="my-3" />
 
       {/* Related words from within the library */}
       <RelatedWordsSection
