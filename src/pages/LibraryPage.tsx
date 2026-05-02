@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Search, Library, X, ChevronDown, Plus,
-  Check, Zap, Star, Layers, Trash2, MoreVertical, BookOpen, ArrowRight,
+  Check, Zap, Star, Layers, Trash2, MoreVertical, BookOpen, ArrowRight, Loader2,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -11,6 +11,7 @@ import { QuickAddModal } from '@/components/QuickAddModal'
 import { TypeBadge } from '@/components/TypeBadge'
 import { ItemStatus, VocabItem } from '@/types/vocabulary'
 import { searchVocabulary } from '@/utils/vocabSearch'
+import { useEtymologyEnricher } from '@/hooks/useEtymologyEnricher'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -641,6 +642,9 @@ export function LibraryPage() {
   // ── Delete confirm ────────────────────────────────────────────────────────────
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
+  // ── Background etymology enrichment ──────────────────────────────────────────
+  const etymologyProgress = useEtymologyEnricher()
+
   // Sync URL params when they change (e.g. GlobalSearch "View all" → library?q=…)
   useEffect(() => {
     const q = searchParams.get('q') ?? ''
@@ -1202,6 +1206,25 @@ export function LibraryPage() {
 
       {/* ── Add modal ── */}
       {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} />}
+
+      {/* ── Etymology enrichment progress toast ── */}
+      {etymologyProgress && (
+        <div className="fixed bottom-20 md:bottom-6 right-4 z-50 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 min-w-[220px]">
+          <Loader2 size={15} className="text-brand-500 animate-spin shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-700">Adding etymology</p>
+            <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-brand-500 rounded-full transition-all duration-500"
+                style={{ width: `${Math.round((etymologyProgress.done / etymologyProgress.total) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {etymologyProgress.done} / {etymologyProgress.total} words
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

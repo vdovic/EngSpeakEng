@@ -11,6 +11,9 @@
     },
     "api/relatedEntries.ts": {
       "maxDuration": 30
+    },
+    "api/etymology.ts": {
+      "maxDuration": 20
     }
   }
 }
