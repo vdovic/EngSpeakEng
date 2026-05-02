@@ -11,9 +11,9 @@ import { useThemesStore } from '@/store/themesStore'
 import { STATUS_FLOW } from '@/lib/constants'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
-import { RelatedWordsSection } from '@/components/RelatedWordsSection'
+import { WordRelationGraph } from '@/components/WordRelationGraph'
 import { usagePoints, progressTowardMastery, deriveStatus } from '@/lib/mastery'
-import { VocabItem, ItemStatus, ItemType } from '@/types/vocabulary'
+import { VocabItem, ItemStatus, ItemType, RelatedSuggestion } from '@/types/vocabulary'
 import { format } from 'date-fns'
 import { loadTodaySession } from '@/lib/challengeSession'
 
@@ -235,7 +235,8 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs } = useVocabStore()
+  const { items, addItem, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs } = useVocabStore()
+  const [addedTerm, setAddedTerm] = useState<string | null>(null)
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
@@ -610,11 +611,37 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
-      {/* Related words from within the library */}
-      <RelatedWordsSection
+      {/* Word relationship graph */}
+      {addedTerm && (
+        <div className="mb-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+          <Check size={14} className="text-emerald-600 shrink-0" />
+          <p className="text-sm text-emerald-700 font-medium">
+            &ldquo;{addedTerm}&rdquo; added to your library
+          </p>
+          <button
+            onClick={() => setAddedTerm(null)}
+            className="ml-auto text-emerald-400 hover:text-emerald-600"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+      <WordRelationGraph
         entries={item.relatedEntries ?? []}
+        suggestions={item.relatedSuggestions ?? []}
         status={item.relatedEntriesStatus}
+        currentTerm={item.term}
         onGenerate={() => generateRelatedEntries(item.id)}
+        onAdd={async (suggestion: RelatedSuggestion) => {
+          await addItem({ term: suggestion.term, type: suggestion.type })
+          setAddedTerm(suggestion.term)
+          // Remove the suggestion from the saved list so the graph updates
+          await updateItem(item.id, {
+            relatedSuggestions: (item.relatedSuggestions ?? []).filter(
+              (s) => s.term !== suggestion.term,
+            ),
+          })
+        }}
       />
 
       <div className="my-3" />

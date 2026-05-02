@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { db } from '@/lib/db'
-import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus } from '@/types/vocabulary'
+import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus, RelatedSuggestion } from '@/types/vocabulary'
 import { StarterPack } from '@/types/starterPacks'
 import { calculateNextReview, isDueToday } from '@/lib/srs'
 import { deriveStatus } from '@/lib/mastery'
@@ -331,7 +331,10 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         throw new Error(body.error ?? `HTTP ${res.status}`)
       }
 
-      const { entries } = (await res.json()) as { entries: unknown[] }
+      const { entries, suggestions = [] } = (await res.json()) as {
+        entries: unknown[]
+        suggestions?: unknown[]
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const validated = validateRelatedEntries(entries as any, allItems)
 
@@ -339,6 +342,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         id,
         {
           relatedEntries: validated,
+          relatedSuggestions: suggestions as RelatedSuggestion[],
           relatedEntriesStatus: 'complete',
           updatedAt: new Date().toISOString(),
         },

@@ -107,6 +107,8 @@ export interface VocabItem {
   // ── Related words (within the app's own vocabulary) ──────────────────────
   relatedEntries?: RelatedEntry[]
   relatedEntriesStatus?: 'pending' | 'complete' | 'failed'
+  /** AI-suggested words not yet in the library that are worth adding */
+  relatedSuggestions?: RelatedSuggestion[]
 }
 
 // ── Related words ─────────────────────────────────────────────────────────────
@@ -135,6 +137,17 @@ export interface RelatedEntry {
   direction?: RelationshipDirection
   /** 1 = weak, 2 = moderate, 3 = strong */
   strength: 1 | 2 | 3
+  explanation: string
+}
+
+/** A related word that the learner does NOT yet have in their library */
+export interface RelatedSuggestion {
+  term: string
+  type: ItemType
+  relationshipType: RelationshipType
+  direction?: RelationshipDirection
+  /** One-line plain-English definition to show in the graph card */
+  definitionHint: string
   explanation: string
 }
 
