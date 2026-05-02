@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, RefreshCw, Library,
   Target, BarChart2, Zap, Layers, GraduationCap, Sparkles,
@@ -22,12 +22,6 @@ interface NavGroup {
 // ── Desktop sidebar structure ──────────────────────────────────────────────────
 
 const SIDEBAR_GROUPS: NavGroup[] = [
-  {
-    label: null,
-    links: [
-      { to: '/', icon: LayoutDashboard, label: 'Home' },
-    ],
-  },
   {
     label: 'Learn',
     links: [
@@ -57,17 +51,17 @@ const SIDEBAR_GROUPS: NavGroup[] = [
 // "More" opens a sheet containing everything else.
 
 const MOBILE_PRIMARY: NavLinkDef[] = [
-  { to: '/',          icon: LayoutDashboard, label: 'Home' },
-  { to: '/challenge', icon: Zap,             label: 'Challenge' },
-  { to: '/review',    icon: RefreshCw,       label: 'Review' },
-  { to: '/library',   icon: Library,         label: 'Vocabulary' },
-  // 5th slot = "More" button (rendered separately below)
+  { to: '/challenge', icon: Zap,       label: 'Challenge' },
+  { to: '/review',    icon: RefreshCw, label: 'Review' },
+  { to: '/library',   icon: Library,   label: 'Vocabulary' },
+  // 4th slot = "More" button (rendered separately below)
 ]
 
 const MOBILE_MORE: NavLinkDef[] = [
-  { to: '/week',    icon: Target,      label: 'Focus This Week' },
-  { to: '/themes',  icon: Layers,      label: 'Themes' },
-  { to: '/stats',   icon: BarChart2,   label: 'Stats' },
+  { to: '/',        icon: LayoutDashboard, label: 'Home' },
+  { to: '/week',    icon: Target,          label: 'Focus This Week' },
+  { to: '/themes',  icon: Layers,          label: 'Themes' },
+  { to: '/stats',   icon: BarChart2,       label: 'Stats' },
 ]
 
 // Routes that belong to the "More" drawer — used to highlight the More tab
@@ -204,16 +198,16 @@ export function NavBar() {
     <>
       {/* ── Desktop sidebar ── */}
       <nav className="hidden md:flex flex-col w-56 shrink-0 bg-white border-r border-slate-200 py-5 px-3">
-        {/* Logo */}
-        <div className="flex items-center gap-2.5 px-3 mb-6">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shrink-0 shadow-sm">
+        {/* Logo — clicking navigates to Home/Dashboard */}
+        <Link to="/" className="flex items-center gap-2.5 px-3 mb-6 group">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shrink-0 shadow-sm group-hover:shadow-md transition-shadow">
             <GraduationCap size={14} className="text-white" />
           </div>
           <div className="leading-none">
-            <span className="block text-[15px] font-extrabold text-slate-900 tracking-tight">ESE</span>
+            <span className="block text-[15px] font-extrabold text-slate-900 tracking-tight group-hover:text-brand-700 transition-colors">ESE</span>
             <span className="block text-[9px] text-slate-400 tracking-wide mt-0.5">Advanced Vocabulary, Tailored to You</span>
           </div>
-        </div>
+        </Link>
 
         {/* Groups */}
         <div className="flex flex-col gap-4 flex-1">
