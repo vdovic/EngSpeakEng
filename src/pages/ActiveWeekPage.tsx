@@ -162,7 +162,7 @@ function FocusCard({ item, done, usesDone, onLogUsage, onRemove, onNavigate }: F
           <button
             onClick={onRemove}
             className="text-slate-300 hover:text-red-400 transition-colors ml-1"
-            title="Remove from Focus This Week"
+            title="Remove from My Current Focus"
           >
             <X size={16} />
           </button>
@@ -188,7 +188,7 @@ function FocusCard({ item, done, usesDone, onLogUsage, onRemove, onNavigate }: F
         <button
           onClick={onRemove}
           className="text-slate-300 hover:text-red-400 transition-colors mt-0.5"
-          title="Remove from Focus This Week"
+          title="Remove from My Current Focus"
         >
           <X size={16} />
         </button>
@@ -248,7 +248,7 @@ function AutoSuggestPanel({
             Ready to practise in real life
           </p>
           <p className="text-xs text-brand-600 mt-0.5">
-            You've reviewed {suggestions.length === 1 ? 'this word' : 'these words'} enough to start using {suggestions.length === 1 ? 'it' : 'them'} — add to Focus This Week.
+            You've reviewed {suggestions.length === 1 ? 'this word' : 'these words'} enough to start using {suggestions.length === 1 ? 'it' : 'them'} — add to My Current Focus.
           </p>
         </div>
         <button onClick={onDismiss} className="text-brand-300 hover:text-brand-500 transition-colors shrink-0">
@@ -426,7 +426,7 @@ export function ActiveWeekPage() {
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2">
           <Target size={20} className="text-amber-500" />
-          <h1 className="text-xl font-bold text-slate-900">Focus This Week</h1>
+          <h1 className="text-xl font-bold text-slate-900">My Current Focus</h1>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -438,7 +438,7 @@ export function ActiveWeekPage() {
           <button
             onClick={() => setShowInfo((v) => !v)}
             className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
-            title="What is Focus This Week?"
+            title="What is My Current Focus?"
           >
             <Info size={16} />
           </button>
@@ -448,7 +448,7 @@ export function ActiveWeekPage() {
       {/* Info panel */}
       {showInfo && (
         <div className="mb-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed space-y-2">
-          <p className="font-semibold text-slate-800">Focus This Week</p>
+          <p className="font-semibold text-slate-800">My Current Focus</p>
           <p>These are the words you're actively working to <em>use</em>, not just recognise. Keep this list small and deliberate.</p>
           <p>The system auto-selects words based on what you've learned, where you're struggling, and what matters for your goals. Your goal: use each word at least 3× in real life this week.</p>
           <p className="text-slate-400">Ideal range: {FOCUS_RECOMMENDED_MIN}–{FOCUS_RECOMMENDED_MAX} words. Maximum: {FOCUS_MAX}. Words are refreshed each Monday.</p>

@@ -776,7 +776,7 @@ function FocusThisWeekPreview({ onNavigate }: { onNavigate: () => void }) {
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Target size={16} className="text-amber-500" />
-            Focus This Week
+            My Current Focus
           </h2>
           {focusItems.length > 0 ? (
             <p className="text-xs text-slate-500 mt-0.5">
@@ -968,7 +968,7 @@ function HowItWorks() {
           <p className="text-xs font-semibold text-slate-600 mb-3">How stages connect</p>
           <div className="space-y-2.5">
             {[
-              { from: '📥 Inbox', to: '📖 Learn', how: 'Tap "Learning", "Challenge", or "This Week" on any inbox word.' },
+              { from: '📥 Inbox', to: '📖 Learn', how: 'Tap "Learning", "Challenge", or "My Focus" on any inbox word.' },
               { from: '📖 Learn', to: '💬 Use it', how: 'Complete reviews until recalled 3 times. Then tap "+ I used it" when you speak or write the word.' },
               { from: '💬 Use it', to: '🏆 Mastered', how: 'Log 3 real-life uses and write a sentence. ESE advances status automatically.' },
             ].map(({ from, to, how }) => (

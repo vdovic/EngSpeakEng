@@ -2,27 +2,48 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Search, Library, X, ChevronDown, Plus,
-  Check, Zap, Star, Layers, Trash2, MoreVertical, BookOpen, ArrowRight, Loader2,
+  Check, Zap, Star, Layers, Trash2, MoreVertical,
+  BookOpen, ArrowRight, Loader2, Tag,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { VocabCard } from '@/components/VocabCard'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { TypeBadge } from '@/components/TypeBadge'
-import { ItemStatus, VocabItem } from '@/types/vocabulary'
+import { LevelBadge } from '@/components/LevelBadge'
+import { VocabItem } from '@/types/vocabulary'
 import { searchVocabulary } from '@/utils/vocabSearch'
 import { useEtymologyEnricher } from '@/hooks/useEtymologyEnricher'
 import { useRelationshipEnricher } from '@/hooks/useRelationshipEnricher'
+import {
+  LevelFilter, FocusFilter, ExposureBandFilter, LibrarySortKey,
+  LibraryFilters, itemPassesFilters, activeFilterCount as countActiveFilters,
+  hasActiveFilter, isInFocus, sortLibraryItems,
+} from '@/lib/libraryFilters'
+import { FOCUS_MAX } from '@/lib/focusLogic'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS: { value: ItemStatus | 'all'; label: string }[] = [
-  { value: 'all',        label: 'All' },
-  { value: 'inbox',      label: 'New' },
-  { value: 'learning',   label: 'Learning' },
-  { value: 'stable',     label: 'Stable' },
-  { value: 'activation', label: 'Active' },
-  { value: 'mastered',   label: '🎓 Mastered' },
+const LEVEL_OPTIONS: { value: LevelFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 0,     label: 'New' },
+  { value: 1,     label: 'Learning' },
+  { value: 2,     label: 'Familiar' },
+  { value: 3,     label: 'Mastered' },
+]
+
+const FOCUS_OPTIONS: { value: FocusFilter; label: string }[] = [
+  { value: 'all',       label: 'All' },
+  { value: 'focus',     label: 'In My Current Focus' },
+  { value: 'not-focus', label: 'Not in focus' },
+]
+
+const EXPOSURE_BAND_OPTIONS: { value: ExposureBandFilter; label: string }[] = [
+  { value: 'all',         label: 'All' },
+  { value: 'not-started', label: 'Not started' },
+  { value: 'early',       label: 'Early (1–2)' },
+  { value: 'building',    label: 'Building (3–7)' },
+  { value: 'complete',    label: 'Complete (8)' },
 ]
 
 /** Human-readable display names for known tags */
@@ -33,19 +54,7 @@ const TAG_LABELS: Record<string, string> = {
   'chunks':       'Fixed Phrases',
 }
 
-// ── Sort ───────────────────────────────────────────────────────────────────────
-
-type SortKey =
-  | 'newest'           // date added, newest first
-  | 'oldest'           // date added, oldest first
-  | 'az'               // alphabetical A → Z
-  | 'za'               // alphabetical Z → A
-  | 'challenge-desc'   // Daily Challenge exposures: 8 → 0  (most done first)
-  | 'challenge-asc'    // Daily Challenge exposures: 0 → 8  (not started first)
-  | 'due'              // SRS review: due soonest first
-  | 'weak'             // SRS review: lowest ease factor first
-
-const SORT_GROUPS: { label: string; options: { value: SortKey; label: string }[] }[] = [
+const SORT_GROUPS: { label: string; options: { value: LibrarySortKey; label: string }[] }[] = [
   {
     label: 'Date added',
     options: [
@@ -61,10 +70,24 @@ const SORT_GROUPS: { label: string; options: { value: SortKey; label: string }[]
     ],
   },
   {
+    label: 'Learning level',
+    options: [
+      { value: 'level-asc',  label: 'New → Mastered' },
+      { value: 'level-desc', label: 'Mastered → New' },
+    ],
+  },
+  {
     label: 'Daily Challenge (0 – 8 steps)',
     options: [
       { value: 'challenge-desc', label: 'Most practiced first (8 → 0)' },
       { value: 'challenge-asc',  label: 'Least practiced first (0 → 8)' },
+    ],
+  },
+  {
+    label: 'Difficulty (how hard for you)',
+    options: [
+      { value: 'difficulty-desc', label: 'Hardest for me first' },
+      { value: 'difficulty-asc',  label: 'Easiest for me first' },
     ],
   },
   {
@@ -87,45 +110,6 @@ interface ToastState {
   undoPatches?: UndoPatch[]
   ctaLabel?: string
   onCta?: () => void
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
-function sortItems(items: VocabItem[], sort: SortKey): VocabItem[] {
-  return [...items].sort((a, b) => {
-    if (sort === 'challenge-desc') {
-      return (b.exposureCount ?? 0) - (a.exposureCount ?? 0)
-    }
-    if (sort === 'challenge-asc') {
-      return (a.exposureCount ?? 0) - (b.exposureCount ?? 0)
-    }
-
-    // All other sorts: mastered items sink to the bottom
-    const aMastered = a.status === 'mastered' ? 1 : 0
-    const bMastered = b.status === 'mastered' ? 1 : 0
-    if (aMastered !== bMastered) return aMastered - bMastered
-
-    switch (sort) {
-      case 'oldest':
-        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      case 'az':
-        return a.term.localeCompare(b.term)
-      case 'za':
-        return b.term.localeCompare(a.term)
-      case 'newest':
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      case 'due': {
-        const aT = a.review.nextReviewAt ? new Date(a.review.nextReviewAt).getTime() : Infinity
-        const bT = b.review.nextReviewAt ? new Date(b.review.nextReviewAt).getTime() : Infinity
-        return aT - bT
-      }
-      case 'weak':
-        if (a.review.reviewCount < 2 && b.review.reviewCount < 2) return 0
-        if (a.review.reviewCount < 2) return 1
-        if (b.review.reviewCount < 2) return -1
-        return a.review.ease - b.review.ease
-    }
-  })
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────────────
@@ -286,7 +270,6 @@ function ThemePickerModal({
 }
 
 // ── Inbox item card ────────────────────────────────────────────────────────────
-// Shown for items with status === 'inbox'; provides Learning / Challenge / This Week actions.
 
 interface InboxCardProps {
   item: VocabItem
@@ -294,7 +277,7 @@ interface InboxCardProps {
   onSelect: (id: string, checked: boolean) => void
   onMoveLearning: (id: string) => void
   onAddChallenge: (id: string) => void
-  onAddWeek: (id: string) => void
+  onAddFocus: (id: string) => void
   onAssignTheme: (id: string) => void
   onDelete: (id: string) => void
   onNavigate: (id: string) => void
@@ -306,7 +289,7 @@ function InboxCard({
   onSelect,
   onMoveLearning,
   onAddChallenge,
-  onAddWeek,
+  onAddFocus,
   onAssignTheme,
   onDelete,
   onNavigate,
@@ -349,6 +332,7 @@ function InboxCard({
           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
             <span className="font-semibold text-slate-900 text-sm leading-tight">{item.term}</span>
             <TypeBadge type={item.type} />
+            <LevelBadge item={item} />
           </div>
           {item.definitionEn ? (
             <p className="text-xs text-slate-500 line-clamp-2 leading-snug">{item.definitionEn}</p>
@@ -385,12 +369,12 @@ function InboxCard({
           <span className="hidden sm:inline">Challenge</span>
         </button>
         <button
-          onClick={() => onAddWeek(item.id)}
-          title="Add to This Week's Focus"
+          onClick={() => onAddFocus(item.id)}
+          title="Add to My Current Focus"
           className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-orange-700 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
         >
           <Star size={11} />
-          <span className="hidden sm:inline">This Week</span>
+          <span className="hidden sm:inline">My Focus</span>
         </button>
 
         <div className="relative ml-auto" ref={menuRef}>
@@ -439,19 +423,30 @@ function BulkActionBar({
   count,
   onMoveLearning,
   onAddChallenge,
-  onAddWeek,
+  onAddFocus,
   onAssignTheme,
+  onAddTag,
   onDelete,
   onClear,
 }: {
   count: number
   onMoveLearning: () => void
   onAddChallenge: () => void
-  onAddWeek: () => void
+  onAddFocus: () => void
   onAssignTheme: () => void
+  onAddTag: (tag: string) => void
   onDelete: () => void
   onClear: () => void
 }) {
+  const [tagInput, setTagInput] = useState('')
+
+  function submitTag() {
+    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-')
+    if (!t) return
+    onAddTag(t)
+    setTagInput('')
+  }
+
   return (
     <div className="fixed bottom-16 md:bottom-0 left-0 md:left-56 right-0 z-30 bg-slate-900 border-t border-slate-700 px-4 py-3">
       <div className="max-w-2xl mx-auto">
@@ -464,7 +459,7 @@ function BulkActionBar({
             Clear selection
           </button>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap mb-2.5">
           <button
             onClick={onMoveLearning}
             className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 transition-colors"
@@ -480,11 +475,11 @@ function BulkActionBar({
             Challenge
           </button>
           <button
-            onClick={onAddWeek}
+            onClick={onAddFocus}
             className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-semibold hover:bg-orange-600 transition-colors"
           >
             <Star size={12} />
-            This Week
+            My Focus
           </button>
           <button
             onClick={onAssignTheme}
@@ -499,6 +494,26 @@ function BulkActionBar({
           >
             <Trash2 size={12} />
             Delete
+          </button>
+        </div>
+        {/* Bulk tag input */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Tag size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submitTag()}
+              placeholder="Add tag to all selected…"
+              className="w-full pl-7 pr-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+            />
+          </div>
+          <button
+            onClick={submitTag}
+            disabled={!tagInput.trim()}
+            className="px-3 py-2 bg-slate-700 text-white rounded-xl text-xs font-semibold disabled:opacity-40 hover:bg-slate-600 transition-colors"
+          >
+            Add tag
           </button>
         </div>
       </div>
@@ -529,19 +544,19 @@ function JourneyGuide() {
           <div className="flex gap-3 items-start">
             <div className="w-2 h-2 rounded-full bg-brand-500 mt-1.5 shrink-0" />
             <p className="text-xs text-slate-600 leading-relaxed">
-              <span className="font-bold text-slate-800">Learning</span> — enters your SRS Review queue. Words come back at growing intervals (1 day → 3 → 7 → 14…) until recalled 3 times. Best for most words.
+              <span className="font-bold text-slate-800">Learning</span> — enters your SRS Review queue. Words come back at growing intervals (1 day → 3 → 7 → 14…) until recalled 3 times.
             </p>
           </div>
           <div className="flex gap-3 items-start">
             <div className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
             <p className="text-xs text-slate-600 leading-relaxed">
-              <span className="font-bold text-slate-800">Challenge</span> — jumps into today's Daily Challenge quiz (multiple choice + fill-in). Best for words you want to test right now with active recall.
+              <span className="font-bold text-slate-800">Challenge</span> — jumps into today's Daily Challenge quiz (multiple choice + fill-in). Best for words you want to test right now.
             </p>
           </div>
           <div className="flex gap-3 items-start">
             <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 shrink-0" />
             <p className="text-xs text-slate-600 leading-relaxed">
-              <span className="font-bold text-slate-800">This Week</span> — adds to your weekly focus board. Best for a small set of words you're consciously practising this week (speaking, writing).
+              <span className="font-bold text-slate-800">My Focus</span> — adds to your current focus list. Best for a small set of words you're consciously practising (speaking, writing).
             </p>
           </div>
           <p className="text-[10px] text-slate-400 italic border-t border-slate-100 pt-2.5">
@@ -555,14 +570,13 @@ function JourneyGuide() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-/** Dropdown sort selector — groups options by dimension using optgroup. */
-function SortSelect({ value, onChange }: { value: SortKey; onChange: (v: SortKey) => void }) {
+function SortSelect({ value, onChange }: { value: LibrarySortKey; onChange: (v: LibrarySortKey) => void }) {
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs font-semibold text-slate-500 shrink-0">Sort by</span>
       <select
         value={value}
-        onChange={(e) => onChange(e.target.value as SortKey)}
+        onChange={(e) => onChange(e.target.value as LibrarySortKey)}
         className="flex-1 text-sm border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 text-slate-700 cursor-pointer"
       >
         {SORT_GROUPS.map((group) => (
@@ -577,8 +591,7 @@ function SortSelect({ value, onChange }: { value: SortKey; onChange: (v: SortKey
   )
 }
 
-/** Wrapping pill buttons — no horizontal scroll */
-function PillGroup<T extends string>({
+function PillGroup<T extends string | number>({
   options,
   value,
   onChange,
@@ -591,7 +604,7 @@ function PillGroup<T extends string>({
     <div className="flex flex-wrap gap-1.5">
       {options.map((o) => (
         <button
-          key={o.value}
+          key={String(o.value)}
           onClick={() => onChange(o.value)}
           className={`px-3 py-1 text-xs rounded-full border font-medium transition-colors whitespace-nowrap ${
             value === o.value
@@ -614,17 +627,20 @@ export function LibraryPage() {
   const {
     moveToLearning, addToChallenge, addToWeekFocus,
     deleteItems, assignThemes, updateItem,
+    addToFocus, removeFromFocus, addTag,
   } = useVocabStore()
   const allThemes = useThemesStore((s) => s.themes)
   const [searchParams] = useSearchParams()
 
   // ── Filter / sort state ───────────────────────────────────────────────────────
-  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
-  const [status, setStatus] = useState<ItemStatus | 'all'>('all')
-  const [tag, setTag]       = useState<string>('all')
-  const [theme, setTheme]   = useState<string>(() => searchParams.get('theme') ?? 'all')
-  const [sort, setSort]     = useState<SortKey>('newest')
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [search, setSearch]           = useState(() => searchParams.get('q') ?? '')
+  const [levelFilter, setLevelFilter] = useState<LevelFilter>('all')
+  const [focusFilter, setFocusFilter] = useState<FocusFilter>('all')
+  const [exposureBand, setExposureBand] = useState<ExposureBandFilter>('all')
+  const [tag, setTag]                 = useState<string>('all')
+  const [theme, setTheme]             = useState<string>(() => searchParams.get('theme') ?? 'all')
+  const [sort, setSort]               = useState<LibrarySortKey>('newest')
+  const [moreOpen, setMoreOpen]       = useState(false)
 
   // ── Add modal ─────────────────────────────────────────────────────────────────
   const [showAdd, setShowAdd] = useState(false)
@@ -643,13 +659,11 @@ export function LibraryPage() {
   // ── Delete confirm ────────────────────────────────────────────────────────────
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
-  // ── Background etymology enrichment ──────────────────────────────────────────
-  const etymologyProgress = useEtymologyEnricher()
+  // ── Background enrichment ─────────────────────────────────────────────────────
+  const etymologyProgress     = useEtymologyEnricher()
+  const relationshipProgress  = useRelationshipEnricher()
 
-  // ── Background relationship graph enrichment ──────────────────────────────────
-  const relationshipProgress = useRelationshipEnricher()
-
-  // Sync URL params when they change (e.g. GlobalSearch "View all" → library?q=…)
+  // Sync URL params
   useEffect(() => {
     const q = searchParams.get('q') ?? ''
     if (q) setSearch(q)
@@ -657,13 +671,17 @@ export function LibraryPage() {
     if (t !== 'all') { setTheme(t); setMoreOpen(true) }
   }, [searchParams])
 
+  // ── Derived: focus count (both fields, for banner) ────────────────────────────
+  const focusCount = useMemo(
+    () => items.filter(isInFocus).length,
+    [items],
+  )
+
   // ── Tag options ───────────────────────────────────────────────────────────────
   const allTags = useMemo(() => {
     const counts = new Map<string, number>()
     items.forEach((i) => i.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)))
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([t]) => t)
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).map(([t]) => t)
   }, [items])
 
   const tagOptions = useMemo(
@@ -674,15 +692,21 @@ export function LibraryPage() {
     [allTags],
   )
 
-  // ── Filter counts ─────────────────────────────────────────────────────────────
-  const activeFilterCount = [
-    status !== 'all',
-    tag !== 'all',
-    theme !== 'all',
-  ].filter(Boolean).length
+  // ── Composed filters object ───────────────────────────────────────────────────
+  const filters: LibraryFilters = {
+    level: levelFilter,
+    focus: focusFilter,
+    exposureBand,
+    tag,
+    theme,
+  }
+
+  const filterCount = countActiveFilters(filters)
 
   function clearFilters() {
-    setStatus('all')
+    setLevelFilter('all')
+    setFocusFilter('all')
+    setExposureBand('all')
     setTag('all')
     setTheme('all')
     setSearch('')
@@ -690,23 +714,21 @@ export function LibraryPage() {
 
   // ── Filtered + sorted items ───────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const hasFilters = status !== 'all' || tag !== 'all' || theme !== 'all'
+    const active = hasActiveFilter(filters)
 
-    function passesFilters(i: VocabItem) {
-      if (status !== 'all' && i.status !== status) return false
-      if (tag !== 'all' && !i.tags.includes(tag)) return false
-      if (theme !== 'all' && !(i.themes ?? []).includes(theme)) return false
-      return true
+    function passes(i: VocabItem) {
+      return itemPassesFilters(i, filters)
     }
 
     if (search.trim()) {
       const SEARCH_LIMIT = 200
       const ranked = searchVocabulary(items, search, SEARCH_LIMIT).map((r) => r.item)
-      return hasFilters ? ranked.filter(passesFilters) : ranked
+      return active ? ranked.filter(passes) : ranked
     }
 
-    return sortItems(items.filter(passesFilters), sort)
-  }, [items, search, status, tag, theme, sort])
+    return sortLibraryItems(items.filter(passes), sort)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, search, levelFilter, focusFilter, exposureBand, tag, theme, sort])
 
   // ── Derived: inbox items visible in current filter ────────────────────────────
   const inboxInFiltered = useMemo(
@@ -714,12 +736,14 @@ export function LibraryPage() {
     [filtered],
   )
 
-  // ── Derived: selected inbox IDs that are currently visible ───────────────────
+  // ── Derived: selected inbox IDs visible ──────────────────────────────────────
   const selectedIds = useMemo(
     () => inboxInFiltered.map((i) => i.id).filter((id) => selected.has(id)),
     [inboxInFiltered, selected],
   )
   const anySelected = selectedIds.length > 0
+
+  const hasActive = filterCount > 0 || search.trim().length > 0
 
   // ── Toast helpers ─────────────────────────────────────────────────────────────
   function showToast(
@@ -734,9 +758,7 @@ export function LibraryPage() {
   }
 
   async function handleUndo(patches: UndoPatch[]) {
-    for (const { id, prev } of patches) {
-      await updateItem(id, prev)
-    }
+    for (const { id, prev } of patches) await updateItem(id, prev)
     setToast(null)
     showToast('Action undone.')
   }
@@ -756,20 +778,29 @@ export function LibraryPage() {
 
   // ── Selection helpers ─────────────────────────────────────────────────────────
   function toggleSelect(id: string, checked: boolean) {
-    setSelected((s) => {
-      const next = new Set(s)
-      if (checked) next.add(id)
-      else next.delete(id)
-      return next
-    })
+    setSelected((s) => { const n = new Set(s); if (checked) n.add(id); else n.delete(id); return n })
   }
-
   function selectAllVisible() {
     setSelected((s) => new Set([...s, ...inboxInFiltered.map((i) => i.id)]))
   }
+  function clearSelection() { setSelected(new Set()) }
 
-  function clearSelection() {
-    setSelected(new Set())
+  // ── Per-card focus toggle (non-inbox items) ───────────────────────────────────
+  async function handleFocusToggle(id: string, currentlyFocused: boolean) {
+    if (currentlyFocused) {
+      await removeFromFocus(id)
+      showToast('Removed from My Current Focus.')
+    } else {
+      const { added, evicted } = await addToFocus([id])
+      if (added > 0) {
+        showToast(
+          'Added to My Current Focus',
+          evicted > 0 ? `${evicted} lower-priority word${evicted !== 1 ? 's' : ''} removed to make room.` : undefined,
+        )
+      } else {
+        showToast('Already in My Current Focus.')
+      }
+    }
   }
 
   // ── Single-item actions ───────────────────────────────────────────────────────
@@ -787,11 +818,11 @@ export function LibraryPage() {
     else if (skipped > 0) showToast('Already due for challenge — skipped.')
   }
 
-  async function handleAddWeek(id: string) {
-    const snap = captureSnapshot([id], ['status', 'weeklyFocus'])
+  async function handleAddFocus(id: string) {
+    const snap = captureSnapshot([id], ['status', 'weeklyFocus', 'inFocus'])
     const { added, skipped } = await addToWeekFocus([id])
-    if (added > 0) showToast("Added to This Week's Focus", 'Word is now on your weekly board.', snap, 'See Active Words →', () => navigate('/week'))
-    else if (skipped > 0) showToast('Already in This Week — skipped.')
+    if (added > 0) showToast("Added to My Current Focus", 'Word is now on your focus list.', snap, 'See Active Words →', () => navigate('/week'))
+    else if (skipped > 0) showToast('Already in My Current Focus — skipped.')
   }
 
   function handleAssignThemeSingle(id: string) {
@@ -830,14 +861,14 @@ export function LibraryPage() {
     )
   }
 
-  async function handleBulkAddWeek() {
+  async function handleBulkAddFocus() {
     if (!selectedIds.length) return
-    const snap = captureSnapshot(selectedIds, ['status', 'weeklyFocus'])
+    const snap = captureSnapshot(selectedIds, ['status', 'weeklyFocus', 'inFocus'])
     const { added, skipped } = await addToWeekFocus(selectedIds)
     clearSelection()
     showToast(
-      `${added} word${added !== 1 ? 's' : ''} added to This Week's Focus`,
-      skipped > 0 ? `${skipped} already in This Week — skipped.` : undefined,
+      `${added} word${added !== 1 ? 's' : ''} added to My Current Focus`,
+      skipped > 0 ? `${skipped} already in focus — skipped.` : undefined,
       snap, 'See Active Words →', () => navigate('/week'),
     )
   }
@@ -847,12 +878,17 @@ export function LibraryPage() {
     setThemePickerMode('bulk')
   }
 
+  async function handleBulkAddTag(tagStr: string) {
+    if (!selectedIds.length || !tagStr) return
+    for (const id of selectedIds) {
+      await addTag(id, tagStr)
+    }
+    showToast(`Tag #${tagStr} added to ${selectedIds.length} word${selectedIds.length !== 1 ? 's' : ''}.`)
+  }
+
   function handleBulkDelete() {
     if (!selectedIds.length) return
-    if (selectedIds.length === 1) {
-      handleDeleteSingle(selectedIds[0])
-      return
-    }
+    if (selectedIds.length === 1) { handleDeleteSingle(selectedIds[0]); return }
     setShowDeleteConfirm(true)
   }
 
@@ -886,8 +922,7 @@ export function LibraryPage() {
       clearSelection()
       showToast(
         `${count} word${count !== 1 ? 's' : ''} assigned to ${themesToAdd.length} theme${themesToAdd.length !== 1 ? 's' : ''}.`,
-        undefined,
-        snap,
+        undefined, snap,
       )
     }
     setThemePickerMode(null)
@@ -901,12 +936,10 @@ export function LibraryPage() {
     return []
   }, [themePickerMode, themePickerItemId, items])
 
-  const hasActive = activeFilterCount > 0 || search.trim().length > 0
-
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`max-w-2xl mx-auto px-4 py-6 ${anySelected ? 'pb-48 md:pb-36' : 'pb-24 md:pb-6'}`}>
+    <div className={`max-w-2xl mx-auto px-4 py-6 ${anySelected ? 'pb-56 md:pb-44' : 'pb-24 md:pb-6'}`}>
 
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-4">
@@ -916,13 +949,13 @@ export function LibraryPage() {
           <span className="text-sm text-slate-400">({items.length})</span>
         </div>
         <div className="flex items-center gap-2">
-          {activeFilterCount > 0 && (
+          {filterCount > 0 && (
             <button
               onClick={clearFilters}
               className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-full transition-colors"
             >
               <X size={12} />
-              Clear {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''}
+              Clear {filterCount} filter{filterCount > 1 ? 's' : ''}
             </button>
           )}
           <button
@@ -935,12 +968,23 @@ export function LibraryPage() {
         </div>
       </div>
 
+      {/* ── My Current Focus banner ── */}
+      {focusCount > 0 && (
+        <button
+          onClick={() => navigate('/week')}
+          className="w-full flex items-center gap-2 px-3 py-2 mb-3 bg-orange-50 border border-orange-200 rounded-xl text-xs hover:bg-orange-100 transition-colors"
+        >
+          <Star size={12} className="text-orange-500 shrink-0" fill="currentColor" />
+          <span className="text-orange-700 font-medium flex-1 text-left">
+            {focusCount} / {FOCUS_MAX} in My Current Focus
+          </span>
+          <span className="text-orange-400">→</span>
+        </button>
+      )}
+
       {/* ── Search ── */}
       <div className="relative mb-3">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-        />
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input
           type="text"
           value={search}
@@ -963,12 +1007,12 @@ export function LibraryPage() {
         <SortSelect value={sort} onChange={setSort} />
       </div>
 
-      {/* ── Status (always visible) ── */}
+      {/* ── Level filter pills (replaces status) ── */}
       <div className="mb-3">
-        <PillGroup
-          options={STATUS_OPTIONS}
-          value={status}
-          onChange={setStatus}
+        <PillGroup<LevelFilter>
+          options={LEVEL_OPTIONS}
+          value={levelFilter}
+          onChange={setLevelFilter}
         />
       </div>
 
@@ -978,20 +1022,39 @@ export function LibraryPage() {
           onClick={() => setMoreOpen((o) => !o)}
           className="flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
         >
-          <ChevronDown
-            size={13}
-            className={`transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`}
-          />
+          <ChevronDown size={13} className={`transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`} />
           More filters
-          {activeFilterCount > 0 && (
+          {filterCount > 0 && (
             <span className="ml-1 bg-brand-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-              {activeFilterCount}
+              {filterCount}
             </span>
           )}
         </button>
 
         {moreOpen && (
           <div className="mt-2.5 bg-slate-50 border border-slate-200 rounded-xl divide-y divide-slate-200 overflow-hidden">
+
+            {/* Focus filter */}
+            <div className="px-3 py-2.5 space-y-1.5">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Focus</p>
+              <PillGroup<FocusFilter>
+                options={FOCUS_OPTIONS}
+                value={focusFilter}
+                onChange={setFocusFilter}
+              />
+            </div>
+
+            {/* Exposure band */}
+            <div className="px-3 py-2.5 space-y-1.5">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Daily Challenge progress</p>
+              <PillGroup<ExposureBandFilter>
+                options={EXPOSURE_BAND_OPTIONS}
+                value={exposureBand}
+                onChange={setExposureBand}
+              />
+            </div>
+
+            {/* Theme */}
             {allThemes.length > 0 && (
               <div className="px-3 py-2.5 space-y-1.5">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Theme</p>
@@ -1007,10 +1070,12 @@ export function LibraryPage() {
                 </select>
               </div>
             )}
+
+            {/* Tag */}
             {tagOptions.length > 1 && (
               <div className="px-3 py-2.5 space-y-1.5">
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Tag</p>
-                <PillGroup options={tagOptions} value={tag} onChange={setTag} />
+                <PillGroup<string> options={tagOptions} value={tag} onChange={setTag} />
               </div>
             )}
           </div>
@@ -1023,15 +1088,10 @@ export function LibraryPage() {
           <Library size={36} className="mx-auto mb-3 opacity-40" />
           <p className="font-medium text-slate-600">No items found</p>
           <p className="text-sm mt-1">
-            {hasActive
-              ? 'Try different filters or clear them.'
-              : 'Add your first item to get started.'}
+            {hasActive ? 'Try different filters or clear them.' : 'Add your first item to get started.'}
           </p>
           {hasActive ? (
-            <button
-              onClick={clearFilters}
-              className="mt-3 text-sm text-brand-600 hover:underline font-medium"
-            >
+            <button onClick={clearFilters} className="mt-3 text-sm text-brand-600 hover:underline font-medium">
               Clear all filters
             </button>
           ) : (
@@ -1049,21 +1109,18 @@ export function LibraryPage() {
           {hasActive && (
             <p className="text-xs text-slate-400 mb-2 pl-0.5">
               {filtered.length} of {items.length} items
-              {search.trim() && (
-                <span className="ml-1 text-brand-500 font-medium">· ranked by relevance</span>
-              )}
+              {search.trim() && <span className="ml-1 text-brand-500 font-medium">· ranked by relevance</span>}
             </p>
           )}
 
-          {/* Item list — two sections when both inbox and non-inbox are visible */}
+          {/* Item list */}
           {(() => {
             const inboxItems = filtered.filter((i) => i.status === 'inbox')
             const otherItems = filtered.filter((i) => i.status !== 'inbox')
-            const hasBoth = inboxItems.length > 0 && otherItems.length > 0
+            const hasBoth    = inboxItems.length > 0 && otherItems.length > 0
 
             const inboxSection = inboxItems.length > 0 && (
               <>
-                {/* Section header + selection control */}
                 {hasBoth && (
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
@@ -1074,14 +1131,10 @@ export function LibraryPage() {
                       onClick={anySelected ? clearSelection : selectAllVisible}
                       className="text-xs text-brand-600 hover:text-brand-700 font-medium transition-colors shrink-0"
                     >
-                      {anySelected
-                        ? `${selectedIds.length} selected — clear`
-                        : `Select all ${inboxItems.length}`}
+                      {anySelected ? `${selectedIds.length} selected — clear` : `Select all ${inboxItems.length}`}
                     </button>
                   </div>
                 )}
-
-                {/* Selection control for inbox-only view */}
                 {!hasBoth && (
                   <div className="flex items-center justify-between mb-3 px-0.5">
                     <button
@@ -1094,11 +1147,7 @@ export function LibraryPage() {
                     </button>
                   </div>
                 )}
-
-                {/* Journey guide */}
                 <JourneyGuide />
-
-                {/* Inbox cards */}
                 <div className="space-y-2">
                   {inboxItems.map((item) => (
                     <InboxCard
@@ -1108,7 +1157,7 @@ export function LibraryPage() {
                       onSelect={toggleSelect}
                       onMoveLearning={handleMoveLearning}
                       onAddChallenge={handleAddChallenge}
-                      onAddWeek={handleAddWeek}
+                      onAddFocus={handleAddFocus}
                       onAssignTheme={handleAssignThemeSingle}
                       onDelete={handleDeleteSingle}
                       onNavigate={(id) => navigate(`/item/${id}`)}
@@ -1130,7 +1179,12 @@ export function LibraryPage() {
                 )}
                 <div className="space-y-2">
                   {otherItems.map((item) => (
-                    <VocabCard key={item.id} item={item} />
+                    <VocabCard
+                      key={item.id}
+                      item={item}
+                      inFocus={isInFocus(item)}
+                      onFocusToggle={() => handleFocusToggle(item.id, isInFocus(item))}
+                    />
                   ))}
                 </div>
               </>
@@ -1147,8 +1201,9 @@ export function LibraryPage() {
           count={selectedIds.length}
           onMoveLearning={handleBulkMoveLearning}
           onAddChallenge={handleBulkAddChallenge}
-          onAddWeek={handleBulkAddWeek}
+          onAddFocus={handleBulkAddFocus}
           onAssignTheme={handleBulkAssignTheme}
+          onAddTag={handleBulkAddTag}
           onDelete={handleBulkDelete}
           onClear={clearSelection}
         />
@@ -1157,14 +1212,9 @@ export function LibraryPage() {
       {/* ── Delete confirm modal ── */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => setShowDeleteConfirm(false)}
-          />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
           <div className="relative bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl">
-            <h3 className="font-semibold text-slate-900 mb-2">
-              Delete {selectedIds.length} words?
-            </h3>
+            <h3 className="font-semibold text-slate-900 mb-2">Delete {selectedIds.length} words?</h3>
             <p className="text-sm text-slate-500 mb-5">This cannot be undone.</p>
             <div className="flex gap-3">
               <button
@@ -1211,7 +1261,7 @@ export function LibraryPage() {
       {/* ── Add modal ── */}
       {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} />}
 
-      {/* ── Relationship graph enrichment progress toast ── */}
+      {/* ── Relationship graph enrichment progress ── */}
       {relationshipProgress && (
         <div
           className={`fixed right-4 z-50 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 min-w-[220px] transition-all duration-300 ${
@@ -1227,14 +1277,12 @@ export function LibraryPage() {
                 style={{ width: `${Math.round((relationshipProgress.done / relationshipProgress.total) * 100)}%` }}
               />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {relationshipProgress.done} / {relationshipProgress.total} words
-            </p>
+            <p className="text-[10px] text-slate-400 mt-1">{relationshipProgress.done} / {relationshipProgress.total} words</p>
           </div>
         </div>
       )}
 
-      {/* ── Etymology enrichment progress toast ── */}
+      {/* ── Etymology enrichment progress ── */}
       {etymologyProgress && (
         <div className="fixed bottom-20 md:bottom-6 right-4 z-50 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 min-w-[220px]">
           <Loader2 size={15} className="text-brand-500 animate-spin shrink-0" />
@@ -1246,9 +1294,7 @@ export function LibraryPage() {
                 style={{ width: `${Math.round((etymologyProgress.done / etymologyProgress.total) * 100)}%` }}
               />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              {etymologyProgress.done} / {etymologyProgress.total} words
-            </p>
+            <p className="text-[10px] text-slate-400 mt-1">{etymologyProgress.done} / {etymologyProgress.total} words</p>
           </div>
         </div>
       )}

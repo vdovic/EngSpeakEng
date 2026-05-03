@@ -34,7 +34,7 @@ const SIDEBAR_GROUPS: NavGroup[] = [
     links: [
       { to: '/library', icon: Library, label: 'All Vocabulary' },
       { to: '/themes',  icon: Layers,  label: 'Themes' },
-      { to: '/week',    icon: Target,  label: 'Focus This Week' },
+      { to: '/week',    icon: Target,  label: 'My Current Focus' },
     ],
   },
   {
@@ -59,7 +59,7 @@ const MOBILE_PRIMARY: NavLinkDef[] = [
 
 const MOBILE_MORE: NavLinkDef[] = [
   { to: '/',        icon: LayoutDashboard, label: 'Home' },
-  { to: '/week',    icon: Target,          label: 'Focus This Week' },
+  { to: '/week',    icon: Target,          label: 'My Current Focus' },
   { to: '/themes',  icon: Layers,          label: 'Themes' },
   { to: '/stats',   icon: BarChart2,       label: 'Stats' },
 ]

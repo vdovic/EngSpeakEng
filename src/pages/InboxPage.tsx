@@ -294,14 +294,14 @@ function InboxCard({
           <span className="hidden sm:inline">Challenge</span>
         </button>
 
-        {/* This Week */}
+        {/* My Focus */}
         <button
           onClick={() => onAddWeek(item.id)}
-          title="Add to This Week's Focus"
+          title="Add to My Current Focus"
           className="flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-orange-700 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
         >
           <Star size={11} />
-          <span className="hidden sm:inline">This Week</span>
+          <span className="hidden sm:inline">My Focus</span>
         </button>
 
         {/* Kebab menu */}
@@ -398,7 +398,7 @@ function BulkActionBar({
             className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 text-white rounded-xl text-xs font-semibold hover:bg-orange-600 transition-colors"
           >
             <Star size={12} />
-            This Week
+            My Focus
           </button>
           <button
             onClick={onAssignTheme}
@@ -453,7 +453,7 @@ function JourneyGuide() {
           <div className="flex gap-3 items-start">
             <div className="w-2 h-2 rounded-full bg-orange-500 mt-1.5 shrink-0" />
             <p className="text-xs text-slate-600 leading-relaxed">
-              <span className="font-bold text-slate-800">This Week</span> — adds to your weekly focus board. Best for a small set of words you're consciously practising this week (speaking, writing).
+              <span className="font-bold text-slate-800">My Focus</span> — adds to your current focus list. Best for a small set of words you're consciously practising this week (speaking, writing).
             </p>
           </div>
           <p className="text-[10px] text-slate-400 italic border-t border-slate-100 pt-2.5">
@@ -600,8 +600,8 @@ export function InboxPage() {
   async function handleAddWeek(id: string) {
     const snap = captureSnapshot([id], ['status', 'weeklyFocus'])
     const { added, skipped } = await addToWeekFocus([id])
-    if (added > 0) showToast("Added to This Week's Focus", 'Word is now on your weekly board.', snap, 'See Active Words →', () => navigate('/week'))
-    else if (skipped > 0) showToast('Already in This Week — skipped.')
+    if (added > 0) showToast("Added to My Current Focus", 'Word is now on your focus list.', snap, 'See Active Words →', () => navigate('/week'))
+    else if (skipped > 0) showToast('Already in My Current Focus — skipped.')
   }
 
   function handleAssignThemeSingle(id: string) {
@@ -651,8 +651,8 @@ export function InboxPage() {
     const { added, skipped } = await addToWeekFocus(selectedIds)
     clearSelection()
     showToast(
-      `${added} word${added !== 1 ? 's' : ''} added to This Week's Focus`,
-      skipped > 0 ? `${skipped} already in This Week — skipped.` : undefined,
+      `${added} word${added !== 1 ? 's' : ''} added to My Current Focus`,
+      skipped > 0 ? `${skipped} already in focus — skipped.` : undefined,
       snap,
       'See Active Words →',
       () => navigate('/week'),
