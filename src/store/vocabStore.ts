@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { db } from '@/lib/db'
-import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus, RelatedSuggestion } from '@/types/vocabulary'
+import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus, RelatedSuggestion, ChallengeType } from '@/types/vocabulary'
 import { StarterPack } from '@/types/starterPacks'
 import { calculateNextReview, isDueToday } from '@/lib/srs'
 import { deriveStatus } from '@/lib/mastery'
@@ -37,6 +37,20 @@ interface VocabStore {
   /** Record one challenge exposure for an item. Advances the SRS counter on
    *  correct answers; on incorrect it keeps the count and retries sooner. */
   recordExposure: (id: string, correct: boolean) => Promise<void>
+
+  /**
+   * Phase-3 unified challenge attempt recorder.
+   * Handles challenge-type-specific side-effects on top of recordExposure:
+   *   sentence-production + correct  → sets review.sentenceProduced = true
+   *   real-life-use-check + correct  → logs a usage entry; does NOT increment exposure
+   *   all other types                → delegates to recordExposure
+   */
+  recordChallengeAttempt: (
+    id: string,
+    challengeType: ChallengeType,
+    correct: boolean,
+    userAnswer?: string,
+  ) => Promise<void>
   /** Replace the full themes array for an item. */
   assignThemes: (id: string, themes: string[]) => Promise<void>
   /** Move inbox items to Learning. Returns counts for feedback. */
@@ -846,6 +860,46 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       },
       set,
     )
+  },
+
+  // ── recordChallengeAttempt ──────────────────────────────────────────────────
+  recordChallengeAttempt: async (id, challengeType, correct, _userAnswer) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+    const now = new Date().toISOString()
+
+    // ── sentence-production: mark sentenceProduced on success ─────────────
+    if (challengeType === 'sentence-production' && correct) {
+      if (!item.review.sentenceProduced) {
+        const newReview = { ...item.review, sentenceProduced: true }
+        // Derive level so that exp=8 + sentenceProduced → level=3 (Mastered)
+        const updatedForLevel = { ...item, review: newReview }
+        const newLevel = deriveLevel(updatedForLevel)
+        // Write sentenceProduced first; recordExposure below will see this state.
+        await applyPatch(id, { review: newReview, level: newLevel, updatedAt: now }, set)
+      }
+      // Fall through: also advance exposure/SRS for sentence-production
+      await get().recordExposure(id, correct)
+      return
+    }
+
+    // ── real-life-use-check: log usage; do NOT change exposure count ───────
+    if (challengeType === 'real-life-use-check') {
+      if (correct) {
+        // "Yes, I used it" — store a speaking usage log for this word
+        await get().logUsage(id, {
+          usedAt: now,
+          channel: 'speaking',
+          note:    'Used in real life — confirmed in Daily Challenge',
+        })
+      }
+      // Do not call recordExposure: exposure is already at 8 and the SRS
+      // schedule is managed externally once the word is fully drilled.
+      return
+    }
+
+    // ── all other challenge types → standard exposure recording ────────────
+    await get().recordExposure(id, correct)
   },
 
 

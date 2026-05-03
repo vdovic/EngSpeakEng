@@ -1,11 +1,15 @@
-import { ExerciseType, ExerciseResult } from '@/types/vocabulary'
+import { ExerciseResult, ChallengeType } from '@/types/vocabulary'
 
 export const CHALLENGE_SESSION_KEY = 'ese-challenge-session'
 
-/** One slot as stored in localStorage (item id + exercise type, not the full object). */
+/**
+ * One slot as stored in localStorage.
+ * Phase 3: uses ChallengeType (not legacy ExerciseType).
+ * Old sessions with exerciseType are detected and discarded at load time.
+ */
 export interface SessionSlot {
   itemId: string
-  exerciseType: ExerciseType
+  challengeType: ChallengeType
 }
 
 export interface ChallengeSession {

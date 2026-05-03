@@ -216,12 +216,28 @@ export type ExerciseType =
   | 'synonym-match'
   | 'sentence-create'
 
+/**
+ * Phase-3 challenge types — drive which challenge component is shown and
+ * how the attempt is recorded.  Escalates with exposureCount:
+ *   0–1  → recognition / definition-choice
+ *   2–4  → fill-gap / definition-choice
+ *   5–7  → sentence-production
+ *   8    → real-life-use-check (or sentence-production if not yet produced)
+ */
+export type ChallengeType =
+  | 'recognition'
+  | 'definition-choice'
+  | 'fill-gap'
+  | 'sentence-production'
+  | 'real-life-use-check'
+
 export interface ExerciseResult {
   itemId: string
-  exerciseType: ExerciseType
+  /** Supports both legacy ExerciseType and new ChallengeType values. */
+  exerciseType: ExerciseType | ChallengeType
   points: number      // 0, 5, or 10
   userAnswer: string
-  correct: boolean    // false for partial-credit sentence-create
+  correct: boolean    // false for partial-credit sentence-production
   /** The correct answer to show in the feedback overlay when the user was wrong. */
   correctAnswer?: string
 }

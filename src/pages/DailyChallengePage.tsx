@@ -8,15 +8,18 @@ import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore } from '@/store/themesStore'
 import { isDueChallengeNow, intervalLabel } from '@/lib/challengeSchedule'
+import { getChallengeType, CHALLENGE_TYPE_LABEL, ChallengeType } from '@/lib/challengeLogic'
 import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER, MAX_EXPOSURE, MASTERY_USES } from '@/lib/constants'
 import { usagePoints } from '@/lib/mastery'
-import { VocabItem, ExerciseType, ExerciseResult } from '@/types/vocabulary'
+import { VocabItem, ExerciseResult } from '@/types/vocabulary'
+import { LevelBadge } from '@/components/LevelBadge'
+import { ExposureProgress } from '@/components/ExposureProgress'
 import { StatusBadge } from '@/components/StatusBadge'
-import { ExposureBar } from '@/components/ExposureBar'
-import { FillBlankExercise } from '@/components/exercises/FillBlankExercise'
-import { MultipleChoiceExercise } from '@/components/exercises/MultipleChoiceExercise'
-import { SynonymMatchExercise } from '@/components/exercises/SynonymMatchExercise'
-import { SentenceCreateExercise } from '@/components/exercises/SentenceCreateExercise'
+import { RecognitionChallenge } from '@/components/challenges/RecognitionChallenge'
+import { DefinitionChoiceChallenge } from '@/components/challenges/DefinitionChoiceChallenge'
+import { FillGapChallenge } from '@/components/challenges/FillGapChallenge'
+import { SentenceProductionChallenge } from '@/components/challenges/SentenceProductionChallenge'
+import { RealLifeUseCheckChallenge } from '@/components/challenges/RealLifeUseCheckChallenge'
 import { WordDetailModal } from '@/components/WordDetailModal'
 import {
   saveSession, loadTodaySession, clearSession, todayKey,
@@ -26,7 +29,7 @@ import {
 
 interface ChallengeSlot {
   item: VocabItem
-  exerciseType: ExerciseType
+  challengeType: ChallengeType
 }
 
 type FeedbackState = {
@@ -49,33 +52,6 @@ function shuffle<T>(arr: T[]): T[] {
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
-}
-
-function pickExerciseType(item: VocabItem, allItems: VocabItem[]): ExerciseType {
-  const seen = item.exposureCount ?? 0
-  const available: ExerciseType[] = []
-
-  // ── Recognition exercises — safe from the very first encounter ──────────────
-  // The answer is chosen from options; no recall burden on the learner.
-  if (item.definitionEn && allItems.length >= 4) available.push('multiple-choice')
-  if (item.synonyms.length >= 1 && allItems.length >= 4) available.push('synonym-match')
-
-  // ── Production exercises — only after ≥ 2 successful challenge appearances ──
-  // Asking a learner to write/recall a word they've seen fewer than twice is
-  // frustrating and counterproductive.  Both fill-blank and sentence-create
-  // require active recall, so both share the same threshold.
-  if (seen >= 2) {
-    available.push('fill-blank')
-    available.push('sentence-create')
-  }
-
-  // ── Fallback ─────────────────────────────────────────────────────────────────
-  // Happens when a word is brand-new (seen < 2) AND has no definition/synonyms
-  // yet (enrichment still pending).  sentence-create shows the definition in the
-  // card, making it the most forgiving cold-start exercise.
-  if (available.length === 0) return 'sentence-create'
-
-  return available[Math.floor(Math.random() * available.length)]
 }
 
 // ── Word picker modal ─────────────────────────────────────────────────────────
@@ -189,7 +165,6 @@ function PreviewRow({
   onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
-  // Always pull the live item so the progress dots reflect what recordExposure wrote
   const item = allItems.find((i) => i.id === slotItem.id) ?? slotItem
   const usesDone = usagePoints(item.activation.usageLogs)
   const challengesDone = item.exposureCount ?? 0
@@ -202,11 +177,12 @@ function PreviewRow({
           className="flex-1 flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors min-w-0"
         >
           <div className="flex-1 min-w-0">
-            <div className="flex items-baseline gap-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-semibold text-slate-900">{item.term}</span>
               {item.partOfSpeech && (
                 <span className="text-xs text-slate-400 italic">{item.partOfSpeech}</span>
               )}
+              <LevelBadge item={item} compact className="shrink-0" />
             </div>
             {/* Progress indicators */}
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -226,20 +202,8 @@ function PreviewRow({
                   {usesDone}/{MASTERY_USES} used
                 </span>
               </div>
-              {/* Challenge exposures */}
-              <div className="flex items-center gap-0.5">
-                {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                      i < challengesDone ? 'bg-brand-400' : 'bg-slate-200'
-                    }`}
-                  />
-                ))}
-                <span className="text-[11px] text-slate-400 ml-1 tabular-nums">
-                  {challengesDone}/{MAX_EXPOSURE} challenges
-                </span>
-              </div>
+              {/* Challenge exposure dots */}
+              <ExposureProgress exposureCount={challengesDone} compact />
             </div>
           </div>
           <ChevronDown size={14} className={`shrink-0 text-slate-400 mt-1 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
@@ -273,7 +237,7 @@ function PreviewRow({
 export function DailyChallengePage() {
   const navigate = useNavigate()
   const allItems = useVocabStore((s) => s.items)
-  const recordExposure = useVocabStore((s) => s.recordExposure)
+  const recordChallengeAttempt = useVocabStore((s) => s.recordChallengeAttempt)
   const { addPoints, recordChallengeCompletion, checkBadges, streakDays, points } =
     useGamificationStore()
   const allThemes = useThemesStore((s) => s.themes)
@@ -290,10 +254,7 @@ export function DailyChallengePage() {
   const [reshaking, setReshaking] = useState(false)
   const [sessionSize, setSessionSize] = useState<number>(CHALLENGE_SESSION_CAP)
 
-  // Inline word detail modal (replaces navigate-away "View entry")
   const [wordDetailItem, setWordDetailItem] = useState<VocabItem | null>(null)
-
-  // Resume banner shown briefly when auto-resuming a saved session
   const [resumeBanner, setResumeBanner] = useState<string | null>(null)
 
   const usedItemIds = useRef<Set<string>>(new Set())
@@ -303,72 +264,93 @@ export function DailyChallengePage() {
   // ── Slot builders ────────────────────────────────────────────────────────────
 
   function buildDueSlots(cap = sessionSize): ChallengeSlot[] {
-    const allDue = allItems.filter((i) => i.status !== 'mastered' && isDueChallengeNow(i.exposureCount, i.nextChallengeDate))
-    const focusDue  = shuffle(allDue.filter((i) => i.weeklyFocus))
-    const normalDue = shuffle(allDue.filter((i) => !i.weeklyFocus))
+    // Pool A: Standard SRS-due items (exposure 0–7)
+    const standardDue = allItems.filter(
+      (i) =>
+        !i.archived &&
+        i.status !== 'mastered' &&
+        isDueChallengeNow(i.exposureCount, i.nextChallengeDate),
+    )
+
+    // Pool B: exposure=8 items that still need sentence production (not yet Level 3)
+    const needsSentence = allItems.filter(
+      (i) =>
+        !i.archived &&
+        i.status !== 'mastered' &&
+        (i.exposureCount ?? 0) >= 8 &&
+        !i.review.sentenceProduced,
+    )
+    // Merge pools, deduplicate
+    const standardIds = new Set(standardDue.map((i) => i.id))
+    const allDue = [...standardDue, ...needsSentence.filter((i) => !standardIds.has(i.id))]
+
+    // Prioritise: My Current Focus first, then lower exposure, then higher difficulty
+    const focusDue  = shuffle(allDue.filter((i) => i.inFocus || i.weeklyFocus))
+    const normalDue = shuffle(allDue.filter((i) => !i.inFocus && !i.weeklyFocus))
+
     const focusTarget = Math.ceil(cap * 0.6)
     const focusPick   = focusDue.slice(0, Math.min(focusTarget, focusDue.length))
     const normalPick  = normalDue.slice(0, cap - focusPick.length)
+
     return shuffle([...focusPick, ...normalPick])
       .slice(0, cap)
-      .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
+      .map((item) => ({ item, challengeType: getChallengeType(item) }))
   }
 
   function buildThemeSlots(theme: string, cap = sessionSize): ChallengeSlot[] {
     const pool = allItems.filter(
-      (i) => (i.themes ?? []).includes(theme) && i.definitionEn && !i.archived && i.status !== 'mastered' && (i.exposureCount ?? 0) < 8,
+      (i) =>
+        !i.archived &&
+        (i.themes ?? []).includes(theme) &&
+        i.definitionEn &&
+        i.status !== 'mastered' &&
+        (i.exposureCount ?? 0) < 8,
     )
     const due    = shuffle(pool.filter((i) =>  isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     return [...due, ...notDue]
       .slice(0, cap)
-      .map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) }))
+      .map((item) => ({ item, challengeType: getChallengeType(item) }))
   }
 
   // ── Mount: restore session OR build fresh ────────────────────────────────────
-  //
-  // ⚠️  Dependency array is intentionally []. allItems is always populated
-  // before this route renders (App.tsx holds a full-page spinner until loaded).
-  // Adding allItems would re-fire after every recordExposure() call and reset
-  // the user back to the preview screen mid-challenge.
-  //
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const saved = loadTodaySession()
 
     if (saved && !saved.isBonus) {
-      // Hydrate slots from current allItems (items may have been updated)
-      const restoredSlots: ChallengeSlot[] = saved.slots
-        .map((s) => {
-          const item = allItems.find((i) => i.id === s.itemId)
-          return item ? { item, exerciseType: s.exerciseType } : null
-        })
-        .filter((s): s is ChallengeSlot => s !== null)
+      // Guard: discard sessions saved before Phase 3 (they use `exerciseType`)
+      const isPhase3Session = saved.slots.every((s) => 'challengeType' in s && s.challengeType)
+      if (isPhase3Session) {
+        const restoredSlots: ChallengeSlot[] = saved.slots
+          .map((s) => {
+            const item = allItems.find((i) => i.id === s.itemId)
+            return item ? { item, challengeType: s.challengeType } : null
+          })
+          .filter((s): s is ChallengeSlot => s !== null)
 
-      if (restoredSlots.length > 0) {
-        restoredSlots.forEach((s) => usedItemIds.current.add(s.item.id))
-        setSlots(restoredSlots)
-        setResults(saved.results)
+        if (restoredSlots.length > 0) {
+          restoredSlots.forEach((s) => usedItemIds.current.add(s.item.id))
+          setSlots(restoredSlots)
+          setResults(saved.results)
 
-        if (saved.completed) {
-          // Completed today — show summary (user can restart or use same words)
-          setPhase('complete')
-          return
-        }
+          if (saved.completed) {
+            setPhase('complete')
+            return
+          }
 
-        if (saved.currentIndex > 0) {
-          // In-progress session — auto-resume, skip preview
-          setCurrentIndex(saved.currentIndex)
-          setPhase('exercising')
-          const n = saved.currentIndex + 1
-          const total = restoredSlots.length
-          setResumeBanner(`Resuming your challenge · ${n}/${total}`)
-          return
+          if (saved.currentIndex > 0) {
+            setCurrentIndex(saved.currentIndex)
+            setPhase('exercising')
+            const n = saved.currentIndex + 1
+            setResumeBanner(`Resuming your challenge · ${n}/${restoredSlots.length}`)
+            return
+          }
         }
       }
     }
 
-    // No valid saved session — build fresh
+    // Build fresh
     const initial = buildDueSlots()
     if (initial.length === 0) {
       setPhase('complete')
@@ -379,25 +361,20 @@ export function DailyChallengePage() {
     setPhase('preview')
   }, []) // run once on mount only
 
-  // Auto-dismiss resume banner after 3 s
   useEffect(() => {
     if (!resumeBanner) return
     const t = setTimeout(() => setResumeBanner(null), 3000)
     return () => clearTimeout(t)
   }, [resumeBanner])
 
-  // ── Persist session after each answer / phase change ──────────────────────────
-  //
-  // Only persists main (non-bonus) rounds so bonus play doesn't overwrite
-  // the day's real session data.
-  //
+  // ── Persist session ────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isBonus || slots.length === 0) return
     if (phase !== 'exercising' && phase !== 'complete') return
     saveSession({
       date: todayKey(),
-      slots: slots.map((s) => ({ itemId: s.item.id, exerciseType: s.exerciseType })),
+      slots: slots.map((s) => ({ itemId: s.item.id, challengeType: s.challengeType })),
       currentIndex,
       results,
       completed: phase === 'complete',
@@ -437,16 +414,16 @@ export function DailyChallengePage() {
 
   function handleAdd(item: VocabItem) {
     usedItemIds.current.add(item.id)
-    setSlots((prev) => [...prev, { item, exerciseType: pickExerciseType(item, allItems) }])
+    setSlots((prev) => [...prev, { item, challengeType: getChallengeType(item) }])
   }
 
-  // ── Restart with same words (from complete screen) ────────────────────────────
+  // ── Restart / fresh ───────────────────────────────────────────────────────────
 
   function restartSameWords() {
     clearSession()
     const newSlots = slots.map((s) => ({
       item: s.item,
-      exerciseType: pickExerciseType(s.item, allItems),
+      challengeType: getChallengeType(s.item),
     }))
     usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
     setSlots(newSlots)
@@ -477,7 +454,7 @@ export function DailyChallengePage() {
     ).slice(0, CHALLENGE_SESSION_CAP)
     if (available.length === 0) return
     available.forEach((i) => usedItemIds.current.add(i.id))
-    setSlots(available.map((item) => ({ item, exerciseType: pickExerciseType(item, allItems) })))
+    setSlots(available.map((item) => ({ item, challengeType: getChallengeType(item) })))
     setCurrentIndex(0)
     setResults([])
     setIsBonus(true)
@@ -488,12 +465,20 @@ export function DailyChallengePage() {
 
   const handleAnswer = useCallback(
     (result: ExerciseResult) => {
-      // Capture the count BEFORE recordExposure mutates it (it's async, so the
-      // current value is still the old one at this point in the call stack).
+      const currentSlot = slots[currentIndex]
+      if (!currentSlot) return
+
       const oldExposureCount =
         allItems.find((i) => i.id === result.itemId)?.exposureCount ?? 0
 
-      recordExposure(result.itemId, result.correct)
+      // Route through recordChallengeAttempt so sentence-production and
+      // real-life-use-check get their special side-effects.
+      recordChallengeAttempt(
+        result.itemId,
+        currentSlot.challengeType,
+        result.correct,
+        result.userAnswer,
+      )
       addPoints(result.points)
       setResults((prev) => [...prev, result])
 
@@ -510,7 +495,13 @@ export function DailyChallengePage() {
         }
       }
 
-      if (result.exerciseType === 'sentence-create') {
+      // Production-style challenges handle their own feedback UI — advance immediately.
+      const skipFeedbackOverlay =
+        result.exerciseType === 'sentence-create' ||
+        result.exerciseType === 'sentence-production' ||
+        result.exerciseType === 'real-life-use-check'
+
+      if (skipFeedbackOverlay) {
         advance()
         return
       }
@@ -520,14 +511,14 @@ export function DailyChallengePage() {
         correct: result.correct,
         points: result.points,
         userAnswer: result.userAnswer,
-        correctAnswer: result.correctAnswer ?? slots[currentIndex]?.item.term ?? '',
-        exampleSentence: slots[currentIndex]?.item.exampleSentence ?? undefined,
+        correctAnswer: result.correctAnswer ?? currentSlot.item.term,
+        exampleSentence: currentSlot.item.exampleSentence ?? undefined,
         itemId: result.itemId,
         oldExposureCount,
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentIndex, slots, isBonus, recordExposure, addPoints, recordChallengeCompletion, checkBadges],
+    [currentIndex, slots, isBonus, recordChallengeAttempt, addPoints, recordChallengeCompletion, checkBadges],
   )
 
   const dismissFeedback = useCallback(() => {
@@ -576,7 +567,6 @@ export function DailyChallengePage() {
           </div>
         </div>
 
-        {/* Heading */}
         <div className="mb-3">
           <h1 className="text-2xl font-bold text-slate-900 mb-1">
             {isBonus ? '🎯 Bonus round' : "Today's words"}
@@ -665,7 +655,7 @@ export function DailyChallengePage() {
           </button>
         )}
 
-        {/* ── Pinned start CTA — z-40 clears the mobile NavBar (z-30) ── */}
+        {/* Pinned start CTA */}
         <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pb-[5.5rem] md:pb-6 pt-3 bg-gradient-to-t from-white via-white/95 to-transparent pointer-events-none">
           <button
             onClick={() => { clearSession(); setPhase('exercising') }}
@@ -731,26 +721,19 @@ export function DailyChallengePage() {
               <span className="text-lg font-bold text-brand-700">{points}</span>
             </div>
 
-            {/* Per-word challenge journey summary */}
+            {/* Per-word summary */}
             <div className="bg-white border border-slate-200 rounded-2xl mb-6 overflow-hidden text-left">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Words practised
-                </p>
-                <p className="text-xs text-slate-400">
-                  Challenge progress (0–{MAX_EXPOSURE} steps)
-                </p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Words practised</p>
+                <p className="text-xs text-slate-400">Challenge progress (0–{MAX_EXPOSURE})</p>
               </div>
               <div className="divide-y divide-slate-50">
                 {results.map((result) => {
                   const liveItem = allItems.find((i) => i.id === result.itemId)
                   const currentCount = liveItem?.exposureCount ?? 0
-                  // Derive the count before this exercise:
-                  // recordExposure increments on correct; keeps on incorrect.
                   const oldCount = result.correct
                     ? Math.max(0, currentCount - 1)
                     : currentCount
-                  const isMastered = currentCount >= MAX_EXPOSURE
                   return (
                     <div key={result.itemId} className="flex items-center gap-3 px-4 py-2.5">
                       {result.correct
@@ -759,30 +742,15 @@ export function DailyChallengePage() {
                       <span className="text-sm font-semibold text-slate-800 flex-1 truncate min-w-0">
                         {liveItem?.term ?? '…'}
                       </span>
-                      {/* Dot progress */}
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <div className="flex gap-0.5">
-                          {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
-                            <div
-                              key={i}
-                              className={`w-2 h-2 rounded-full transition-colors ${
-                                i < currentCount
-                                  ? isMastered
-                                    ? 'bg-emerald-500'
-                                    : 'bg-brand-500'
-                                  : 'bg-slate-200'
-                              }`}
-                            />
-                          ))}
-                        </div>
+                        <ExposureProgress
+                          exposureCount={currentCount}
+                          compact
+                        />
                         {result.correct && oldCount < currentCount ? (
-                          <span className="text-[10px] font-bold text-emerald-600 tabular-nums">
-                            +1
-                          </span>
+                          <span className="text-[10px] font-bold text-emerald-600 tabular-nums">+1</span>
                         ) : !result.correct ? (
-                          <span className="text-[10px] text-slate-400 tabular-nums">
-                            retry
-                          </span>
+                          <span className="text-[10px] text-slate-400 tabular-nums">retry</span>
                         ) : null}
                       </div>
                     </div>
@@ -821,11 +789,10 @@ export function DailyChallengePage() {
               className="w-full py-3 bg-brand-600 text-white rounded-xl font-semibold hover:bg-brand-700 transition-colors flex items-center justify-center gap-2"
             >
               <Zap size={16} />
-              Start bonus round
+              Continue practising
             </button>
           )}
 
-          {/* Same-day repeat options */}
           {!isBonus && slots.length > 0 && (
             <button
               onClick={restartSameWords}
@@ -868,20 +835,20 @@ export function DailyChallengePage() {
   // ── Exercising ────────────────────────────────────────────────────────────────
 
   const currentSlot = slots[currentIndex]
-  if (!currentSlot) {
-    // Guard against edge-case index mismatch after session restore
-    return null
-  }
-  const { exerciseType } = currentSlot
-  // Always read from the live store so exposure counts reflect what
-  // recordExposure() wrote — slots hold snapshot objects from session start.
+  if (!currentSlot) return null
+
+  const { challengeType } = currentSlot
+  // Always read the live item so progress reflects the latest recordExposure writes.
   const item = allItems.find((i) => i.id === currentSlot.item.id) ?? currentSlot.item
   const progress = (results.length / slots.length) * 100
+
+  // Types that embed the term in their own UI (don't show a separate heading)
+  const embedsTerm = challengeType === 'definition-choice' || challengeType === 'fill-gap'
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 min-h-screen relative">
 
-      {/* Resume banner (auto-dismisses after 3 s) */}
+      {/* Resume banner */}
       {resumeBanner && (
         <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-brand-50 border border-brand-100 rounded-xl text-xs font-medium text-brand-700">
           <RotateCcw size={12} className="shrink-0" />
@@ -907,7 +874,6 @@ export function DailyChallengePage() {
             {isBonus ? 'Bonus Round' : 'Daily Challenge'}
           </span>
         </div>
-        {/* View word details inline — session is always preserved */}
         <button
           onClick={() => setWordDetailItem(item)}
           className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
@@ -918,14 +884,15 @@ export function DailyChallengePage() {
         <div className="ml-auto flex items-center gap-2">
           <Flame size={14} className="text-orange-500" />
           <span className="text-xs font-semibold text-orange-600">{streakDays}d</span>
+          {/* Position indicator — "3 of 10" */}
           <span className="text-xs font-semibold text-slate-700 ml-2 tabular-nums">
             {currentIndex + 1}/{slots.length}
           </span>
         </div>
       </div>
 
-      {/* Session progress bar + word count */}
-      <div className="mb-2">
+      {/* Session progress bar */}
+      <div className="mb-4">
         <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
           <div
             className="h-full bg-brand-500 rounded-full transition-all duration-500"
@@ -934,19 +901,9 @@ export function DailyChallengePage() {
         </div>
       </div>
 
-      {/* Word's 0–8 challenge journey — shows accumulated progress across all days */}
-      <div className="flex items-center gap-2 mb-5 px-0.5">
-        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide shrink-0">
-          Journey:
-        </span>
-        <ExposureBar
-          exposureCount={item.exposureCount}
-          size="sm"
-        />
-      </div>
-
-      {exerciseType !== 'multiple-choice' && exerciseType !== 'fill-blank' && (
-        <div className="mb-6">
+      {/* ── Word header (for non-embedding challenges) ── */}
+      {!embedsTerm && (
+        <div className="mb-4">
           <h2 className="text-3xl font-bold text-slate-900">{item.term}</h2>
           {item.partOfSpeech && (
             <p className="text-sm text-slate-400 italic mt-0.5">{item.partOfSpeech}</p>
@@ -954,18 +911,31 @@ export function DailyChallengePage() {
         </div>
       )}
 
+      {/* ── Level + Exposure + Challenge type label ── */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <LevelBadge item={item} />
+        <ExposureProgress exposureCount={item.exposureCount ?? 0} compact />
+        <span className="ml-auto text-xs font-semibold text-slate-400 uppercase tracking-wide">
+          {CHALLENGE_TYPE_LABEL[challengeType]}
+        </span>
+      </div>
+
+      {/* ── Challenge card ── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        {exerciseType === 'fill-blank' && (
-          <FillBlankExercise key={`${item.id}-fill`} item={item} allItems={allItems} onAnswer={handleAnswer} />
+        {challengeType === 'recognition' && (
+          <RecognitionChallenge key={`${item.id}-rec`} item={item} onAnswer={handleAnswer} />
         )}
-        {exerciseType === 'multiple-choice' && (
-          <MultipleChoiceExercise key={`${item.id}-mc`} item={item} allItems={allItems} onAnswer={handleAnswer} />
+        {challengeType === 'definition-choice' && (
+          <DefinitionChoiceChallenge key={`${item.id}-def`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
-        {exerciseType === 'synonym-match' && (
-          <SynonymMatchExercise key={`${item.id}-syn`} item={item} allItems={allItems} onAnswer={handleAnswer} />
+        {challengeType === 'fill-gap' && (
+          <FillGapChallenge key={`${item.id}-fill`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
-        {exerciseType === 'sentence-create' && (
-          <SentenceCreateExercise key={`${item.id}-sent`} item={item} onAnswer={handleAnswer} />
+        {challengeType === 'sentence-production' && (
+          <SentenceProductionChallenge key={`${item.id}-sent`} item={item} onAnswer={handleAnswer} />
+        )}
+        {challengeType === 'real-life-use-check' && (
+          <RealLifeUseCheckChallenge key={`${item.id}-rluc`} item={item} onAnswer={handleAnswer} />
         )}
       </div>
 
@@ -994,11 +964,19 @@ export function DailyChallengePage() {
                 </div>
               </div>
 
-              {/* Correct answer (when wrong) */}
-              {!feedback.correct && (
+              {/* Correct answer (when wrong and it's not a recognition challenge) */}
+              {!feedback.correct && challengeType !== 'recognition' && (
                 <div className="rounded-xl px-4 py-3 mb-3 bg-red-100 border border-red-200">
                   <p className="text-xs font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Correct answer</p>
                   <p className="text-base font-bold text-red-900">{feedback.correctAnswer}</p>
+                </div>
+              )}
+
+              {/* For recognition "Not yet", show definition as a learning moment */}
+              {!feedback.correct && challengeType === 'recognition' && item.definitionEn && (
+                <div className="rounded-xl px-4 py-3 mb-3 bg-slate-100 border border-slate-200">
+                  <p className="text-xs font-semibold text-slate-500 mb-0.5 uppercase tracking-wide">Definition</p>
+                  <p className="text-sm text-slate-800 leading-relaxed">{item.definitionEn}</p>
                 </div>
               )}
 
@@ -1009,7 +987,7 @@ export function DailyChallengePage() {
                 </p>
               )}
 
-              {/* Challenge journey progress: before → after */}
+              {/* Challenge journey dots */}
               {(() => {
                 const oldCount = feedback.oldExposureCount
                 const newCount = feedback.correct
@@ -1028,7 +1006,6 @@ export function DailyChallengePage() {
                       Challenge journey
                     </p>
                     <div className="flex items-center gap-2 flex-wrap">
-                      {/* Before dots */}
                       <div className="flex gap-1">
                         {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
                           <div
@@ -1044,7 +1021,6 @@ export function DailyChallengePage() {
                       {feedback.correct && oldCount < MAX_EXPOSURE && (
                         <>
                           <span className="text-slate-400 text-sm font-bold">→</span>
-                          {/* After dots */}
                           <div className="flex gap-1">
                             {Array.from({ length: MAX_EXPOSURE }, (_, i) => (
                               <div
@@ -1073,7 +1049,6 @@ export function DailyChallengePage() {
 
               {/* Action buttons */}
               <div className="flex gap-3 mt-2">
-                {/* Opens word detail INLINE — session is preserved */}
                 <button
                   onClick={() => {
                     const it = allItems.find((i) => i.id === feedback.itemId)
@@ -1099,7 +1074,7 @@ export function DailyChallengePage() {
         </>
       )}
 
-      {/* ── Inline word detail modal (z-[60] — above feedback overlay) ── */}
+      {/* Inline word detail modal */}
       {wordDetailItem && (
         <WordDetailModal item={wordDetailItem} onClose={() => setWordDetailItem(null)} />
       )}
