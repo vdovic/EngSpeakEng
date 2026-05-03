@@ -2,6 +2,17 @@ export type ItemType = 'word' | 'phrase' | 'chunk'
 
 export type ItemStatus = 'inbox' | 'learning' | 'stable' | 'activation' | 'mastered'
 
+/**
+ * New 4-point learning level.
+ *   0 = new       — never exposed
+ *   1 = learning  — 1–2 exposures
+ *   2 = familiar  — 3–7 exposures
+ *   3 = mastered  — 8 exposures + sentence produced
+ *
+ * Stored alongside the legacy `status` field during the transition period.
+ */
+export type Level = 0 | 1 | 2 | 3
+
 export type SourceType =
   | 'article'
   | 'podcast'
@@ -85,6 +96,23 @@ export interface VocabItem {
   /** Computed priority score — higher = kept longer on weekly reset */
   focusPriority?: number
   archived: boolean
+
+  // ── Phase-1 new fields (added alongside legacy fields for compatibility) ───
+
+  /** 4-point learning level derived from exposureCount + sentence production. */
+  level?: Level
+
+  /**
+   * "My Current Focus" flag — supersedes weeklyFocus.
+   * Both are written together during the transition; prefer inFocus in new code.
+   */
+  inFocus?: boolean
+
+  /** Learner-specific difficulty score, 0–100 (higher = harder for this user). */
+  difficultyScore?: number
+
+  /** ISO timestamp of the most recent Daily Challenge exposure. */
+  lastExposureAt?: string
 
   // ── AI enrichment ──────────────────────────────────────────────────────────
   // Set by addItem() and updated by enrichItem() in the store.

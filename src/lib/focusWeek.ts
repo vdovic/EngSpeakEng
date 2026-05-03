@@ -27,7 +27,7 @@ export const FOCUS_WEEK_LS_KEY = 'focus-week-start'
 
 // ── Priority score ────────────────────────────────────────────────────────────
 
-export const FOCUS_MAX = 50
+export const FOCUS_MAX = 150   // raised from 50 in Phase 1
 export const FOCUS_RECOMMENDED_MIN = 15
 export const FOCUS_RECOMMENDED_MAX = 25
 export const WEEKLY_KEEP_RATIO = 0.65           // keep top 65% on reset
@@ -78,7 +78,7 @@ export function calcFocusPriority(item: VocabItem, activeThemeNames: string[]): 
 export function getRuleACandidates(items: VocabItem[]): VocabItem[] {
   return items.filter(
     (i) =>
-      !i.weeklyFocus &&
+      !i.weeklyFocus && !i.inFocus &&
       !i.archived &&
       i.status !== 'inbox' &&
       i.status !== 'mastered' &&
@@ -96,7 +96,7 @@ export function getRuleBCandidates(items: VocabItem[]): VocabItem[] {
   return items
     .filter(
       (i) =>
-        !i.weeklyFocus &&
+        !i.weeklyFocus && !i.inFocus &&
         !i.archived &&
         i.status !== 'inbox' &&
         i.review.reviewCount >= 3 &&

@@ -8,14 +8,17 @@ import { createSeedData } from '@/lib/seed'
 import { getNextChallengeDate } from '@/lib/challengeSchedule'
 import { generateCandidates, validateRelatedEntries } from '@/lib/relatedEntries'
 import { useThemesStore } from '@/store/themesStore'
+import { getWeekStart, FOCUS_WEEK_LS_KEY } from '@/lib/focusWeek'
 import {
-  getWeekStart,
-  FOCUS_WEEK_LS_KEY,
   FOCUS_MAX,
   calcFocusPriority,
   getRuleBCandidates,
-  computeWeeklyReset,
-} from '@/lib/focusWeek'
+  computeFocusReset,
+  selectEvictionCandidates,
+} from '@/lib/focusLogic'
+import { deriveLevel } from '@/lib/progressionLogic'
+import { updateDifficulty, INITIAL_DIFFICULTY } from '@/lib/difficultyLogic'
+import { migrateItem } from '@/lib/migration'
 
 interface VocabStore {
   items: VocabItem[]
@@ -65,6 +68,25 @@ interface VocabStore {
    * Returns the number of words auto-promoted.
    */
   autoPromoteToFocus: () => Promise<number>
+
+  // ── Phase-1 new actions ────────────────────────────────────────────────────
+
+  /**
+   * Add items to "My Current Focus" (inFocus).
+   * Respects FOCUS_MAX = 150; evicts lowest-priority items if cap is exceeded.
+   * Also syncs the legacy weeklyFocus field.
+   */
+  addToFocus: (ids: string[]) => Promise<{ added: number; evicted: number }>
+
+  /**
+   * Remove a single item from focus.
+   * Clears both inFocus and weeklyFocus for backward compatibility.
+   */
+  removeFromFocus: (id: string) => Promise<void>
+
+  /** Tag helpers */
+  addTag:    (id: string, tag: string)  => Promise<void>
+  removeTag: (id: string, tag: string)  => Promise<void>
 }
 
 function uid(): string {
@@ -144,14 +166,15 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     const storedWeek = localStorage.getItem(FOCUS_WEEK_LS_KEY)
     const currentWeek = getWeekStart()
     if (storedWeek && storedWeek !== currentWeek) {
-      const focusItems = all.filter((i) => i.weeklyFocus)
+      const focusItems = all.filter((i) => i.weeklyFocus || i.inFocus)
       const activeThemes = useThemesStore.getState().themes
-      const { removedIds } = computeWeeklyReset(focusItems, activeThemes)
+      const { removedIds } = computeFocusReset(focusItems, activeThemes)
       if (removedIds.length > 0) {
         const now = new Date().toISOString()
         for (const id of removedIds) {
           await db.items.update(id, {
             weeklyFocus: false,
+            inFocus: false,
             focusAddedAt: undefined,
             focusPriority: undefined,
             updatedAt: now,
@@ -167,7 +190,17 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     // Always update the stored week key
     localStorage.setItem(FOCUS_WEEK_LS_KEY, currentWeek)
 
-    set({ items: all, loaded: true })
+    // ── Phase-1 migration ────────────────────────────────────────────────────
+    // Idempotent: populates level, inFocus, difficultyScore for items that
+    // were created before these fields existed.  Fast-path skips already-
+    // migrated items.  Writes are fire-and-forget so load() isn't blocked.
+    const migrated = all.map(migrateItem)
+    const needsWrite = migrated.filter((m, i) => m !== all[i])
+    if (needsWrite.length > 0) {
+      db.items.bulkPut(needsWrite).catch(() => {})
+    }
+
+    set({ items: migrated, loaded: true })
 
     // Re-trigger enrichment for any items that were 'pending' when the app
     // was previously closed (e.g., tab killed mid-generation).
@@ -215,6 +248,10 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       archived: false,
       // Mark as pending so the UI can show a loading state immediately
       generationStatus: 'pending',
+      // Phase-1 fields
+      level: 0,
+      inFocus: false,
+      difficultyScore: INITIAL_DIFFICULTY,
     }
 
     try {
@@ -475,8 +512,11 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     if (!item) return
 
     if (!inFocus) {
-      // Removing from focus — clear metadata
-      const patch = { weeklyFocus: false, focusAddedAt: undefined, focusPriority: undefined, updatedAt: now }
+      // Removing from focus — clear both fields + metadata
+      const patch = {
+        weeklyFocus: false, inFocus: false,
+        focusAddedAt: undefined, focusPriority: undefined, updatedAt: now,
+      }
       await applyPatch(id, patch, set)
       return
     }
@@ -485,20 +525,30 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     const activeThemes = useThemesStore.getState().themes
     const priority = calcFocusPriority(item, activeThemes)
 
-    // Enforce cap: if adding this item would exceed FOCUS_MAX, evict lowest-priority
-    const currentFocus = items.filter((i) => i.weeklyFocus)
+    // Enforce cap: evict lowest-priority item if at limit
+    const currentFocus = items.filter((i) => i.weeklyFocus || i.inFocus)
     if (currentFocus.length >= FOCUS_MAX) {
-      const lowestPriority = [...currentFocus]
-        .sort((a, b) => (a.focusPriority ?? 0) - (b.focusPriority ?? 0))[0]
-      if (lowestPriority && (lowestPriority.focusPriority ?? 0) < priority) {
-        const evictPatch = { weeklyFocus: false, focusAddedAt: undefined, focusPriority: undefined, updatedAt: now }
-        await applyPatch(lowestPriority.id, evictPatch, set)
+      const [evictId] = selectEvictionCandidates(currentFocus, 1, activeThemes)
+      if (evictId) {
+        const evicting = items.find((i) => i.id === evictId)
+        if (evicting && (evicting.focusPriority ?? 0) < priority) {
+          const evictPatch = {
+            weeklyFocus: false, inFocus: false,
+            focusAddedAt: undefined, focusPriority: undefined, updatedAt: now,
+          }
+          await applyPatch(evictId, evictPatch, set)
+        } else {
+          return // cap reached, new item has lower priority — skip
+        }
       } else {
-        return // cap reached and new item has lower priority — skip
+        return
       }
     }
 
-    const addPatch = { weeklyFocus: true, focusAddedAt: now, focusPriority: priority, updatedAt: now }
+    const addPatch = {
+      weeklyFocus: true, inFocus: true,
+      focusAddedAt: now, focusPriority: priority, updatedAt: now,
+    }
     await applyPatch(id, addPatch, set)
   },
 
@@ -512,21 +562,27 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     for (const id of ids) {
       const items = get().items
       const item = items.find((i) => i.id === id)
-      if (!item || item.weeklyFocus) continue
+      if (!item || item.weeklyFocus || item.inFocus) continue
 
       const priority = calcFocusPriority(item, activeThemes)
-      const currentFocus = items.filter((i) => i.weeklyFocus)
+      const currentFocus = items.filter((i) => i.weeklyFocus || i.inFocus)
 
       if (currentFocus.length >= FOCUS_MAX) {
-        const lowestPriority = [...currentFocus]
-          .sort((a, b) => (a.focusPriority ?? 0) - (b.focusPriority ?? 0))[0]
-        if (!lowestPriority || (lowestPriority.focusPriority ?? 0) >= priority) continue
-        const evictPatch = { weeklyFocus: false, focusAddedAt: undefined, focusPriority: undefined, updatedAt: now }
-        await applyPatch(lowestPriority.id, evictPatch, set)
+        const [evictId] = selectEvictionCandidates(currentFocus, 1, activeThemes)
+        if (!evictId) continue
+        const evicting = items.find((i) => i.id === evictId)
+        if (!evicting || (evicting.focusPriority ?? 0) >= priority) continue
+        await applyPatch(evictId, {
+          weeklyFocus: false, inFocus: false,
+          focusAddedAt: undefined, focusPriority: undefined, updatedAt: now,
+        }, set)
         evicted++
       }
 
-      await applyPatch(id, { weeklyFocus: true, focusAddedAt: now, focusPriority: priority, updatedAt: now }, set)
+      await applyPatch(id, {
+        weeklyFocus: true, inFocus: true,
+        focusAddedAt: now, focusPriority: priority, updatedAt: now,
+      }, set)
       added++
     }
 
@@ -596,9 +652,8 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     for (const id of ids) {
       const item = get().items.find((i) => i.id === id)
       if (!item) { skipped++; continue }
-      // Skip if already in focus list and not promoting from inbox
-      if (item.weeklyFocus && item.status !== 'inbox') { skipped++; continue }
-      const patch: Partial<VocabItem> = { weeklyFocus: true, updatedAt: now }
+      if ((item.weeklyFocus || item.inFocus) && item.status !== 'inbox') { skipped++; continue }
+      const patch: Partial<VocabItem> = { weeklyFocus: true, inFocus: true, updatedAt: now }
       if (item.status === 'inbox') patch.status = 'learning' as ItemStatus
       await applyPatch(id, patch, set)
       added++
@@ -668,6 +723,10 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         archived: false,
         // undefined = pre-enriched seed data, no AI generation needed
         generationStatus: undefined,
+        // Phase-1 fields
+        level: 0,
+        inFocus: false,
+        difficultyScore: INITIAL_DIFFICULTY,
       }
       toAdd.push(item)
       existingTerms.add(word.term.toLowerCase())
@@ -698,6 +757,68 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     return { imported: toAdd.length, skipped, ids: toAdd.map((i) => i.id) }
   },
 
+  // ── addToFocus ───────────────────────────────────────────────────────────────
+  // Phase-1 replacement for addToFocusThisWeek — uses focusLogic FOCUS_MAX=150.
+  addToFocus: async (ids) => {
+    const now = new Date().toISOString()
+    const activeThemes = useThemesStore.getState().themes
+    let added = 0
+    let evicted = 0
+
+    for (const id of ids) {
+      const items = get().items
+      const item = items.find((i) => i.id === id)
+      if (!item || item.inFocus || item.weeklyFocus) continue
+
+      const priority = calcFocusPriority(item, activeThemes)
+      const currentFocus = items.filter((i) => i.inFocus || i.weeklyFocus)
+
+      if (currentFocus.length >= FOCUS_MAX) {
+        const [evictId] = selectEvictionCandidates(currentFocus, 1, activeThemes)
+        if (!evictId) continue
+        const evicting = items.find((i) => i.id === evictId)
+        if (!evicting || (evicting.focusPriority ?? 0) >= priority) continue
+        await applyPatch(evictId, {
+          inFocus: false, weeklyFocus: false,
+          focusAddedAt: undefined, focusPriority: undefined, updatedAt: now,
+        }, set)
+        evicted++
+      }
+
+      await applyPatch(id, {
+        inFocus: true, weeklyFocus: true,
+        focusAddedAt: now, focusPriority: priority, updatedAt: now,
+      }, set)
+      added++
+    }
+
+    return { added, evicted }
+  },
+
+  // ── removeFromFocus ───────────────────────────────────────────────────────────
+  removeFromFocus: async (id) => {
+    const now = new Date().toISOString()
+    await applyPatch(id, {
+      inFocus: false, weeklyFocus: false,
+      focusAddedAt: undefined, focusPriority: undefined, updatedAt: now,
+    }, set)
+  },
+
+  // ── addTag / removeTag ────────────────────────────────────────────────────────
+  addTag: async (id, tag) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+    const normalized = tag.trim().toLowerCase()
+    if (!normalized || item.tags.includes(normalized)) return
+    await applyPatch(id, { tags: [...item.tags, normalized], updatedAt: new Date().toISOString() }, set)
+  },
+
+  removeTag: async (id, tag) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+    await applyPatch(id, { tags: item.tags.filter((t) => t !== tag), updatedAt: new Date().toISOString() }, set)
+  },
+
   // ── recordExposure ──────────────────────────────────────────────────────────
   recordExposure: async (id, correct) => {
     const item = get().items.find((i) => i.id === id)
@@ -707,10 +828,22 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     // Advance on correct; keep on incorrect (retry sooner)
     const newCount = correct ? Math.min(currentCount + 1, 8) : currentCount
     const nextChallengeDate = getNextChallengeDate(newCount, correct)
+    const now = new Date().toISOString()
+
+    // Derive updated level from the post-exposure state
+    const updatedForLevel = { ...item, exposureCount: newCount }
+    const newLevel = deriveLevel(updatedForLevel)
 
     await applyPatch(
       id,
-      { exposureCount: newCount, nextChallengeDate, updatedAt: new Date().toISOString() },
+      {
+        exposureCount:   newCount,
+        nextChallengeDate,
+        lastExposureAt:  now,
+        difficultyScore: updateDifficulty(item.difficultyScore, correct),
+        level:           newLevel,
+        updatedAt:       now,
+      },
       set,
     )
   },
