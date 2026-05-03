@@ -227,11 +227,8 @@ export function WordRelationGraph({
 
   // ── Graph layout ──────────────────────────────────────────────────────────
 
-  const H = 300
-  const cx = svgWidth / 2
-  const cy = H / 2
   const CENTER_R = 36
-  const NODE_R = 28
+  const NODE_R   = 28
   const SUGGEST_R = 24
 
   const allNodes: AnyNode[] = [
@@ -239,10 +236,17 @@ export function WordRelationGraph({
     ...suggestions.map((s) => ({ kind: 'suggestion' as const, data: s })),
   ]
 
-  const graphR = Math.max(
-    Math.min(svgWidth / 2 - NODE_R - 28, 130),
-    60,
-  )
+  // Ensure adjacent nodes don't overlap: min radius = 36 / sin(π / n)
+  const n = allNodes.length
+  const minGraphR = n > 1 ? Math.ceil(36 / Math.sin(Math.PI / n)) : 60
+  const maxGraphR = Math.max(svgWidth / 2 - NODE_R - 20, 60)
+  const graphR    = Math.min(Math.max(minGraphR, 60), Math.min(maxGraphR, 150))
+
+  // SVG height: enough to contain all nodes with padding
+  const H  = Math.max(240, 2 * (graphR + NODE_R + 26))
+  const cx = svgWidth / 2
+  const cy = H / 2
+
   const positions = circlePositions(allNodes.length, cx, cy, graphR)
 
   function nodeKey(n: AnyNode) {
@@ -287,6 +291,12 @@ export function WordRelationGraph({
             const ux = dx / dist
             const uy = dy / dist
             const isSelected = selectedKey(selected) === nodeKey(node)
+            // Scale edge weight by relationship strength (entries only)
+            const strength = node.kind === 'entry'
+              ? ((node.data as RelatedEntry).strength ?? 1)
+              : 1
+            const baseW = node.kind === 'entry' ? 0.7 + strength * 0.65 : 1.2
+            const baseOp = node.kind === 'entry' ? 0.2 + strength * 0.18 : 0.35
 
             return (
               <line
@@ -296,8 +306,8 @@ export function WordRelationGraph({
                 x2={cx - ux * (CENTER_R + 2)}
                 y2={cy - uy * (CENTER_R + 2)}
                 stroke={c.stroke}
-                strokeWidth={isSelected ? 2.5 : 1.5}
-                strokeOpacity={isSelected ? 0.85 : 0.4}
+                strokeWidth={isSelected ? baseW + 1.2 : baseW}
+                strokeOpacity={isSelected ? 0.9 : baseOp}
                 strokeDasharray={node.kind === 'suggestion' ? '5 3' : undefined}
               />
             )
