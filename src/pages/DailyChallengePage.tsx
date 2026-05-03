@@ -7,6 +7,7 @@ import {
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore } from '@/store/themesStore'
+import { LogUsageModal } from '@/components/LogUsageModal'
 import { isDueChallengeNow, intervalLabel } from '@/lib/challengeSchedule'
 import { getChallengeType, CHALLENGE_TYPE_LABEL, ChallengeType } from '@/lib/challengeLogic'
 import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER, MAX_EXPOSURE, MASTERY_USES } from '@/lib/constants'
@@ -254,8 +255,10 @@ export function DailyChallengePage() {
   const [reshaking, setReshaking] = useState(false)
   const [sessionSize, setSessionSize] = useState<number>(CHALLENGE_SESSION_CAP)
 
-  const [wordDetailItem, setWordDetailItem] = useState<VocabItem | null>(null)
-  const [resumeBanner, setResumeBanner] = useState<string | null>(null)
+  const [wordDetailItem, setWordDetailItem]           = useState<VocabItem | null>(null)
+  const [resumeBanner, setResumeBanner]               = useState<string | null>(null)
+  const [usageModalItemId, setUsageModalItemId]       = useState<string | null>(null)
+  const [usageModalTerm, setUsageModalTerm]           = useState<string>('')
 
   const usedItemIds = useRef<Set<string>>(new Set())
   const pendingAdvance = useRef<(() => void) | null>(null)
@@ -1047,6 +1050,34 @@ export function DailyChallengePage() {
                 )
               })()}
 
+              {/* ── Real-life usage nudge for familiar words ── */}
+              {(() => {
+                if (!feedback.correct) return null
+                const nudgeItem = allItems.find((i) => i.id === feedback.itemId)
+                if (!nudgeItem) return null
+                const exp = nudgeItem.exposureCount ?? 0
+                if (exp < 5) return null                           // only for familiar words
+                if (nudgeItem.activation.usageLogs.length > 0) return null  // already logged
+                if (challengeType === 'real-life-use-check') return null
+                return (
+                  <div className="mb-3 bg-brand-50 border border-brand-200 rounded-2xl px-4 py-3">
+                    <p className="text-xs font-semibold text-brand-700 mb-2">
+                      💬 Can you use &ldquo;{nudgeItem.term}&rdquo; in real life today?
+                    </p>
+                    <button
+                      onClick={() => {
+                        setUsageModalItemId(nudgeItem.id)
+                        setUsageModalTerm(nudgeItem.term)
+                        dismissFeedback()
+                      }}
+                      className="text-xs font-semibold text-brand-700 underline underline-offset-2 hover:text-brand-900 transition-colors"
+                    >
+                      Log a real-life use →
+                    </button>
+                  </div>
+                )
+              })()}
+
               {/* Action buttons */}
               <div className="flex gap-3 mt-2">
                 <button
@@ -1077,6 +1108,15 @@ export function DailyChallengePage() {
       {/* Inline word detail modal */}
       {wordDetailItem && (
         <WordDetailModal item={wordDetailItem} onClose={() => setWordDetailItem(null)} />
+      )}
+
+      {/* Real-life usage modal (triggered from usage nudge in feedback overlay) */}
+      {usageModalItemId && (
+        <LogUsageModal
+          itemId={usageModalItemId}
+          term={usageModalTerm}
+          onClose={() => setUsageModalItemId(null)}
+        />
       )}
     </div>
   )

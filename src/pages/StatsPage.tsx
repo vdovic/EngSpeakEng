@@ -30,6 +30,10 @@ import {
   getMasteredWordsCount,
   getInProgressWordsCount,
   getFocusWordsCount,
+  getActivatedCount,
+  getUsageLogsThisWeek,
+  getContextBreakdown,
+  getHighExposureNoUsage,
   ExposureBand,
 } from '@/lib/statsLogic'
 
@@ -568,6 +572,16 @@ export function StatsPage() {
   const levelDist    = useMemo(() => getLevelDistribution(items),    [items])
   const exposureDist = useMemo(() => getExposureDistribution(items), [items])
 
+  // ── Phase-6 real-life usage stats ────────────────────────────────────────
+  const activatedCount       = useMemo(() => getActivatedCount(items),                [items])
+  const usageLogsThisWeek    = useMemo(() => getUsageLogsThisWeek(items),             [items])
+  const contextBreakdown     = useMemo(() => getContextBreakdown(items),              [items])
+  const highExpNoUsage       = useMemo(() => getHighExposureNoUsage(items),            [items])
+  const topContexts          = useMemo(() => {
+    const entries = Object.entries(contextBreakdown) as [string, number][]
+    return entries.sort((a, b) => b[1] - a[1]).slice(0, 3)
+  }, [contextBreakdown])
+
   // ── Chart / breakdown data ────────────────────────────────────────────────
   const allLogs      = useMemo(() => items.flatMap((i) => i.activation.usageLogs), [items])
   const usesThisWeek = useMemo(() => {
@@ -694,6 +708,83 @@ export function StatsPage() {
       <Card>
         <CardTitle icon={<Zap size={14} />}>Challenge exposure</CardTitle>
         <ExposureBandSection dist={exposureDist} />
+      </Card>
+
+      {/* ── Real-life usage (Phase 6) ───────────────────────────────────────── */}
+      <Card>
+        <CardTitle icon={<CheckCircle size={14} />}>Real-life usage</CardTitle>
+
+        {/* 3 KPI tiles */}
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-green-50 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-green-700">{activatedCount}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Activated</div>
+          </div>
+          <div className="bg-brand-50 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-brand-700">{usageLogsThisWeek}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Uses this week</div>
+          </div>
+          <div className="bg-amber-50 rounded-xl p-3 text-center">
+            <div className="text-2xl font-bold text-amber-700">{highExpNoUsage.length}</div>
+            <div className="text-xs text-slate-500 mt-0.5">Need activation</div>
+          </div>
+        </div>
+
+        {/* Context breakdown */}
+        {topContexts.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-medium text-slate-500 mb-2">Most used contexts</p>
+            <div className="space-y-1.5">
+              {topContexts.map(([ctx, count]) => {
+                const label: Record<string, string> = {
+                  'conversation': 'Conversation', 'meeting': 'Meeting',
+                  'work-email': 'Work email', 'writing-practice': 'Writing practice',
+                  'note': 'Note', 'reading-listening': 'Heard / read', 'other': 'Other',
+                  'speaking': 'Speaking', 'writing': 'Writing',
+                }
+                const total = Object.values(contextBreakdown).reduce((s, v) => s + (v ?? 0), 0)
+                const pct = total > 0 ? Math.round((count / total) * 100) : 0
+                return (
+                  <div key={ctx} className="flex items-center gap-2">
+                    <span className="text-xs text-slate-600 w-32 shrink-0">{label[ctx] ?? ctx}</span>
+                    <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-400 rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-xs text-slate-400 tabular-nums w-8 text-right">{count}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* High-exposure / zero usage warning */}
+        {highExpNoUsage.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+            <p className="text-xs font-semibold text-amber-800 mb-1">
+              ⚡ {highExpNoUsage.length} word{highExpNoUsage.length !== 1 ? 's' : ''} drilled but never used in real life
+            </p>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              These words have 5+ challenge exposures but zero logged real-life uses. Try using them in your next conversation or email.
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {highExpNoUsage.slice(0, 6).map((i) => (
+                <span key={i.id} className="text-xs bg-white border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                  {i.term}
+                </span>
+              ))}
+              {highExpNoUsage.length > 6 && (
+                <span className="text-xs text-amber-500">+{highExpNoUsage.length - 6} more</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activatedCount === 0 && usageLogsThisWeek === 0 && (
+          <p className="text-xs text-slate-400 italic mt-2">
+            Start logging real-life uses from the word detail page or Daily Challenge to track your activation progress.
+          </p>
+        )}
       </Card>
 
       {/* ── Due & upcoming ─────────────────────────────────────────────────── */}

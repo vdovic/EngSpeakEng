@@ -6,7 +6,8 @@
  * plain data.  No React, no store, no async.
  */
 
-import { VocabItem, Level } from '@/types/vocabulary'
+import { VocabItem, Level, UsageContext, UsageLog } from '@/types/vocabulary'
+import { usagePoints } from '@/lib/mastery'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -142,4 +143,52 @@ export function getExposureDistribution(
     else               dist['8']++
   }
   return dist
+}
+
+// ── Phase-6 real-life usage stats ────────────────────────────────────────────
+
+/** Items that have been used at least 3 times in real life. */
+export function getActivatedCount(items: VocabItem[]): number {
+  return items.filter((i) => usagePoints(i.activation.usageLogs) >= 3).length
+}
+
+/**
+ * Total number of usage log entries created in the past 7 days
+ * (rolling 7 days, not tied to calendar week).
+ */
+export function getUsageLogsThisWeek(items: VocabItem[]): number {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+  return items.flatMap((i) => i.activation.usageLogs).filter((log: UsageLog) => {
+    return new Date(log.usedAt).getTime() >= cutoff
+  }).length
+}
+
+/**
+ * Counts usage logs grouped by context (Phase-6 only).
+ * Legacy logs with only `channel` are grouped under 'other'.
+ */
+export function getContextBreakdown(
+  items: VocabItem[],
+): Partial<Record<UsageContext | 'speaking' | 'writing', number>> {
+  const counts: Record<string, number> = {}
+  for (const item of items) {
+    for (const log of item.activation.usageLogs) {
+      const key = log.context ?? log.channel ?? 'other'
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+  }
+  return counts as Partial<Record<UsageContext | 'speaking' | 'writing', number>>
+}
+
+/**
+ * Items that have been well-drilled (exposureCount >= 5) but have ZERO
+ * confirmed real-life uses.  These are "passive-only" learners that need
+ * activation.
+ */
+export function getHighExposureNoUsage(items: VocabItem[]): VocabItem[] {
+  return items.filter(
+    (i) =>
+      (i.exposureCount ?? 0) >= 5 &&
+      usagePoints(i.activation.usageLogs) === 0,
+  )
 }

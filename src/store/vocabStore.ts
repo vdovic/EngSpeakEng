@@ -470,16 +470,21 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     const updatedActivation = { ...item.activation, usageLogs: logs, usageCount }
     const updatedItem = { ...item, activation: updatedActivation }
     const newStatus: ItemStatus = deriveStatus(updatedItem)
+    // Phase-6: real-life usage (usageCount >= 3) is an alternative path to Level 3
+    const newLevel = deriveLevel(updatedItem)
 
     await db.items.update(id, {
       activation: updatedActivation,
       status: newStatus,
+      level: newLevel,
       updatedAt: new Date().toISOString(),
     })
 
     set((s) => ({
       items: s.items.map((i) =>
-        i.id === id ? { ...i, activation: updatedActivation, status: newStatus } : i
+        i.id === id
+          ? { ...i, activation: updatedActivation, status: newStatus, level: newLevel }
+          : i
       ),
     }))
   },
@@ -923,11 +928,11 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     // ── real-life-use-check: log usage; do NOT change exposure count ───────
     if (challengeType === 'real-life-use-check') {
       if (correct) {
-        // "Yes, I used it" — store a speaking usage log for this word
+        // "Yes, I used it" — store a usage log for this word (no channel: use context)
         await get().logUsage(id, {
           usedAt: now,
-          channel: 'speaking',
-          note:    'Used in real life — confirmed in Daily Challenge',
+          context: 'conversation',
+          note:    'Confirmed in Daily Challenge',
         })
       }
       // Do not call recordExposure: exposure is already at 8 and the SRS

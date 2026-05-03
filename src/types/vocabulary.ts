@@ -30,14 +30,37 @@ export type SourceType =
 
 export type UsageChannel = 'speaking' | 'writing'
 
+/**
+ * Phase-6 fine-grained usage context.
+ * Replaces the coarse UsageChannel for new logs.
+ * Old logs keep `channel`; new logs set `context`.
+ * Both are optional — usagePoints() counts any log that has either field.
+ */
+export type UsageContext =
+  | 'work-email'
+  | 'meeting'
+  | 'conversation'
+  | 'writing-practice'
+  | 'note'
+  | 'reading-listening'
+  | 'other'
+
 export type ReviewOutcome = 'again' | 'hard' | 'good' | 'easy'
 
 export interface UsageLog {
   id: string
   usedAt: string
-  channel: UsageChannel
-  note?: string
+  /**
+   * @deprecated Set by Phase-5 and earlier code.
+   * New logs use `context` instead.  Kept for backward compatibility.
+   */
+  channel?: UsageChannel
+  /** Fine-grained context introduced in Phase 6. */
+  context?: UsageContext
   sentence?: string
+  note?: string
+  /** Learner's self-reported confidence (1 = unsure, 5 = fully natural). */
+  confidence?: 1 | 2 | 3 | 4 | 5
 }
 
 export interface ReviewData {

@@ -1,8 +1,14 @@
 import { VocabItem, ItemStatus, UsageLog } from '@/types/vocabulary'
 import { MASTERY_RECALLS, MASTERY_USES } from '@/lib/constants'
 
+/**
+ * Count the number of valid usage log entries.
+ * Phase-5 and earlier logs have `channel`; Phase-6+ logs have `context`.
+ * A log is valid (counts as one real-life use) when it has at least one of
+ * those fields.  This keeps old seed data and imported packs working unchanged.
+ */
 export function usagePoints(logs: UsageLog[]): number {
-  return logs.reduce((sum, l) => sum + (l.channel === 'speaking' || l.channel === 'writing' ? 1 : 0), 0)
+  return logs.filter((l) => l.channel !== undefined || l.context !== undefined).length
 }
 
 export function meetsUsageThreshold(logs: UsageLog[]): boolean {

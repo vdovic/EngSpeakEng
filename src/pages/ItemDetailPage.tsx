@@ -4,7 +4,7 @@ import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
   BookText, Lightbulb, Network, GitBranch, Trash2,
   Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw,
-  TrendingUp, Info, Zap, GraduationCap,
+  TrendingUp, Info, Zap, GraduationCap, MessageSquarePlus,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -12,10 +12,23 @@ import { STATUS_FLOW } from '@/lib/constants'
 import { StatusBadge } from '@/components/StatusBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { WordRelationGraph } from '@/components/WordRelationGraph'
+import { LogUsageModal } from '@/components/LogUsageModal'
 import { usagePoints, progressTowardMastery, deriveStatus } from '@/lib/mastery'
-import { VocabItem, ItemStatus, ItemType, RelatedSuggestion } from '@/types/vocabulary'
+import { VocabItem, ItemStatus, ItemType, RelatedSuggestion, UsageContext } from '@/types/vocabulary'
 import { format } from 'date-fns'
 import { loadTodaySession } from '@/lib/challengeSession'
+
+// ── Context label map ─────────────────────────────────────────────────────────
+
+const CONTEXT_LABEL: Record<UsageContext, string> = {
+  'conversation':     'Conversation',
+  'meeting':         'Meeting',
+  'work-email':      'Work email',
+  'writing-practice':'Writing practice',
+  'note':            'Note',
+  'reading-listening':'Heard / read',
+  'other':           'Other',
+}
 
 
 function Section({
@@ -235,7 +248,7 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, addItem, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, logUsage, clearUsageLogs } = useVocabStore()
+  const { items, addItem, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, clearUsageLogs } = useVocabStore()
   const [addedTerm, setAddedTerm] = useState<string | null>(null)
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
@@ -244,6 +257,8 @@ export function ItemDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [retrying, setRetrying] = useState(false)
+  const [showUsageModal, setShowUsageModal] = useState(false)
+  const [loggedSuccessfully, setLoggedSuccessfully] = useState(false)
 
   // Detect an in-progress Daily Challenge so we can show a "Return" banner.
   // loadTodaySession() is synchronous — capture once on mount.
@@ -538,11 +553,11 @@ export function ItemDetailPage() {
               </div>
             </div>
             <button
-              onClick={() => logUsage(item.id, { usedAt: new Date().toISOString(), channel: 'speaking' })}
+              onClick={() => setShowUsageModal(true)}
               className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors shrink-0 active:scale-95"
             >
               <Plus size={12} />
-              I used it
+              Log use
             </button>
           </div>
         )}
@@ -786,6 +801,83 @@ export function ItemDetailPage() {
         </>
       )}
 
+      {/* ── Real-life usage section ──────────────────────────────────────────── */}
+      {!editing && (
+        <>
+          <div className="my-3" />
+          <Section title="Real-life usage" icon={<MessageSquarePlus size={14} />}>
+            {(() => {
+              const logs = item.activation.usageLogs
+              const needed = item.activation.requiredUses ?? 3
+              const done   = usagePoints(logs)
+              const activated = done >= needed
+
+              return (
+                <div className="space-y-3">
+                  {/* Progress bar + count */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs text-slate-500">
+                        {activated
+                          ? '✅ Activated in real life'
+                          : `${done} / ${needed} real-life uses`}
+                      </span>
+                      <button
+                        onClick={() => { setLoggedSuccessfully(false); setShowUsageModal(true) }}
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors active:scale-95"
+                      >
+                        <Plus size={11} />
+                        Log use
+                      </button>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${activated ? 'bg-green-500' : 'bg-brand-500'}`}
+                        style={{ width: `${Math.min(100, (done / needed) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Recent logs */}
+                  {logs.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {[...logs].reverse().slice(0, 5).map((log) => (
+                        <div key={log.id} className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
+                          <span className="shrink-0 text-slate-400 tabular-nums">
+                            {format(new Date(log.usedAt), 'MMM d')}
+                          </span>
+                          <span className="text-slate-500 shrink-0">
+                            {log.context ? CONTEXT_LABEL[log.context] : log.channel === 'speaking' ? 'Speaking' : log.channel === 'writing' ? 'Writing' : ''}
+                          </span>
+                          {log.confidence && (
+                            <span className="text-amber-500 shrink-0">{'★'.repeat(log.confidence)}</span>
+                          )}
+                          {log.sentence && (
+                            <span className="italic text-slate-500 line-clamp-1 flex-1">"{log.sentence}"</span>
+                          )}
+                          {log.note && !log.sentence && (
+                            <span className="text-slate-400 flex-1 line-clamp-1">{log.note}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">
+                      No usage logged yet. Use this word in your next meeting, email, or conversation and log it here!
+                    </p>
+                  )}
+
+                  {/* Success flash */}
+                  {loggedSuccessfully && (
+                    <p className="text-xs text-green-600 font-medium">✓ Usage logged!</p>
+                  )}
+                </div>
+              )
+            })()}
+          </Section>
+        </>
+      )}
+
       {/* Memory */}
       <Section title="Memory support" icon={<Lightbulb size={14} />} defaultOpen={false}>
         <Field
@@ -868,6 +960,15 @@ export function ItemDetailPage() {
         </div>
       )}
 
+      {/* ── Log usage modal ──────────────────────────────────────────────────── */}
+      {showUsageModal && (
+        <LogUsageModal
+          itemId={item.id}
+          term={item.term}
+          onClose={() => setShowUsageModal(false)}
+          onSaved={() => setLoggedSuccessfully(true)}
+        />
+      )}
     </div>
   )
 }
