@@ -611,38 +611,70 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
-      {/* Word relationship graph */}
-      {addedTerm && (
-        <div className="mb-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
-          <Check size={14} className="text-emerald-600 shrink-0" />
-          <p className="text-sm text-emerald-700 font-medium">
-            &ldquo;{addedTerm}&rdquo; added to your library
-          </p>
-          <button
-            onClick={() => setAddedTerm(null)}
-            className="ml-auto text-emerald-400 hover:text-emerald-600"
-          >
-            <X size={14} />
-          </button>
+      {/* ── Relationships — graph + synonym/antonym/collocation lists ── */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        {/* Header */}
+        <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
+          <Network size={14} className="text-slate-500 shrink-0" />
+          <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex-1">Relationships</h3>
+          {((item.relatedEntries?.length ?? 0) + (item.relatedSuggestions?.length ?? 0)) > 0 && (
+            <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+              {(item.relatedEntries?.length ?? 0) + (item.relatedSuggestions?.length ?? 0)}
+            </span>
+          )}
         </div>
-      )}
-      <WordRelationGraph
-        entries={item.relatedEntries ?? []}
-        suggestions={item.relatedSuggestions ?? []}
-        status={item.relatedEntriesStatus}
-        currentTerm={item.term}
-        onGenerate={() => generateRelatedEntries(item.id)}
-        onAdd={async (suggestion: RelatedSuggestion) => {
-          await addItem({ term: suggestion.term, type: suggestion.type })
-          setAddedTerm(suggestion.term)
-          // Remove the suggestion from the saved list so the graph updates
-          await updateItem(item.id, {
-            relatedSuggestions: (item.relatedSuggestions ?? []).filter(
-              (s) => s.term !== suggestion.term,
-            ),
-          })
-        }}
-      />
+
+        {/* "Word added" confirmation — shown inside the section */}
+        {addedTerm && (
+          <div className="mx-4 mt-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+            <Check size={13} className="text-emerald-600 shrink-0" />
+            <p className="text-sm text-emerald-700 font-medium flex-1">
+              &ldquo;{addedTerm}&rdquo; added to your library
+            </p>
+            <button onClick={() => setAddedTerm(null)} className="text-emerald-400 hover:text-emerald-600">
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
+        {/* Word relationship graph — inline (no nested Shell) */}
+        <WordRelationGraph
+          inline
+          entries={item.relatedEntries ?? []}
+          suggestions={item.relatedSuggestions ?? []}
+          status={item.relatedEntriesStatus}
+          currentTerm={item.term}
+          onGenerate={() => generateRelatedEntries(item.id)}
+          onAdd={async (suggestion: RelatedSuggestion) => {
+            await addItem({ term: suggestion.term, type: suggestion.type })
+            setAddedTerm(suggestion.term)
+            await updateItem(item.id, {
+              relatedSuggestions: (item.relatedSuggestions ?? []).filter(
+                (s) => s.term !== suggestion.term,
+              ),
+            })
+          }}
+        />
+
+        {/* Synonym / antonym / collocation lists */}
+        {(editing ||
+          current.synonyms.length > 0 ||
+          current.antonyms.length > 0 ||
+          current.collocations.length > 0 ||
+          current.sentenceFrames.length > 0 ||
+          current.relatedPhrases.length > 0) && (
+          <>
+            <div className="border-t border-slate-100 mx-0" />
+            <div className="px-4 py-3">
+              <ListField label="Synonyms"       items={current.synonyms}      editing={editing} onChange={(v) => patch('synonyms', v)} />
+              <ListField label="Antonyms"       items={current.antonyms}      editing={editing} onChange={(v) => patch('antonyms', v)} />
+              <ListField label="Collocations"   items={current.collocations}  editing={editing} onChange={(v) => patch('collocations', v)} />
+              <ListField label="Sentence frames" items={current.sentenceFrames} editing={editing} onChange={(v) => patch('sentenceFrames', v)} />
+              <ListField label="Related phrases" items={current.relatedPhrases} editing={editing} onChange={(v) => patch('relatedPhrases', v)} />
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="my-3" />
 
@@ -730,17 +762,6 @@ export function ItemDetailPage() {
           onChange={(v) => patch('commonMistakes', v)}
           multiline
         />
-      </Section>
-
-      <div className="my-3" />
-
-      {/* Word relationships */}
-      <Section title="Relationships" icon={<Network size={14} />} defaultOpen={false}>
-        <ListField label="Synonyms" items={current.synonyms} editing={editing} onChange={(v) => patch('synonyms', v)} />
-        <ListField label="Antonyms" items={current.antonyms} editing={editing} onChange={(v) => patch('antonyms', v)} />
-        <ListField label="Collocations" items={current.collocations} editing={editing} onChange={(v) => patch('collocations', v)} />
-        <ListField label="Sentence frames" items={current.sentenceFrames} editing={editing} onChange={(v) => patch('sentenceFrames', v)} />
-        <ListField label="Related phrases" items={current.relatedPhrases} editing={editing} onChange={(v) => patch('relatedPhrases', v)} />
       </Section>
 
       <div className="my-3" />

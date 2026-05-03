@@ -110,12 +110,17 @@ export interface WordRelationGraphProps {
   currentTerm:  string
   onGenerate?:  () => void
   onAdd?:       (s: RelatedSuggestion) => void
+  /**
+   * When true the component renders without its own Shell border/header —
+   * use this when embedding inside a parent Section that provides the container.
+   */
+  inline?:      boolean
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function WordRelationGraph({
-  entries, suggestions = [], status, currentTerm, onGenerate, onAdd,
+  entries, suggestions = [], status, currentTerm, onGenerate, onAdd, inline = false,
 }: WordRelationGraphProps) {
   const navigate = useNavigate()
   const containerRef = useRef<HTMLDivElement>(null)
@@ -135,11 +140,16 @@ export function WordRelationGraph({
   // ── Non-graph states ──────────────────────────────────────────────────────
 
   if (status === 'pending') {
+    if (inline) return (
+      <div className="px-4 py-5 flex items-center gap-3">
+        <Loader2 size={15} className="text-indigo-400 animate-spin shrink-0" />
+        <p className="text-sm text-slate-500">Mapping your word network…</p>
+      </div>
+    )
     return (
       <Shell>
         <div className="px-4 py-8 flex flex-col items-center gap-3">
           <div className="relative w-16 h-16">
-            {/* Pulsing orbit */}
             <div className="absolute inset-0 rounded-full border-2 border-indigo-200 animate-ping opacity-60" />
             <div className="absolute inset-2 rounded-full bg-indigo-50 flex items-center justify-center">
               <Loader2 size={20} className="text-indigo-400 animate-spin" />
@@ -152,32 +162,47 @@ export function WordRelationGraph({
   }
 
   if (status === 'failed') {
-    return (
-      <Shell>
-        <div className="px-4 py-5 flex items-start gap-3">
-          <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-slate-700">Couldn't build the graph</p>
-            <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
-              This usually happens when the library is very small, or the
-              connection timed out. Retry once your library has more words.
-            </p>
-            {onGenerate && (
-              <button
-                onClick={onGenerate}
-                className="mt-2 flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-              >
-                <RefreshCw size={11} />
-                Try again
-              </button>
-            )}
-          </div>
+    const failedInner = (
+      <div className="px-4 py-5 flex items-start gap-3">
+        <AlertCircle size={15} className="text-red-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-semibold text-slate-700">Couldn't build the graph</p>
+          <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+            This usually happens when the library is very small, or the
+            connection timed out. Retry once your library has more words.
+          </p>
+          {onGenerate && (
+            <button
+              onClick={onGenerate}
+              className="mt-2 flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+            >
+              <RefreshCw size={11} />
+              Try again
+            </button>
+          )}
         </div>
-      </Shell>
+      </div>
     )
+    return inline ? failedInner : <Shell>{failedInner}</Shell>
   }
 
   if (!status && entries.length === 0 && suggestions.length === 0) {
+    if (inline) return (
+      <div className="px-4 py-4 flex items-center justify-between gap-3">
+        <p className="text-xs text-slate-400 leading-relaxed">
+          See how this word connects to others — and discover related words worth adding.
+        </p>
+        {onGenerate && (
+          <button
+            onClick={onGenerate}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 active:scale-95 transition-all"
+          >
+            <Sparkles size={12} />
+            Build
+          </button>
+        )}
+      </div>
+    )
     return (
       <Shell>
         <div className="px-4 py-5 flex items-center gap-3">
@@ -206,23 +231,22 @@ export function WordRelationGraph({
   }
 
   if (status === 'complete' && entries.length === 0 && suggestions.length === 0) {
-    return (
-      <Shell>
-        <div className="px-4 py-4 flex items-center justify-between gap-3">
-          <p className="text-xs text-slate-400 italic">
-            No connections found — try adding more vocabulary to your library.
-          </p>
-          {onGenerate && (
-            <button
-              onClick={onGenerate}
-              className="shrink-0 flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-600 font-medium"
-            >
-              <RefreshCw size={11} /> Retry
-            </button>
-          )}
-        </div>
-      </Shell>
+    const emptyInner = (
+      <div className="px-4 py-4 flex items-center justify-between gap-3">
+        <p className="text-xs text-slate-400 italic">
+          No connections found — try adding more vocabulary to your library.
+        </p>
+        {onGenerate && (
+          <button
+            onClick={onGenerate}
+            className="shrink-0 flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-600 font-medium"
+          >
+            <RefreshCw size={11} /> Retry
+          </button>
+        )}
+      </div>
     )
+    return inline ? emptyInner : <Shell>{emptyInner}</Shell>
   }
 
   // ── Graph layout ──────────────────────────────────────────────────────────
@@ -269,9 +293,8 @@ export function WordRelationGraph({
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  return (
-    <Shell entryCount={entries.length} suggestionCount={suggestions.length}>
-      <div ref={containerRef} className="select-none">
+  const graphBody = (
+    <div ref={containerRef} className="select-none">
 
         {/* ── SVG ── */}
         <svg
@@ -474,7 +497,13 @@ export function WordRelationGraph({
           </span>
         </div>
 
-      </div>
+    </div>
+  )
+
+  if (inline) return graphBody
+  return (
+    <Shell entryCount={entries.length} suggestionCount={suggestions.length}>
+      {graphBody}
     </Shell>
   )
 }
