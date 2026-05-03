@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { db } from '@/lib/db'
-import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus, RelatedSuggestion, ChallengeType } from '@/types/vocabulary'
+import { VocabItem, VocabItemDraft, UsageLog, ReviewOutcome, ItemStatus, RelatedSuggestion, ChallengeType, EnrichmentProfile } from '@/types/vocabulary'
 import { StarterPack } from '@/types/starterPacks'
 import { calculateNextReview, isDueToday } from '@/lib/srs'
 import { deriveStatus } from '@/lib/mastery'
@@ -19,6 +19,7 @@ import {
 import { deriveLevel } from '@/lib/progressionLogic'
 import { updateDifficulty, INITIAL_DIFFICULTY } from '@/lib/difficultyLogic'
 import { migrateItem } from '@/lib/migration'
+import { suggestThemes } from '@/lib/themeSuggestion'
 
 interface VocabStore {
   items: VocabItem[]
@@ -294,6 +295,11 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
   // ── enrichItem ───────────────────────────────────────────────────────────────
   // Calls POST /api/enrich, then writes the returned fields to the item.
   // Can be called manually (retry) or automatically from addItem.
+  //
+  // Post-enrichment side-effects (fire-and-forget):
+  //   • suggestedTags from the API are merged into item.tags
+  //   • theme heuristic is run and matching themes auto-assigned
+  //   • relatedEntries generation is kicked off
   enrichItem: async (id: string) => {
     const item = get().items.find((i) => i.id === id)
     if (!item) return
@@ -305,7 +311,12 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       const res = await fetch('/api/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ term: item.term, type: item.type }),
+        body: JSON.stringify({
+          term: item.term,
+          type: item.type,
+          // Pass sourceText (user-supplied context) to improve AI output quality
+          context: item.sourceText ?? undefined,
+        }),
       })
 
       if (!res.ok) {
@@ -314,18 +325,44 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         throw new Error(body.error ?? `HTTP ${res.status}`)
       }
 
-      const { enriched } = (await res.json()) as { enriched: Partial<VocabItem> }
+      const { enriched } = (await res.json()) as { enriched: EnrichmentProfile }
+
+      // ── Separate API-only fields from VocabItem-compatible fields ────────────
+      const { suggestedTags, ...vocabFields } = enriched
+
+      // Merge suggested tags with existing tags (deduplicate, lowercase)
+      const freshItem = get().items.find((i) => i.id === id)
+      const existingTags = freshItem?.tags ?? item.tags ?? []
+      const normalizedSuggested = (suggestedTags ?? [])
+        .map((t) => t.trim().toLowerCase().replace(/\s+/g, '-'))
+        .filter((t) => t.length > 0)
+      const mergedTags = [...new Set([...existingTags, ...normalizedSuggested])]
 
       await applyPatch(
         id,
         {
-          ...enriched,
+          ...vocabFields,
+          tags:             mergedTags,
           generationStatus: 'complete',
-          generationError: undefined,
-          updatedAt: new Date().toISOString(),
+          generationError:  undefined,
+          updatedAt:        new Date().toISOString(),
         },
-        set
+        set,
       )
+
+      // ── Auto-apply theme suggestions (keyword heuristic) ─────────────────────
+      // Uses the same heuristic shown in QuickAddModal — only assigns themes
+      // that already exist in the user's theme list (never creates new ones).
+      const availableThemes = useThemesStore.getState().themes
+      const themesToApply   = suggestThemes(item.term, availableThemes)
+      if (themesToApply.length > 0) {
+        const latestItem = get().items.find((i) => i.id === id)
+        const existing   = latestItem?.themes ?? []
+        const merged     = [...new Set([...existing, ...themesToApply])]
+        if (merged.length > existing.length) {
+          await applyPatch(id, { themes: merged, updatedAt: new Date().toISOString() }, set)
+        }
+      }
 
       // After successful enrichment, auto-generate related entries.
       // Fire-and-forget — enrichItem's callers are not affected by this.

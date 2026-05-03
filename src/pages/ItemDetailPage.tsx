@@ -434,6 +434,9 @@ export function ItemDetailPage() {
                 <option value="word">Word</option>
                 <option value="phrase">Phrase</option>
                 <option value="chunk">Chunk</option>
+                <option value="idiom">Idiom</option>
+                <option value="phrasal-verb">Phrasal verb</option>
+                <option value="collocation">Collocation</option>
               </select>
             ) : (
               <TypeBadge type={current.type} />

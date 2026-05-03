@@ -1,86 +1,49 @@
 /**
- * QuickAddModal — redesigned 2-step add flow
+ * QuickAddModal — 2-step add flow with type picker + optional context / tags
  *
- * Step 1 (add):   minimal term input → [Add + another] [Add]
- * Step 2 (assign): "Where should this go?" — theme cards + new theme inline
+ * Step 1 (add):
+ *   • Large term input (Enter to add)
+ *   • Type selector (word / phrase / idiom / phrasal verb / collocation)
+ *   • "More options" toggle — context note, initial tags
+ *   • [Add + another] [Add →]
  *
- * Removed from UI (kept in data model):
- *   - Word / Phrase / Chunk type selector  (type saved as 'word' by default; AI enriches it)
- *   - Source type icons (Meeting, Article, …)
- *   - Context sentence input
- *   - "Add definition" field
+ * Step 2 (assign):
+ *   • "Where should this go?" — theme cards + new theme inline
  *
- * Theme suggestion: lightweight keyword heuristic, 0–2 suggestions per word.
+ * Design goals:
+ *   • Default fast path: type a word, press Enter
+ *   • Advanced options hidden until needed
+ *   • Item appears in Library immediately (optimistic)
+ *   • AI enrichment runs in background
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X, AlertCircle, AlertTriangle, ArrowRight,
-  Check, Plus, Sparkles, ChevronRight,
+  Check, Plus, Sparkles, ChevronRight, ChevronDown, Tag,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
-import { VocabItem } from '@/types/vocabulary'
+import { VocabItem, ItemType } from '@/types/vocabulary'
 import { findExactDuplicate, findNearDuplicates } from '@/utils/vocabSearch'
+import { suggestThemes } from '@/lib/themeSuggestion'
 
-// ── Heuristic theme suggester ─────────────────────────────────────────────────
+// ── Item type options ─────────────────────────────────────────────────────────
 
-/**
- * Common particles used in English phrasal verbs.
- * If a multi-word term ends with one of these, it's likely a phrasal verb.
- */
-const PHRASAL_PARTICLES = new Set([
-  'up', 'down', 'out', 'off', 'on', 'away', 'back',
-  'over', 'through', 'into', 'around', 'along', 'apart', 'aside', 'in',
-])
-
-/**
- * Per-theme keyword lists — order matters (first match wins within a theme).
- * Kept intentionally short: false positives > missed suggestions.
- */
-const THEME_HINTS: Array<[string, string[]]> = [
-  ['Phrasal Verbs',            []],  // handled separately by particle detection
-  ['Idioms & Expressions',     ['bite the', 'on the fence', 'kick the', 'break a leg', 'hit the nail', 'under the weather', 'cost an arm', 'spill the beans', 'burn bridges']],
-  ['Business & Professional',  ['leverage', 'synergy', 'stakeholder', 'bandwidth', 'pipeline', 'deadline', 'initiative', 'milestone', 'roadmap', 'deliverable', 'align', 'scale', 'pivot', 'corporate', 'KPI', 'ROI', 'headcount', 'capacity']],
-  ['Meetings & Presentations', ['agenda', 'standup', 'retrospective', 'action item', 'follow-up', 'facilitate', 'chair', 'minutes', 'deck', 'slide', 'brief', 'pitch']],
-  ['Written Communication',    ['pursuant', 'herewith', 'sincerely', 'attached please', 'as per', 'I am writing', 'kind regards', 'please find']],
-  ['Leadership & Management',  ['delegate', 'appraisal', 'performance review', 'empower', 'accountability', 'mentor', 'coach', 'headcount', 'direct report']],
-  ['Transitions & Connectors', ['however', 'furthermore', 'therefore', 'consequently', 'nevertheless', 'moreover', 'notwithstanding', 'whereas', 'despite', 'in contrast', 'as a result', 'in addition']],
-  ['Formal & Academic',        ['pursuant to', 'hereby', 'aforementioned', 'therein', 'whereby', 'henceforth', 'inasmuch', 'ex parte', 'prima facie']],
-  ['Everyday Conversation',    ['catch up', 'small talk', 'break the ice', 'how are you', 'long time no see', 'what\'s up', 'hang out']],
-  ['Negotiations & Persuasion',['negotiate', 'concession', 'counter-offer', 'common ground', 'win-win', 'leverage', 'trade-off', 'bottom line', 'walk away']],
-  ['Problem-solving & Analysis',['root cause', 'hypothesis', 'framework', 'drill down', 'deep dive', 'trade-off', 'iterate', 'troubleshoot', 'diagnose']],
-  ['Collocations & Chunks',    ['make a point', 'take a look', 'have a go', 'pay attention', 'keep in mind', 'as a matter of', 'for the time being']],
-]
-
-function suggestThemes(term: string, available: string[]): string[] {
-  if (!term.trim()) return []
-  const lower = term.toLowerCase().trim()
-  const words  = lower.split(/\s+/)
-  const result: string[] = []
-
-  // Rule 1: phrasal verb — 2+ words, last word is a particle
-  if (
-    words.length >= 2 &&
-    PHRASAL_PARTICLES.has(words[words.length - 1]) &&
-    available.includes('Phrasal Verbs')
-  ) {
-    result.push('Phrasal Verbs')
-  }
-
-  // Rule 2: keyword matching per theme
-  for (const [theme, keywords] of THEME_HINTS) {
-    if (!available.includes(theme)) continue
-    if (result.includes(theme)) continue
-    if (keywords.length > 0 && keywords.some((kw) => lower.includes(kw))) {
-      result.push(theme)
-    }
-    if (result.length >= 2) break
-  }
-
-  return result
+interface TypeOption {
+  value: ItemType
+  label: string
+  description: string
 }
+
+const TYPE_OPTIONS: TypeOption[] = [
+  { value: 'word',          label: 'Word',         description: 'Single vocabulary word' },
+  { value: 'phrase',        label: 'Phrase',        description: 'Multi-word expression' },
+  { value: 'idiom',         label: 'Idiom',         description: 'Fixed figurative expression' },
+  { value: 'phrasal-verb',  label: 'Phrasal verb',  description: 'Verb + particle (e.g. give up)' },
+  { value: 'collocation',   label: 'Collocation',   description: 'Words that naturally go together' },
+]
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -95,23 +58,28 @@ const DEBOUNCE_MS = 280
 // ── QuickAddModal ─────────────────────────────────────────────────────────────
 
 export function QuickAddModal({ onClose }: Props) {
-  const navigate  = useNavigate()
-  const addItem   = useVocabStore((s) => s.addItem)
-  const items     = useVocabStore((s) => s.items)
+  const navigate     = useNavigate()
+  const addItem      = useVocabStore((s) => s.addItem)
+  const items        = useVocabStore((s) => s.items)
   const assignThemes = useVocabStore((s) => s.assignThemes)
   const { themes, addTheme } = useThemesStore()
-  const termRef   = useRef<HTMLInputElement>(null)
-  const newThemeRef = useRef<HTMLInputElement>(null)
+  const termRef      = useRef<HTMLInputElement>(null)
+  const newThemeRef  = useRef<HTMLInputElement>(null)
 
-  // ── Step 1: Add ────────────────────────────────────────────────────────────
-  const [phase, setPhase]           = useState<Phase>('add')
-  const [term, setTerm]             = useState('')
+  // ── Step 1 state ─────────────────────────────────────────────────────────
+  const [phase, setPhase]         = useState<Phase>('add')
+  const [term, setTerm]           = useState('')
+  const [itemType, setItemType]   = useState<ItemType>('word')
+  const [context, setContext]     = useState('')
+  const [tagInput, setTagInput]   = useState('')
+  const [initTags, setInitTags]   = useState<string[]>([])
+  const [moreOpen, setMoreOpen]   = useState(false)
   const [debouncedTerm, setDebouncedTerm] = useState('')
-  const [saving, setSaving]         = useState(false)
+  const [saving, setSaving]       = useState(false)
   const [savedCount, setSavedCount] = useState(0)
-  const [error, setError]           = useState<string | null>(null)
+  const [error, setError]         = useState<string | null>(null)
 
-  // ── Step 2: Assign ────────────────────────────────────────────────────────
+  // ── Step 2 state ─────────────────────────────────────────────────────────
   const [savedWordId, setSavedWordId]   = useState<string | null>(null)
   const [savedTerm, setSavedTerm]       = useState('')
   const [selectedThemes, setSelectedThemes] = useState<Set<string>>(new Set())
@@ -124,7 +92,6 @@ export function QuickAddModal({ onClose }: Props) {
   // Focus term input when returning to 'add' phase
   useEffect(() => {
     if (phase === 'add') setTimeout(() => termRef.current?.focus(), 60)
-    if (phase === 'assign') setTimeout(() => {}, 60) // let animation settle
   }, [phase])
 
   // Debounce for duplicate detection
@@ -156,11 +123,40 @@ export function QuickAddModal({ onClose }: Props) {
     onClose()
   }
 
-  // ── Save word ────────────────────────────────────────────────────────────────
+  // ── Tag helpers ──────────────────────────────────────────────────────────
+
+  function addInitTag() {
+    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-')
+    if (t && !initTags.includes(t)) setInitTags((prev) => [...prev, t])
+    setTagInput('')
+  }
+
+  function removeInitTag(t: string) {
+    setInitTags((prev) => prev.filter((x) => x !== t))
+  }
+
+  // ── Auto-detect type from term ────────────────────────────────────────────
+  // When type is still on default ('word') and term looks like a phrasal verb,
+  // suggest upgrading silently.
+  useEffect(() => {
+    if (itemType !== 'word') return
+    const lower = term.toLowerCase().trim()
+    const words  = lower.split(/\s+/)
+    if (words.length >= 2) {
+      const particles = new Set(['up', 'down', 'out', 'off', 'on', 'away', 'back', 'over', 'through', 'into'])
+      if (particles.has(words[words.length - 1])) setItemType('phrasal-verb')
+      else setItemType('phrase')
+    } else {
+      setItemType('word')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [term])
+
+  // ── Save word ────────────────────────────────────────────────────────────
 
   /**
-   * andNext = true  → "Add + another": save, reset, stay on Step 1 (no theme step)
-   * andNext = false → "Add":           save, advance to Step 2
+   * andNext = true  → "Add + another": save, reset form, stay on Step 1
+   * andNext = false → "Add →":         save, advance to Step 2 (themes)
    */
   async function save(andNext: boolean) {
     const t = term.trim()
@@ -177,7 +173,12 @@ export function QuickAddModal({ onClose }: Props) {
 
     let newId: string | null = null
     try {
-      newId = await addItem({ term: t, type: 'word' })
+      newId = await addItem({
+        term:       t,
+        type:       itemType,
+        sourceText: context.trim() || undefined,
+        tags:       initTags.length > 0 ? initTags : undefined,
+      })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not save — please try again.')
       setSaving(false)
@@ -189,6 +190,9 @@ export function QuickAddModal({ onClose }: Props) {
     if (andNext) {
       // Batch mode: stay on Step 1
       setTerm('')
+      setContext('')
+      setInitTags([])
+      setMoreOpen(false)
       setSavedCount((c) => c + 1)
       setError(null)
     } else {
@@ -202,7 +206,7 @@ export function QuickAddModal({ onClose }: Props) {
 
   const canSave = term.trim().length > 0 && !saving && !exactDuplicate
 
-  // ── Theme toggle ──────────────────────────────────────────────────────────────
+  // ── Theme toggle ──────────────────────────────────────────────────────────
 
   function toggleTheme(t: string) {
     setSelectedThemes((prev) => {
@@ -213,8 +217,6 @@ export function QuickAddModal({ onClose }: Props) {
     })
   }
 
-  // ── Create new theme inline ───────────────────────────────────────────────────
-
   function handleCreateTheme() {
     const name = newThemeName.trim()
     if (!name) return
@@ -224,7 +226,7 @@ export function QuickAddModal({ onClose }: Props) {
     newThemeRef.current?.focus()
   }
 
-  // ── Assign & close ────────────────────────────────────────────────────────────
+  // ── Assign & close ────────────────────────────────────────────────────────
 
   const handleAssignAndClose = useCallback(async () => {
     if (!savedWordId || selectedThemes.size === 0) {
@@ -241,24 +243,18 @@ export function QuickAddModal({ onClose }: Props) {
     onClose()
   }, [savedWordId, selectedThemes, assignThemes, onClose])
 
-  function handleSkip() {
-    onClose()
-  }
+  function handleSkip() { onClose() }
+  function handleGoToVocab() { onClose(); navigate('/library') }
 
-  function handleGoToVocab() {
-    onClose()
-    navigate('/library')
-  }
-
-  // ── Render: Step 1 — Add ──────────────────────────────────────────────────────
+  // ── Render: Step 1 — Add ─────────────────────────────────────────────────
 
   if (phase === 'add') {
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
-        <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col">
+        <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh]">
 
           {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-4">
+          <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <div>
               <h2 className="text-base font-bold text-slate-900">Add to Inbox</h2>
               {savedCount > 0 && (
@@ -275,19 +271,14 @@ export function QuickAddModal({ onClose }: Props) {
             </button>
           </div>
 
-          {/* Term input */}
-          <div className="px-5 pb-2 space-y-2.5">
+          <div className="px-5 pb-2 space-y-3 overflow-y-auto flex-1">
+            {/* Term input */}
             <input
               ref={termRef}
               type="text"
               value={term}
-              onChange={(e) => {
-                setTerm(e.target.value)
-                if (error) setError(null)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) void save(false)
-              }}
+              onChange={(e) => { setTerm(e.target.value); if (error) setError(null) }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) void save(false) }}
               placeholder="word or phrase…"
               autoComplete="off"
               spellCheck={false}
@@ -299,6 +290,28 @@ export function QuickAddModal({ onClose }: Props) {
                   : 'border-slate-200 focus:border-brand-500'
               }`}
             />
+
+            {/* Type selector */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1.5">Type</p>
+              <div className="flex flex-wrap gap-1.5">
+                {TYPE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setItemType(opt.value)}
+                    title={opt.description}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-xl border-2 transition-all ${
+                      itemType === opt.value
+                        ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
+                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {/* Exact duplicate */}
             {exactDuplicate && (
@@ -354,15 +367,100 @@ export function QuickAddModal({ onClose }: Props) {
                 {error}
               </p>
             )}
+
+            {/* More options toggle */}
+            <button
+              type="button"
+              onClick={() => setMoreOpen((o) => !o)}
+              className="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 font-medium py-1 transition-colors"
+            >
+              <ChevronDown
+                size={13}
+                className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`}
+              />
+              {moreOpen ? 'Fewer options' : 'More options'}
+              {(context.trim() || initTags.length > 0) && (
+                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-brand-500" />
+              )}
+            </button>
+
+            {/* More options panel */}
+            {moreOpen && (
+              <div className="space-y-3 border-t border-slate-100 pt-3">
+                {/* Context / note */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">
+                    Context <span className="font-normal text-slate-400">(optional — helps AI generate better examples)</span>
+                  </label>
+                  <textarea
+                    value={context}
+                    onChange={(e) => setContext(e.target.value)}
+                    placeholder="Where did you encounter this? e.g. 'In a client email: they said the deal had too many caveats'"
+                    rows={2}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-300 resize-none"
+                  />
+                </div>
+
+                {/* Initial tags */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 mb-1">
+                    Tags <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+
+                  {/* Tag input */}
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Tag size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                      <input
+                        value={tagInput}
+                        onChange={(e) => setTagInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addInitTag())}
+                        placeholder="tag name…"
+                        className="w-full pl-7 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-300"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addInitTag}
+                      disabled={!tagInput.trim()}
+                      className="px-3 py-2 bg-slate-700 text-white rounded-xl text-xs font-semibold disabled:opacity-40 hover:bg-slate-800 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  {/* Tag chips */}
+                  {initTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {initTags.map((t) => (
+                        <span
+                          key={t}
+                          className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 border border-brand-200 text-xs px-2 py-0.5 rounded-full"
+                        >
+                          #{t}
+                          <button
+                            type="button"
+                            onClick={() => removeInitTag(t)}
+                            className="text-brand-400 hover:text-brand-700"
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Helper text */}
-          <p className="px-5 pb-3 text-xs text-slate-400">
-            AI will auto-generate the definition. You can assign themes next.
+          <p className="px-5 pt-2 pb-2 text-xs text-slate-400">
+            AI generates definition, synonyms, examples and more automatically.
           </p>
 
           {/* Actions */}
-          <div className="px-5 pb-5 grid grid-cols-2 gap-2.5">
+          <div className="px-5 pb-5 pt-1 grid grid-cols-2 gap-2.5">
             <button
               onClick={() => void save(true)}
               disabled={!canSave}
@@ -383,7 +481,7 @@ export function QuickAddModal({ onClose }: Props) {
     )
   }
 
-  // ── Render: Step 2 — Assign theme ─────────────────────────────────────────────
+  // ── Render: Step 2 — Assign theme ─────────────────────────────────────────
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
@@ -392,7 +490,6 @@ export function QuickAddModal({ onClose }: Props) {
         {/* Header */}
         <div className="px-5 pt-5 pb-4 flex items-start justify-between gap-3">
           <div>
-            {/* Confirmation pill */}
             <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full mb-2">
               <Check size={11} />
               <span>"{savedTerm}" added to Inbox</span>
@@ -411,7 +508,7 @@ export function QuickAddModal({ onClose }: Props) {
         {/* Body */}
         <div className="px-5 pb-4 overflow-y-auto flex-1 space-y-4">
 
-          {/* ── Suggested themes ── */}
+          {/* Suggested themes */}
           {suggestedThemeNames.length > 0 && (
             <div>
               <div className="flex items-center gap-1.5 mb-2">
@@ -440,7 +537,7 @@ export function QuickAddModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* ── All themes ── */}
+          {/* All themes */}
           {themes.length > 0 && (
             <div>
               {suggestedThemeNames.length > 0 && (
@@ -470,14 +567,14 @@ export function QuickAddModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* ── No themes at all ── */}
+          {/* No themes at all */}
           {themes.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-2">
               No themes yet — create your first one below.
             </p>
           )}
 
-          {/* ── Create new theme inline ── */}
+          {/* Create new theme inline */}
           <div>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">New theme</p>
             <div className="flex gap-2">
@@ -499,7 +596,7 @@ export function QuickAddModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* ── Vocabulary link ── */}
+          {/* Vocabulary link */}
           <button
             onClick={handleGoToVocab}
             className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-colors group"
