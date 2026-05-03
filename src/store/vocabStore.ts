@@ -303,10 +303,9 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       const allItems = get().items
       const candidates = generateCandidates(item, allItems, 15)
 
-      if (candidates.length === 0) {
-        await applyPatch(id, { relatedEntriesStatus: 'complete', relatedEntries: [] }, set)
-        return
-      }
+      // Even with 0 library candidates we still call the API so Claude can
+      // return "suggestions" (words not yet in the library worth adding).
+      // Only skip the network call when the item itself is missing a term.
 
       const simplify = (v: VocabItem) => ({
         id: v.id,
