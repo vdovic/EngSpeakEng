@@ -31,8 +31,15 @@ export const BADGE_THRESHOLDS: Record<BadgeId, { metric: 'completions' | 'streak
 
 // ── Local helpers ─────────────────────────────────────────────────────────────
 
+/** Six months from today — the default goal horizon. */
 function defaultDeadline(): string {
-  return new Date(new Date().getFullYear() + 1, 0, 1).toISOString().slice(0, 10)
+  const d = new Date()
+  d.setMonth(d.getMonth() + 6)
+  return d.toISOString().slice(0, 10)
+}
+
+function defaultStartDate(): string {
+  return new Date().toISOString().slice(0, 10)
 }
 
 // ── Store interface ───────────────────────────────────────────────────────────
@@ -47,12 +54,14 @@ interface GamificationStore {
   pointsHistory: Record<string, number>
   /** Customisable mastery goal */
   goalTarget: number
+  goalStartDate: string
   goalDeadline: string
 
   addPoints: (n: number) => void
   recordChallengeCompletion: () => void
   checkBadges: () => Badge[]
-  setGoal: (target: number, deadline: string) => void
+  /** Pass startDate as the third arg to update the goal start date. */
+  setGoal: (target: number, deadline: string, startDate?: string) => void
   resetAll: () => void
 }
 
@@ -67,7 +76,8 @@ export const useGamificationStore = create<GamificationStore>()(
       badges: [],
       challengeCompletions: 0,
       pointsHistory: {},
-      goalTarget: 200,
+      goalTarget: 1500,
+      goalStartDate: defaultStartDate(),
       goalDeadline: defaultDeadline(),
 
       addPoints: (n) => {
@@ -127,7 +137,12 @@ export const useGamificationStore = create<GamificationStore>()(
         return newlyUnlocked
       },
 
-      setGoal: (target, deadline) => set({ goalTarget: target, goalDeadline: deadline }),
+      setGoal: (target, deadline, startDate) =>
+        set((s) => ({
+          goalTarget: target,
+          goalDeadline: deadline,
+          goalStartDate: startDate ?? s.goalStartDate,
+        })),
 
       resetAll: () =>
         set({
@@ -137,7 +152,8 @@ export const useGamificationStore = create<GamificationStore>()(
           badges: [],
           challengeCompletions: 0,
           pointsHistory: {},
-          goalTarget: 200,
+          goalTarget: 1500,
+          goalStartDate: defaultStartDate(),
           goalDeadline: defaultDeadline(),
         }),
     }),
