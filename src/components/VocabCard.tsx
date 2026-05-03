@@ -1,38 +1,82 @@
+/**
+ * VocabCard.tsx
+ *
+ * Used in the Library page for non-inbox vocabulary items.
+ * Supports:
+ *   - navigation to detail page
+ *   - focus toggle (star button)
+ *   - bulk selection (checkbox)
+ *   - LevelBadge + ExposureProgress on every card
+ */
+
 import { useNavigate } from 'react-router-dom'
-import { Loader2, AlertCircle, Star } from 'lucide-react'
+import { Loader2, AlertCircle, Star, Check } from 'lucide-react'
 import { VocabItem } from '@/types/vocabulary'
 import { TypeBadge } from './TypeBadge'
 import { LevelBadge } from './LevelBadge'
 import { ExposureProgress } from './ExposureProgress'
 import { UsageProgress } from './UsageProgress'
 import { usagePoints } from '@/lib/mastery'
-import { format } from 'date-fns'
 
 interface Props {
   item: VocabItem
   compact?: boolean
-  /** When provided, renders a star/focus toggle button at the card's top-right. */
+
+  // ── Focus toggle ──────────────────────────────────────────────────────────
+  /** Whether this item is currently in focus (controls star appearance). */
   inFocus?: boolean
+  /** Called when user clicks the star to add or remove from focus. */
   onFocusToggle?: () => void
+
+  // ── Selection (bulk mode) ────────────────────────────────────────────────
+  /** Whether this card is currently selected. */
+  selected?: boolean
+  /** Providing this prop renders a checkbox and enables selection mode. */
+  onSelect?: (id: string, checked: boolean) => void
 }
 
-export function VocabCard({ item, compact = false, inFocus, onFocusToggle }: Props) {
-  const navigate = useNavigate()
-  const usesDone = usagePoints(item.activation.usageLogs)
-  const isPending = item.generationStatus === 'pending'
-  const isFailed  = item.generationStatus === 'failed'
-  const hasFocusToggle = onFocusToggle !== undefined
+export function VocabCard({
+  item,
+  compact = false,
+  inFocus,
+  onFocusToggle,
+  selected = false,
+  onSelect,
+}: Props) {
+  const navigate      = useNavigate()
+  const usesDone      = usagePoints(item.activation.usageLogs)
+  const isPending     = item.generationStatus === 'pending'
+  const isFailed      = item.generationStatus === 'failed'
+  const hasCheckbox   = onSelect !== undefined
+  const hasFocusStar  = onFocusToggle !== undefined
 
   return (
     <div
       className={`relative bg-white border rounded-xl transition-all ${
-        inFocus
-          ? 'border-orange-300 ring-1 ring-orange-100'
-          : 'border-slate-200 hover:border-brand-300 hover:shadow-sm'
+        selected
+          ? 'border-brand-300 ring-1 ring-brand-200 shadow-sm'
+          : inFocus
+            ? 'border-orange-200 ring-1 ring-orange-100'
+            : 'border-slate-200'
       }`}
     >
-      {/* Focus toggle button — top-right */}
-      {hasFocusToggle && (
+      {/* ── Checkbox (selection mode) — top-left ── */}
+      {hasCheckbox && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSelect(item.id, !selected) }}
+          aria-label={selected ? 'Deselect' : 'Select'}
+          className={`absolute top-3 left-3 z-10 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+            selected
+              ? 'border-brand-600 bg-brand-600'
+              : 'border-slate-300 hover:border-brand-400 bg-white'
+          }`}
+        >
+          {selected && <Check size={11} className="text-white" />}
+        </button>
+      )}
+
+      {/* ── Focus star — top-right ── */}
+      {hasFocusStar && (
         <button
           onClick={(e) => { e.stopPropagation(); onFocusToggle() }}
           title={inFocus ? 'Remove from My Current Focus' : 'Add to My Current Focus'}
@@ -46,14 +90,16 @@ export function VocabCard({ item, compact = false, inFocus, onFocusToggle }: Pro
         </button>
       )}
 
-      {/* Main clickable area */}
+      {/* ── Main clickable area ── */}
       <button
         onClick={() => navigate(`/item/${item.id}`)}
-        className="w-full text-left p-4 group"
+        className={`w-full text-left p-4 group hover:bg-slate-50/50 rounded-xl transition-colors ${
+          hasCheckbox ? 'pl-10' : ''
+        } ${hasFocusStar ? 'pr-9' : ''}`}
       >
-        {/* Top row: term + badges */}
-        <div className={`flex items-start gap-2 mb-2 ${hasFocusToggle ? 'pr-7' : ''}`}>
-          <span className="font-semibold text-slate-900 text-base group-hover:text-brand-700 transition-colors leading-tight flex-1 min-w-0">
+        {/* Term + badges row */}
+        <div className="flex items-start gap-2 mb-2">
+          <span className="font-semibold text-slate-900 text-sm group-hover:text-brand-700 transition-colors leading-tight flex-1 min-w-0">
             {item.term}
           </span>
           <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
@@ -79,46 +125,43 @@ export function VocabCard({ item, compact = false, inFocus, onFocusToggle }: Pro
           <>
             {isPending && !item.definitionEn && (
               <p className="text-sm text-slate-400 italic mb-2 animate-pulse">
-                Generating definition and examples…
+                Generating definition…
               </p>
             )}
             {!isPending && item.definitionEn && (
-              <p className="text-sm text-slate-600 mb-2 line-clamp-2">{item.definitionEn}</p>
+              <p className="text-sm text-slate-600 mb-2 line-clamp-2 leading-snug">
+                {item.definitionEn}
+              </p>
             )}
           </>
         )}
 
-        {/* Usage progress (activation / mastered) */}
+        {/* Usage progress bar (activation / mastered only) */}
         {!compact && (item.status === 'activation' || item.status === 'mastered') && (
           <div className="mb-2">
             <UsageProgress done={usesDone} needed={3} size="sm" />
           </div>
         )}
 
-        {/* Footer row */}
-        <div className="flex items-center gap-2 text-xs text-slate-400 flex-wrap">
-          {/* Tags */}
-          {item.tags.slice(0, 3).map((tag) => (
+        {/* Footer row: tags · themes · exposure · next review */}
+        <div className="flex items-center gap-2 flex-wrap text-xs text-slate-400">
+          {item.tags.slice(0, 2).map((tag) => (
             <span key={tag} className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
               #{tag}
             </span>
           ))}
-          {/* Themes */}
           {(item.themes ?? []).slice(0, 2).map((theme) => (
             <span key={theme} className="bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-full font-medium">
               {theme}
             </span>
           ))}
 
-          {/* Exposure progress — always shown */}
-          <ExposureProgress count={item.exposureCount ?? 0} showLabel className="ml-auto" />
-
-          {/* Next review date */}
-          {item.review.nextReviewAt && item.status !== 'inbox' && (
-            <span>
-              Next: {format(new Date(item.review.nextReviewAt), 'MMM d')}
-            </span>
-          )}
+          {/* Exposure dots + count — always shown */}
+          <ExposureProgress
+            exposureCount={item.exposureCount ?? 0}
+            compact={compact}
+            className="ml-auto"
+          />
         </div>
       </button>
     </div>

@@ -1,13 +1,15 @@
 /**
  * LevelBadge.tsx
  *
- * Compact pill that shows a vocabulary item's learning level (0–3).
- * Accepts either a `level` value directly or an `item` to derive from.
+ * Compact pill showing a vocabulary item's learning level (0–3).
  *
  *   0 = New       (gray)
  *   1 = Learning  (orange)
  *   2 = Familiar  (blue)
  *   3 = Mastered  (green)
+ *
+ * Uses `item.level` when stored; falls back to `deriveLevel(item)`.
+ * compact=true renders a smaller coloured dot instead of the full label pill.
  */
 
 import type { VocabItem, Level } from '@/types/vocabulary'
@@ -15,38 +17,61 @@ import { deriveLevel } from '@/lib/progressionLogic'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const LEVEL_CONFIG: Record<Level, { label: string; className: string }> = {
-  0: { label: 'New',      className: 'bg-slate-100 text-slate-500 border-slate-200' },
-  1: { label: 'Learning', className: 'bg-orange-50 text-orange-600 border-orange-200' },
-  2: { label: 'Familiar', className: 'bg-blue-50 text-blue-600 border-blue-200' },
-  3: { label: 'Mastered', className: 'bg-green-50 text-green-600 border-green-200' },
+const LEVEL_CONFIG: Record<
+  Level,
+  { label: string; pill: string; dot: string }
+> = {
+  0: {
+    label: 'New',
+    pill: 'bg-slate-100 text-slate-500 border-slate-200',
+    dot:  'bg-slate-400',
+  },
+  1: {
+    label: 'Learning',
+    pill: 'bg-orange-50 text-orange-600 border-orange-200',
+    dot:  'bg-orange-400',
+  },
+  2: {
+    label: 'Familiar',
+    pill: 'bg-blue-50 text-blue-600 border-blue-200',
+    dot:  'bg-blue-400',
+  },
+  3: {
+    label: 'Mastered',
+    pill: 'bg-green-50 text-green-600 border-green-200',
+    dot:  'bg-green-400',
+  },
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-interface Props {
-  /** Pass the item and the level is derived automatically. */
-  item?: VocabItem
-  /** Pass a level directly (takes precedence over item). */
-  level?: Level
+export interface LevelBadgeProps {
+  item: VocabItem
+  /** compact=true renders a small dot instead of the full label pill */
+  compact?: boolean
   className?: string
 }
 
-export function LevelBadge({ item, level, className = '' }: Props) {
-  const lvl: Level =
-    level !== undefined
-      ? level
-      : item !== undefined
-        ? (item.level ?? deriveLevel(item))
-        : 0
+export function LevelBadge({ item, compact = false, className = '' }: LevelBadgeProps) {
+  const lvl: Level = item.level ?? deriveLevel(item)
+  const cfg = LEVEL_CONFIG[lvl]
 
-  const { label, className: cls } = LEVEL_CONFIG[lvl]
+  if (compact) {
+    return (
+      <span
+        className={`inline-block w-2 h-2 rounded-full shrink-0 ${cfg.dot} ${className}`}
+        title={cfg.label}
+        aria-label={`Level: ${cfg.label}`}
+      />
+    )
+  }
 
   return (
     <span
-      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${cls} ${className}`}
+      className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.pill} ${className}`}
+      aria-label={`Level: ${cfg.label}`}
     >
-      {label}
+      {cfg.label}
     </span>
   )
 }

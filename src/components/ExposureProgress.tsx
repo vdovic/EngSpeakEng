@@ -1,42 +1,57 @@
 /**
  * ExposureProgress.tsx
  *
- * Visual indicator for Daily Challenge exposure progress (0 – MAX_EXPOSURE steps).
+ * Visual indicator for Daily Challenge exposure progress (0 – 8 steps).
  *
- * Renders a row of dots coloured by completion state, with an optional N/8 label.
- * Supports a compact mode (dots only, no label) for tight card footers.
+ * Default (compact=false): row of 8 dots + "N/8" text label.
+ * Compact: dots only — useful when space is tight.
+ *
+ * Accessibility: a title attribute describes the current band in plain English.
  */
 
 import { MAX_EXPOSURE } from '@/lib/constants'
 
 // ── Band helpers ──────────────────────────────────────────────────────────────
 
-/** Human-readable label for the learner's exposure band. */
+/**
+ * Returns a human-readable description of the learner's exposure band.
+ *   0   → Not started
+ *   1–2 → Early learning
+ *   3–7 → Building familiarity
+ *   8   → Challenge complete
+ */
 export function exposureBandLabel(count: number): string {
-  if (count === 0) return 'Not started'
-  if (count <= 2) return 'Early'
-  if (count < MAX_EXPOSURE) return 'Building'
-  return 'Complete'
+  const n = Math.min(Math.max(0, count), MAX_EXPOSURE)
+  if (n === 0)            return 'Not started'
+  if (n <= 2)             return 'Early learning'
+  if (n < MAX_EXPOSURE)   return 'Building familiarity'
+  return 'Challenge complete'
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-interface Props {
-  /** Raw exposure count (clamped to [0, MAX_EXPOSURE]). */
-  count: number
-  /** Whether to render the N/8 counter next to the dots (default: true). */
-  showLabel?: boolean
-  /** Extra classes applied to the outer wrapper. */
+export interface ExposureProgressProps {
+  /** Raw exposure count (clamped to [0, MAX_EXPOSURE]). Defaults to 0. */
+  exposureCount?: number
+  /** compact=true hides the N/8 text label, showing dots only. */
+  compact?: boolean
+  /** Extra classes on the outer wrapper. */
   className?: string
 }
 
-export function ExposureProgress({ count, showLabel = true, className = '' }: Props) {
-  const filled = Math.min(Math.max(0, count), MAX_EXPOSURE)
+export function ExposureProgress({
+  exposureCount = 0,
+  compact = false,
+  className = '',
+}: ExposureProgressProps) {
+  const filled = Math.min(Math.max(0, exposureCount), MAX_EXPOSURE)
+  const band   = exposureBandLabel(filled)
 
   return (
     <div
       className={`flex items-center gap-1.5 ${className}`}
-      title={`Daily Challenge: ${filled}/${MAX_EXPOSURE} steps completed`}
+      title={`Daily Challenge: ${filled}/${MAX_EXPOSURE} — ${band}`}
+      aria-label={`Challenge progress: ${filled} of ${MAX_EXPOSURE} steps. ${band}.`}
     >
       {/* Dot track */}
       <div className="flex gap-0.5 items-center">
@@ -50,8 +65,8 @@ export function ExposureProgress({ count, showLabel = true, className = '' }: Pr
         ))}
       </div>
 
-      {/* N / MAX label */}
-      {showLabel && (
+      {/* N/MAX label — hidden in compact mode */}
+      {!compact && (
         <span className="text-[10px] tabular-nums text-slate-400 leading-none">
           {filled}/{MAX_EXPOSURE}
         </span>
