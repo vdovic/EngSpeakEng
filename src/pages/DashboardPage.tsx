@@ -1,21 +1,25 @@
 /**
- * DashboardPage — ESE Home
+ * DashboardPage — ESE Today
  *
  * Sections (top→bottom):
- *  1. HomeHero          — large headline + PersonalizationVisual
- *  2. LearningCtaCard   — purple gradient, primary learning CTA
- *  3. TodaysFocusPanel  — two-column daily cockpit (review + challenge)
- *  4. FocusAreasPreview — real theme cards, or suggested starter cards
- *  5. ProgressSummaryCard — horizontal streak / mastered / uses / total
- *  6. AIInsightCard     — contextual AI-powered insight
+ *  1. HomeHero           — large headline + PersonalizationVisual
+ *  2. LearningCtaCard    — primary Challenge / Review CTA (dominant)
+ *  3. TodayCompactRow    — 2-card strip: Goal Progress + Focus Health
+ *  4. FocusThisWeekPreview — real-life use prompt (My Current Focus)
+ *  5. FocusAreasPreview  — real theme cards, or suggested starter cards
+ *  6. HowItWorks         — collapsible pipeline explainer
+ *  7. StarterPacksSection
+ *  8. AIInsightCard      — contextual AI-powered insight
+ *  9. LearningProfileCard
  */
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Flame, BookOpen, RefreshCw, Zap, Trophy,
-  ChevronRight, TrendingUp, Sparkles, GraduationCap, Layers, Loader2, ChevronDown, SlidersHorizontal, Target, CheckCircle2,
+  Plus, Flame, Zap, Trophy,
+  ChevronRight, Sparkles, GraduationCap, Layers, Loader2, ChevronDown, SlidersHorizontal, Target, CheckCircle2,
 } from 'lucide-react'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
 import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
@@ -337,111 +341,6 @@ function LearningCtaCard({
   )
 }
 
-// ── TodaysFocusPanel ──────────────────────────────────────────────────────────
-
-function TodaysFocusPanel({
-  dueCount,
-  nextDueWord,
-  challengeCount,
-  challengeDoneToday,
-  onReview,
-  onChallenge,
-}: {
-  dueCount: number
-  nextDueWord: string | null
-  challengeCount: number
-  challengeDoneToday: boolean
-  onReview: () => void
-  onChallenge: () => void
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-6 shadow-sm">
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
-        Today's Focus
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-
-        {/* ── Column 1: Review ── */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-blue-100 flex items-center justify-center shrink-0">
-              <RefreshCw size={18} className="text-blue-600" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">Review</p>
-              <p className="text-xs text-slate-500">
-                {dueCount === 0
-                  ? 'All caught up!'
-                  : `${dueCount} word${dueCount !== 1 ? 's' : ''} due today`}
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-slate-50 rounded-2xl px-4 py-3">
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide mb-1">
-              Next word
-            </p>
-            <p className="text-sm font-semibold text-slate-800">
-              {nextDueWord
-                ? `"${nextDueWord}"`
-                : dueCount === 0
-                ? 'No words due right now'
-                : 'Start to reveal the first word'}
-            </p>
-          </div>
-
-          <button
-            onClick={onReview}
-            className="py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors"
-          >
-            {dueCount > 0 ? 'Start review' : 'Browse vocabulary'}
-          </button>
-        </div>
-
-        {/* ── Mobile divider ── */}
-        <div className="sm:hidden h-px bg-slate-100" />
-
-        {/* ── Column 2: Today's Training ── */}
-        <div className="flex flex-col gap-3 sm:border-l sm:border-slate-100 sm:pl-5">
-          <div className="flex items-center gap-3">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
-              challengeDoneToday ? 'bg-emerald-100' : 'bg-brand-100'
-            }`}>
-              {challengeDoneToday
-                ? <Trophy size={18} className="text-emerald-600" />
-                : <Zap    size={18} className="text-brand-600"   />}
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-900">Today's Training</p>
-              <p className="text-xs text-slate-500">
-                {challengeDoneToday
-                  ? 'Done today ✓'
-                  : `${challengeCount} word${challengeCount !== 1 ? 's' : ''} ready`}
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-slate-50 rounded-2xl px-4 py-3">
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide mb-1">
-              Source
-            </p>
-            <p className="text-sm font-semibold text-slate-800">From your focus areas</p>
-          </div>
-
-          <button
-            onClick={onChallenge}
-            disabled={challengeDoneToday}
-            className="py-2.5 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-default"
-          >
-            {challengeDoneToday ? 'Done for today ✓' : 'Start challenge'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Focus Areas ───────────────────────────────────────────────────────────────
 
 /** Shown when the user has no focus areas yet */
@@ -656,68 +555,6 @@ function FocusAreasPreview({
   )
 }
 
-// ── ProgressSummaryCard ───────────────────────────────────────────────────────
-
-function ProgressSummaryCard({
-  streak,
-  masteredCount,
-  usesThisWeek,
-  totalCount,
-}: {
-  streak: number
-  masteredCount: number
-  usesThisWeek: number
-  totalCount: number
-}) {
-  const stats = [
-    {
-      icon: <Flame size={18} className={streak > 0 ? 'text-amber-500' : 'text-slate-300'} />,
-      bg:   streak > 0 ? 'bg-amber-100' : 'bg-slate-100',
-      value: streak,
-      label: 'day streak',
-    },
-    {
-      icon:  <Trophy size={18} className="text-emerald-600" />,
-      bg:    'bg-emerald-100',
-      value: masteredCount,
-      label: 'words mastered',
-    },
-    {
-      icon:  <TrendingUp size={18} className="text-blue-600" />,
-      bg:    'bg-blue-100',
-      value: usesThisWeek,
-      label: 'real-life uses / wk',
-    },
-    {
-      icon:  <BookOpen size={18} className="text-slate-500" />,
-      bg:    'bg-slate-100',
-      value: totalCount,
-      label: 'total words',
-    },
-  ]
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 mb-6 shadow-sm">
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-5">
-        Your Progress
-      </p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
-        {stats.map(({ icon, bg, value, label }) => (
-          <div key={label} className="flex items-center gap-3">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${bg}`}>
-              {icon}
-            </div>
-            <div>
-              <div className="text-2xl font-extrabold text-slate-900 leading-none">{value}</div>
-              <div className="text-[11px] text-slate-500 mt-0.5 leading-tight">{label}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ── AIInsightCard ─────────────────────────────────────────────────────────────
 
 function AIInsightCard({ insight }: { insight: Insight }) {
@@ -764,6 +601,7 @@ function AIInsightCard({ insight }: { insight: Insight }) {
 
 // ── FocusThisWeekPreview ──────────────────────────────────────────────────────
 
+// navigate prop updated to use /focus (canonical route)
 function FocusThisWeekPreview({ onNavigate }: { onNavigate: () => void }) {
   const focusItems = useWeeklyFocusItems()
   const FOCUS_MAX = 50
@@ -862,13 +700,96 @@ function FocusThisWeekPreview({ onNavigate }: { onNavigate: () => void }) {
   )
 }
 
+// ── TodayCompactRow ───────────────────────────────────────────────────────────
+//
+// Two side-by-side mini-cards: Goal Progress (streak + mastered) and
+// Focus Health (focus-word usage progress). Acts as the quick-glance
+// "dashboard within the dashboard" between the main CTA and the Focus list.
+
+function TodayCompactRow({
+  streak,
+  masteredCount,
+  focusItems,
+  onViewProgress,
+  onViewFocus,
+}: {
+  streak: number
+  masteredCount: number
+  focusItems: VocabItems
+  onViewProgress: () => void
+  onViewFocus: () => void
+}) {
+  const focusTotal = focusItems.length
+  const usedCount  = focusItems.filter((i) => i.activation.usageLogs.length >= 3).length
+
+  return (
+    <div className="grid grid-cols-2 gap-3 mb-6">
+      {/* Goal Progress mini-card */}
+      <button
+        onClick={onViewProgress}
+        className="bg-white border border-slate-200 rounded-2xl p-4 text-left hover:border-brand-200 hover:bg-brand-50/30 transition-all"
+      >
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Progress</p>
+        <div className="flex items-center gap-2 mb-2.5">
+          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${streak > 0 ? 'bg-amber-100' : 'bg-slate-100'}`}>
+            <Flame size={15} className={streak > 0 ? 'text-amber-500' : 'text-slate-300'} />
+          </div>
+          <div>
+            <div className="text-xl font-extrabold text-slate-900 leading-none">{streak}</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">day streak</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+            <Trophy size={15} className="text-emerald-600" />
+          </div>
+          <div>
+            <div className="text-xl font-extrabold text-slate-900 leading-none">{masteredCount}</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">mastered</div>
+          </div>
+        </div>
+      </button>
+
+      {/* Focus Health mini-card */}
+      <button
+        onClick={onViewFocus}
+        className="bg-white border border-slate-200 rounded-2xl p-4 text-left hover:border-amber-200 hover:bg-amber-50/30 transition-all"
+      >
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Focus</p>
+        {focusTotal === 0 ? (
+          <div className="flex flex-col justify-center h-14">
+            <Target size={22} className="text-amber-300 mb-1.5" />
+            <p className="text-xs text-slate-400 leading-snug">No focus words yet — start a Challenge</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-1 mb-1">
+              <span className="text-2xl font-extrabold text-slate-900 leading-none">{usedCount}</span>
+              <span className="text-sm text-slate-400">/ {focusTotal}</span>
+            </div>
+            <p className="text-[10px] text-slate-500 mb-2.5">words used 3×</p>
+            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  focusTotal > 0 && usedCount === focusTotal ? 'bg-emerald-500' : 'bg-amber-400'
+                }`}
+                style={{ width: `${focusTotal > 0 ? Math.max((usedCount / focusTotal) * 100, 3) : 0}%` }}
+              />
+            </div>
+          </>
+        )}
+      </button>
+    </div>
+  )
+}
+
 // ── HowItWorks ────────────────────────────────────────────────────────────────
 
 const HOW_IT_WORKS_STEPS = [
   {
     emoji: '📥',
     label: 'Capture',
-    badge: 'Inbox',
+    badge: 'Library',
     badgeCls: 'bg-slate-100 text-slate-600',
     cardBorder: 'border-slate-200 hover:border-slate-300',
     actionCls: 'text-slate-500',
@@ -883,20 +804,20 @@ const HOW_IT_WORKS_STEPS = [
     badgeCls: 'bg-blue-100 text-blue-700',
     cardBorder: 'border-blue-200 hover:border-blue-300',
     actionCls: 'text-blue-600',
-    description: 'Activate new words from Vocabulary. They enter spaced-repetition Review and the Daily Challenge pool.',
+    description: 'Activate new words from Library. They enter spaced-repetition Review and the Daily Challenge pool.',
     howTo: 'Tap "Learning" on any new word',
     href: '/review',
   },
   {
     emoji: '💬',
     label: 'Use it',
-    badge: 'In the wild',
+    badge: 'Focus',
     badgeCls: 'bg-amber-100 text-amber-700',
     cardBorder: 'border-amber-200 hover:border-amber-300',
     actionCls: 'text-amber-600',
     description: 'Speak or write the word in real life. 3 logged uses moves it to the active stage.',
     howTo: 'Tap "+ I used it" on any word',
-    href: '/week',
+    href: '/focus',
   },
   {
     emoji: '🏆',
@@ -907,7 +828,7 @@ const HOW_IT_WORKS_STEPS = [
     actionCls: 'text-emerald-600',
     description: '3 recalls + 3 real-life uses + a sentence written. ESE marks it mastered automatically.',
     howTo: 'Achieved automatically',
-    href: '/stats',
+    href: '/progress',
   },
 ] as const
 
@@ -970,7 +891,7 @@ function HowItWorks() {
           <p className="text-xs font-semibold text-slate-600 mb-3">How stages connect</p>
           <div className="space-y-2.5">
             {[
-              { from: '📥 Inbox', to: '📖 Learn', how: 'Tap "Learning", "Challenge", or "My Focus" on any inbox word.' },
+              { from: '📥 Library', to: '📖 Learn', how: 'Tap "Learning", "Challenge", or "My Focus" on any new word.' },
               { from: '📖 Learn', to: '💬 Use it', how: 'Complete reviews until recalled 3 times. Then tap "+ I used it" when you speak or write the word.' },
               { from: '💬 Use it', to: '🏆 Mastered', how: 'Log 3 real-life uses and write a sentence. ESE advances status automatically.' },
             ].map(({ from, to, how }) => (
@@ -1066,8 +987,9 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
 
-  const items    = useVocabStore((s) => s.items)
-  const dueItems = useDueItems()
+  const items         = useVocabStore((s) => s.items)
+  const dueItems      = useDueItems()
+  const focusItems    = useWeeklyFocusItems()
   const { themes, addTheme } = useThemesStore()
   const { lastChallengeDate } = useGamificationStore()
   const { trigger, processingTheme } = useThemeAutoAssign()
@@ -1080,7 +1002,7 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
 
   // ── Derived values ──
 
-  const masteredCount = items.filter((i) => i.status === 'mastered').length
+  const masteredCount = items.filter((i) => getCanonicalLevel(i) >= 3).length
   const inboxCount   = useMemo(() => items.filter((i) => i.status === 'inbox').length, [items])
 
   const challengeDueCount = useMemo(
@@ -1089,13 +1011,6 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
   )
 
   const streak = useMemo(() => calcStreak(items), [items])
-
-  const usesThisWeek = useMemo(() => {
-    const cutoff = subDays(new Date(), 7)
-    return items
-      .flatMap((i) => i.activation.usageLogs)
-      .filter((l) => new Date(l.usedAt) >= cutoff).length
-  }, [items])
 
   const challengeDoneToday = lastChallengeDate === todayDateKey()
 
@@ -1106,13 +1021,11 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         return {
           name:     theme,
           total:    themeItems.length,
-          mastered: themeItems.filter((i) => i.status === 'mastered').length,
+          mastered: themeItems.filter((i) => getCanonicalLevel(i) >= 3).length,
         }
       }),
     [themes, items],
   )
-
-  const nextDueWord = dueItems[0]?.term ?? null
 
   // ── AI Insight logic ──
 
@@ -1174,7 +1087,7 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         onManageFocus={() => navigate('/themes')}
       />
 
-      {/* 2. Primary CTA */}
+      {/* 2. Primary Challenge CTA — dominant */}
       <LearningCtaCard
         dueCount={dueItems.length}
         challengeCount={Math.min(challengeDueCount, CHALLENGE_SESSION_CAP)}
@@ -1185,23 +1098,19 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         onInbox={() => navigate('/library')}
       />
 
-      {/* 3. Today's Focus (cockpit) */}
-      <TodaysFocusPanel
-        dueCount={dueItems.length}
-        nextDueWord={nextDueWord}
-        challengeCount={Math.min(challengeDueCount, CHALLENGE_SESSION_CAP)}
-        challengeDoneToday={challengeDoneToday}
-        onReview={() => navigate('/review')}
-        onChallenge={() => navigate('/challenge')}
+      {/* 3. Compact stats row — Goal Progress + Focus Health */}
+      <TodayCompactRow
+        streak={streak}
+        masteredCount={masteredCount}
+        focusItems={focusItems}
+        onViewProgress={() => navigate('/progress')}
+        onViewFocus={() => navigate('/focus')}
       />
 
-      {/* 3b. How learning works */}
-      <HowItWorks />
+      {/* 4. Real-life Use — My Current Focus preview */}
+      <FocusThisWeekPreview onNavigate={() => navigate('/focus')} />
 
-      {/* 3c. Starter Packs — curated vocabulary packs to import in one click */}
-      <StarterPacksSection showAll={false} />
-
-      {/* 4. Focus Areas */}
+      {/* 5. Focus Areas */}
       <FocusAreasPreview
         themeStats={themeStats}
         onNavigateToTheme={(theme) => navigate(`/library?theme=${encodeURIComponent(theme)}`)}
@@ -1210,21 +1119,16 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         processingTheme={processingTheme}
       />
 
-      {/* 4b. Focus This Week preview */}
-      <FocusThisWeekPreview onNavigate={() => navigate('/week')} />
+      {/* 6. How learning works */}
+      <HowItWorks />
 
-      {/* 5. Progress */}
-      <ProgressSummaryCard
-        streak={streak}
-        masteredCount={masteredCount}
-        usesThisWeek={usesThisWeek}
-        totalCount={items.length}
-      />
+      {/* 7. Starter Packs */}
+      <StarterPacksSection showAll={false} />
 
-      {/* 6. AI Insight */}
+      {/* 8. AI Insight */}
       <AIInsightCard insight={insight} />
 
-      {/* 7. Learning profile summary card */}
+      {/* 9. Learning profile summary card */}
       {onOpenOnboarding && (
         <LearningProfileCard onAdjust={onOpenOnboarding} />
       )}

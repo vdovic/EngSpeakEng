@@ -424,9 +424,14 @@ export function ActiveWeekPage() {
 
       {/* Page title */}
       <div className="flex items-start justify-between mb-1">
-        <div className="flex items-center gap-2">
-          <Target size={20} className="text-amber-500" />
-          <h1 className="text-xl font-bold text-slate-900">My Current Focus</h1>
+        <div>
+          <div className="flex items-center gap-2">
+            <Target size={20} className="text-amber-500" />
+            <h1 className="text-xl font-bold text-slate-900">My Current Focus</h1>
+          </div>
+          <p className="text-sm text-slate-500 mt-0.5 ml-7">
+            The words you're actively practising in real life — aim for 100–150.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button

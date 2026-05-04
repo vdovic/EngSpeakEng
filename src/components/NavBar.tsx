@@ -14,56 +14,51 @@ interface NavLinkDef {
   badge?: 'inbox'
 }
 
-interface NavGroup {
-  label: string | null
-  links: NavLinkDef[]
+// ── Active-state helper (handles route aliases) ────────────────────────────────
+//
+// /focus    → also active on /week  (legacy alias)
+// /progress → also active on /stats (legacy alias)
+
+function isNavActive(to: string, pathname: string): boolean {
+  if (to === '/') return pathname === '/'
+  if (to === '/focus')    return pathname === '/focus'    || pathname === '/week'
+  if (to === '/progress') return pathname === '/progress' || pathname === '/stats'
+  return pathname === to || pathname.startsWith(to + '/')
 }
 
-// ── Desktop sidebar structure ──────────────────────────────────────────────────
+// ── Desktop sidebar — primary nav ──────────────────────────────────────────────
 
-const SIDEBAR_GROUPS: NavGroup[] = [
-  {
-    label: 'Learn',
-    links: [
-      { to: '/review',    icon: RefreshCw, label: 'Review' },
-      { to: '/challenge', icon: Zap,       label: 'Daily Challenge' },
-    ],
-  },
-  {
-    label: 'Organise',
-    links: [
-      { to: '/library', icon: Library, label: 'All Vocabulary' },
-      { to: '/themes',  icon: Layers,  label: 'Themes' },
-      { to: '/week',    icon: Target,  label: 'My Current Focus' },
-    ],
-  },
-  {
-    label: 'Track',
-    links: [
-      { to: '/stats',    icon: BarChart2, label: 'Stats' },
-      { to: '/settings', icon: Settings,  label: 'Settings' },
-    ],
-  },
+const SIDEBAR_PRIMARY: NavLinkDef[] = [
+  { to: '/',          icon: LayoutDashboard, label: 'Today'     },
+  { to: '/focus',     icon: Target,          label: 'Focus'     },
+  { to: '/challenge', icon: Zap,             label: 'Challenge' },
+  { to: '/library',   icon: Library,         label: 'Library'   },
+  { to: '/progress',  icon: BarChart2,       label: 'Progress'  },
 ]
 
-// ── Mobile bottom bar — 5 tabs, with "More" overflow ──────────────────────────
-//
-// Primary tabs cover the daily workflow (Home → Add → Challenge → Review).
-// "More" opens a sheet containing everything else.
+const SIDEBAR_EXPLORE: NavLinkDef[] = [
+  { to: '/themes', icon: Layers,    label: 'Themes' },
+  { to: '/review', icon: RefreshCw, label: 'Review' },
+]
+
+const SIDEBAR_FOOTER: NavLinkDef[] = [
+  { to: '/settings', icon: Settings, label: 'Settings' },
+]
+
+// ── Mobile bottom bar — 4 primary tabs + "More" ───────────────────────────────
 
 const MOBILE_PRIMARY: NavLinkDef[] = [
-  { to: '/challenge', icon: Zap,       label: 'Challenge' },
-  { to: '/review',    icon: RefreshCw, label: 'Review' },
-  { to: '/library',   icon: Library,   label: 'Vocabulary' },
-  // 4th slot = "More" button (rendered separately below)
+  { to: '/',          icon: LayoutDashboard, label: 'Today'     },
+  { to: '/focus',     icon: Target,          label: 'Focus'     },
+  { to: '/challenge', icon: Zap,             label: 'Challenge' },
+  { to: '/library',   icon: Library,         label: 'Library'   },
 ]
 
 const MOBILE_MORE: NavLinkDef[] = [
-  { to: '/',         icon: LayoutDashboard, label: 'Home' },
-  { to: '/week',     icon: Target,          label: 'My Current Focus' },
-  { to: '/themes',   icon: Layers,          label: 'Themes' },
-  { to: '/stats',    icon: BarChart2,       label: 'Stats' },
-  { to: '/settings', icon: Settings,        label: 'Settings' },
+  { to: '/progress', icon: BarChart2, label: 'Progress' },
+  { to: '/review',   icon: RefreshCw, label: 'Review'   },
+  { to: '/themes',   icon: Layers,    label: 'Themes'   },
+  { to: '/settings', icon: Settings,  label: 'Settings' },
 ]
 
 // Routes that belong to the "More" drawer — used to highlight the More tab
@@ -101,14 +96,13 @@ function SidebarValueCard() {
 function MoreDrawer({
   open,
   onClose,
-  badgeFor,
 }: {
   open: boolean
   onClose: () => void
-  badgeFor: (key?: 'inbox') => number | null
 }) {
-  // Close on back-navigation / route change
   const location = useLocation()
+
+  // Close on route change
   useEffect(() => { onClose() }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Trap body scroll while open
@@ -128,7 +122,7 @@ function MoreDrawer({
         onClick={onClose}
       />
 
-      {/* Sheet — anchored at bottom-0 so translate-y-full hides it fully off-screen */}
+      {/* Sheet */}
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-2xl shadow-2xl transition-transform duration-300 ease-out ${
           open ? 'translate-y-0' : 'translate-y-full'
@@ -152,27 +146,20 @@ function MoreDrawer({
 
         {/* Links grid — 2 columns */}
         <div className="grid grid-cols-2 gap-2 p-4 pb-6">
-          {MOBILE_MORE.map(({ to, icon: Icon, label, badge }) => {
-            const count = badgeFor(badge)
+          {MOBILE_MORE.map(({ to, icon: Icon, label }) => {
+            const active = isNavActive(to, location.pathname)
             return (
               <NavLink
                 key={to}
                 to={to}
-                className={({ isActive }) =>
-                  `relative flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-colors ${
-                    isActive
-                      ? 'bg-brand-50 border-brand-200 text-brand-700'
-                      : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-brand-200 hover:bg-brand-50'
-                  }`
-                }
+                className={`relative flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-colors ${
+                  active
+                    ? 'bg-brand-50 border-brand-200 text-brand-700'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-brand-200 hover:bg-brand-50'
+                }`}
               >
                 <Icon size={20} className="shrink-0" />
                 <span className="text-sm font-medium leading-tight">{label}</span>
-                {count != null && (
-                  <span className="absolute top-2 right-2 min-w-[18px] h-[18px] px-1 bg-brand-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {count > 99 ? '99+' : count}
-                  </span>
-                )}
               </NavLink>
             )
           })}
@@ -185,22 +172,43 @@ function MoreDrawer({
 // ── NavBar ─────────────────────────────────────────────────────────────────────
 
 export function NavBar() {
-  const location = useLocation()
+  const location  = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
-
-  // No badge items remain — kept for MoreDrawer prop compatibility
-  function badgeFor(_key?: 'inbox') {
-    return null
-  }
+  const pathname = location.pathname
 
   // Is the current route inside the "More" overflow group?
-  const moreIsActive = MORE_ROUTES.has(location.pathname)
+  const moreIsActive =
+    MORE_ROUTES.has(pathname) ||
+    pathname === '/stats'   // legacy alias still highlights More
+
+  // Helper to render a single sidebar link
+  function renderSidebarLink({ to, icon: Icon, label }: NavLinkDef) {
+    const active = isNavActive(to, pathname)
+    return (
+      <NavLink
+        key={to}
+        to={to}
+        end={to === '/'}
+        className={`relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+          active
+            ? 'bg-brand-50 text-brand-700'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }`}
+      >
+        {active && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-brand-600 rounded-r-full" />
+        )}
+        <Icon size={16} className="shrink-0" />
+        <span className="flex-1 truncate">{label}</span>
+      </NavLink>
+    )
+  }
 
   return (
     <>
       {/* ── Desktop sidebar ── */}
       <nav className="hidden md:flex flex-col w-56 shrink-0 bg-white border-r border-slate-200 py-5 px-3">
-        {/* Logo — clicking navigates to Home/Dashboard */}
+        {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 px-3 mb-6 group">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center shrink-0 shadow-sm group-hover:shadow-md transition-shadow">
             <GraduationCap size={14} className="text-white" />
@@ -211,54 +219,30 @@ export function NavBar() {
           </div>
         </Link>
 
-        {/* Groups */}
-        <div className="flex flex-col gap-4 flex-1">
-          {SIDEBAR_GROUPS.map((group, gi) => (
-            <div key={gi}>
-              {group.label && (
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest px-3 mb-1">
-                  {group.label}
-                </p>
-              )}
-              <div className="flex flex-col gap-0.5">
-                {group.links.map(({ to, icon: Icon, label, badge }) => {
-                  const count = badgeFor(badge)
-                  return (
-                    <NavLink
-                      key={to}
-                      to={to}
-                      end={to === '/'}
-                      className={({ isActive }) =>
-                        `relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-brand-50 text-brand-700'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                        }`
-                      }
-                    >
-                      {({ isActive }) => (
-                        <>
-                          {isActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-brand-600 rounded-r-full" />
-                          )}
-                          <Icon size={16} className="shrink-0" />
-                          <span className="flex-1 truncate">{label}</span>
-                          {count != null && (
-                            <span className="shrink-0 min-w-[18px] h-[18px] px-1 bg-brand-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                              {count > 99 ? '99+' : count}
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </NavLink>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+        {/* Primary links */}
+        <div className="flex flex-col gap-0.5 mb-4">
+          {SIDEBAR_PRIMARY.map(renderSidebarLink)}
         </div>
 
-        {/* Sidebar value card */}
+        {/* Explore group */}
+        <div className="mb-4">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest px-3 mb-1">
+            Explore
+          </p>
+          <div className="flex flex-col gap-0.5">
+            {SIDEBAR_EXPLORE.map(renderSidebarLink)}
+          </div>
+        </div>
+
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Footer: Settings */}
+        <div className="flex flex-col gap-0.5">
+          {SIDEBAR_FOOTER.map(renderSidebarLink)}
+        </div>
+
+        {/* Value card */}
         <SidebarValueCard />
       </nav>
 
@@ -266,30 +250,21 @@ export function NavBar() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 flex justify-around items-center h-16 px-1 safe-area-inset-bottom">
 
         {/* Primary tab links */}
-        {MOBILE_PRIMARY.map(({ to, icon: Icon, label, badge }) => {
-          const count = badgeFor(badge)
+        {MOBILE_PRIMARY.map(({ to, icon: Icon, label }) => {
+          const active = isNavActive(to, pathname)
           return (
             <NavLink
               key={to}
               to={to}
               end={to === '/'}
-              className={({ isActive }) =>
-                `relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-colors min-w-0 ${
-                  isActive
-                    ? 'text-brand-700 bg-brand-50'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`
-              }
+              className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-colors min-w-0 ${
+                active
+                  ? 'text-brand-700 bg-brand-50'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
             >
-              <div className="relative">
-                <Icon size={20} />
-                {count != null && (
-                  <span className="absolute -top-1 -right-1.5 min-w-[14px] h-3.5 px-0.5 bg-brand-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none">
-                    {count > 99 ? '99+' : count}
-                  </span>
-                )}
-              </div>
-              <span className="truncate max-w-[52px] text-center">{label}</span>
+              <Icon size={20} />
+              <span className="truncate max-w-[48px] text-center">{label}</span>
             </NavLink>
           )
         })}
@@ -297,7 +272,7 @@ export function NavBar() {
         {/* "More" tab */}
         <button
           onClick={() => setMoreOpen((o) => !o)}
-          className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl text-[10px] font-medium transition-colors min-w-0 ${
+          className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-colors min-w-0 ${
             moreOpen || moreIsActive
               ? 'text-brand-700 bg-brand-50'
               : 'text-slate-500 hover:text-slate-800'
@@ -313,7 +288,6 @@ export function NavBar() {
         <MoreDrawer
           open={moreOpen}
           onClose={() => setMoreOpen(false)}
-          badgeFor={badgeFor}
         />
       </div>
     </>

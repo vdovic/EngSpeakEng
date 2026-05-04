@@ -643,7 +643,7 @@ export function StatsPage() {
                 onClick={() => navigate('/library')}
                 className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 transition-colors"
               >
-                Go to Vocabulary
+                Go to Library
                 <ChevronRight size={13} />
               </button>
             </div>

@@ -1,8 +1,10 @@
 import { useEffect, lazy, Suspense, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { Plus } from 'lucide-react'
 import { NavBar } from '@/components/NavBar'
 import { Spinner } from '@/components/Spinner'
 import { OnboardingModal } from '@/components/OnboardingModal'
+import { QuickAddModal } from '@/components/QuickAddModal'
 import { useVocabStore } from '@/store/vocabStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
 
@@ -59,6 +61,7 @@ export default function App() {
   const { load, loaded } = useVocabStore()
   const { completed: onboardingCompleted, reset: resetOnboarding } = useOnboardingStore()
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showQuickAdd,   setShowQuickAdd]   = useState(false)
 
   useEffect(() => {
     load()
@@ -90,28 +93,48 @@ export default function App() {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <NavBar />
+
       {/* pb-safe adds env(safe-area-inset-bottom) on top of each page's own
           bottom padding so content is never hidden under the iPhone home bar. */}
       <main className="flex-1 overflow-y-auto min-h-screen pb-safe md:pb-0">
         <Suspense fallback={<PageSpinner />}>
           <Routes>
-            <Route path="/"        element={<DashboardPage onOpenOnboarding={handleOpenOnboarding} />} />
-            <Route path="/inbox"   element={<Navigate to="/library" replace />} />
-            <Route path="/review"  element={<ReviewPage />} />
-            <Route path="/library" element={<LibraryPage />} />
-            <Route path="/item/:id" element={<ItemDetailPage />} />
-            <Route path="/week"      element={<ActiveWeekPage />} />
-            <Route path="/stats"     element={<StatsPage />} />
+            {/* Primary routes */}
+            <Route path="/"          element={<DashboardPage onOpenOnboarding={handleOpenOnboarding} />} />
+            <Route path="/focus"     element={<ActiveWeekPage />} />
+            <Route path="/progress"  element={<StatsPage />} />
+            <Route path="/review"    element={<ReviewPage />} />
+            <Route path="/library"   element={<LibraryPage />} />
+            <Route path="/item/:id"  element={<ItemDetailPage />} />
             <Route path="/challenge" element={<DailyChallengePage />} />
             <Route path="/themes"    element={<ThemesPage />} />
             <Route path="/themes/:themeName" element={<ThemeDetailPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings"  element={<SettingsPage />} />
+
+            {/* Legacy aliases — redirect to canonical routes */}
+            <Route path="/inbox"  element={<Navigate to="/library"  replace />} />
+            <Route path="/week"   element={<Navigate to="/focus"    replace />} />
+            <Route path="/stats"  element={<Navigate to="/progress" replace />} />
           </Routes>
         </Suspense>
       </main>
 
+      {/* ── Global floating add button ── */}
+      {/* Sits above mobile nav bar (bottom-20) on small screens, bottom-right on desktop */}
+      <button
+        onClick={() => setShowQuickAdd(true)}
+        className="fixed bottom-[4.5rem] right-4 md:bottom-6 md:right-6 z-20 w-12 h-12 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 active:scale-95 transition-all flex items-center justify-center"
+        aria-label="Add word"
+      >
+        <Plus size={22} />
+      </button>
+
       {showOnboarding && (
         <OnboardingModal onClose={() => setShowOnboarding(false)} />
+      )}
+
+      {showQuickAdd && (
+        <QuickAddModal onClose={() => setShowQuickAdd(false)} />
       )}
     </div>
   )
