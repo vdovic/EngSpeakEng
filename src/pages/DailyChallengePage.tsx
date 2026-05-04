@@ -15,7 +15,6 @@ import { usagePoints } from '@/lib/mastery'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
 import { LevelBadge } from '@/components/LevelBadge'
 import { ExposureProgress } from '@/components/ExposureProgress'
-import { StatusBadge } from '@/components/StatusBadge'
 import { RecognitionChallenge } from '@/components/challenges/RecognitionChallenge'
 import { DefinitionChoiceChallenge } from '@/components/challenges/DefinitionChoiceChallenge'
 import { FillGapChallenge } from '@/components/challenges/FillGapChallenge'
@@ -143,7 +142,7 @@ function WordPickerModal({
                       </p>
                     )}
                   </div>
-                  <StatusBadge status={item.status} />
+                  <LevelBadge item={item} />
                 </div>
               </button>
             ))

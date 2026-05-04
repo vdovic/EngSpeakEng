@@ -17,24 +17,53 @@ import { deriveLevel, levelFromStatus } from '@/lib/progressionLogic'
 import { INITIAL_DIFFICULTY } from '@/lib/difficultyLogic'
 
 /**
- * Returns a fully normalised copy of `item` with all Phase-1 fields populated.
+ * Returns a fully normalised copy of `item` with all fields populated.
  * Does not mutate the original.
+ *
+ * Covers:
+ *   Phase-1: level, inFocus, difficultyScore
+ *   Phase-6: activation.usageLogs (old items may have no activation object)
+ *   All phases: array fields default to []
  */
 export function migrateItem(item: VocabItem): VocabItem {
-  // Fast-path: nothing to do if all new fields are already present
-  if (
-    item.level !== undefined &&
-    item.inFocus !== undefined &&
-    item.difficultyScore !== undefined
-  ) {
+  // Detect whether any field needs fixing before allocating a new object.
+  const needsActivationFix =
+    !item.activation ||
+    !Array.isArray(item.activation.usageLogs)
+
+  const needsPhase1Fix =
+    item.level === undefined ||
+    item.level === null ||
+    item.inFocus === undefined ||
+    item.inFocus === null ||
+    item.difficultyScore === undefined ||
+    item.difficultyScore === null
+
+  const needsArrayFix =
+    !item.tags || !item.themes || !item.synonyms ||
+    !item.antonyms || !item.collocations ||
+    !item.sentenceFrames || !item.relatedPhrases
+
+  // Fast-path: nothing to do if everything is already present
+  if (!needsActivationFix && !needsPhase1Fix && !needsArrayFix) {
     return item
   }
 
   const migrated = { ...item }
 
+  // ── activation (Phase-6) ───────────────────────────────────────────────────
+  // Old items may have no activation object at all, or have one without
+  // usageLogs. Ensure the full shape is always present.
+  if (needsActivationFix) {
+    const existing = item.activation as Partial<VocabItem['activation']> | undefined
+    migrated.activation = {
+      requiredUses: existing?.requiredUses ?? 3,
+      usageCount:   existing?.usageCount   ?? 0,
+      usageLogs:    Array.isArray(existing?.usageLogs) ? existing.usageLogs : [],
+    }
+  }
+
   // ── level ──────────────────────────────────────────────────────────────────
-  // Prefer deriving from exposureCount (runtime signal); fall back to status
-  // for seed / imported items that have never been through Daily Challenge.
   if (migrated.level === undefined || migrated.level === null) {
     const exp = item.exposureCount ?? 0
     migrated.level = exp > 0
@@ -43,20 +72,14 @@ export function migrateItem(item: VocabItem): VocabItem {
   }
 
   // ── inFocus ────────────────────────────────────────────────────────────────
-  // Sync from the legacy weeklyFocus field so no focus data is lost.
   if (migrated.inFocus === undefined || migrated.inFocus === null) {
     migrated.inFocus = item.weeklyFocus ?? false
   }
 
   // ── difficultyScore ────────────────────────────────────────────────────────
-  // Estimate from review history: items that were failed more than succeeded
-  // start with a higher difficulty rating.
   if (migrated.difficultyScore === undefined || migrated.difficultyScore === null) {
-    const failures = Math.max(
-      0,
-      item.review.reviewCount - item.review.successfulRecalls,
-    )
-    // Cap bump at +40 so even very weak items don't start at 100
+    const review = item.review ?? { reviewCount: 0, successfulRecalls: 0 }
+    const failures = Math.max(0, review.reviewCount - review.successfulRecalls)
     migrated.difficultyScore = Math.min(100, INITIAL_DIFFICULTY + failures * 8)
   }
 

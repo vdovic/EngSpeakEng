@@ -252,7 +252,7 @@ function LearningCtaCard({
           Today's sessions done ✓
         </p>
         <h2 className="text-2xl font-bold text-white mb-1.5">
-          {inboxCount.toLocaleString()} word{inboxCount !== 1 ? 's' : ''} waiting in Inbox
+          {inboxCount.toLocaleString()} word{inboxCount !== 1 ? 's' : ''} ready to learn
         </h2>
         <p className="text-violet-200 text-sm mb-4">
           You've finished today's Review and Challenge. Activate more words to keep growing.
@@ -261,7 +261,7 @@ function LearningCtaCard({
           onClick={onInbox}
           className="px-5 py-2.5 bg-white text-violet-700 rounded-xl font-bold text-sm hover:bg-violet-50 transition-colors shadow-sm"
         >
-          Activate words from Inbox →
+          Start learning new words →
         </button>
       </div>
     )

@@ -464,7 +464,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     if (!item) return
 
     const newLog: UsageLog = { id: uid(), ...logEntry }
-    const logs = [...item.activation.usageLogs, newLog]
+    const logs = [...(item.activation?.usageLogs ?? []), newLog]
     const usageCount = logs.length
 
     const updatedActivation = { ...item.activation, usageLogs: logs, usageCount }
@@ -494,7 +494,11 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     const item = get().items.find((i) => i.id === id)
     if (!item) return
 
-    const updatedActivation = { ...item.activation, usageLogs: [], usageCount: 0 }
+    const updatedActivation = {
+      ...(item.activation ?? { requiredUses: 3 }),
+      usageLogs: [],
+      usageCount: 0,
+    }
     const updatedItem = { ...item, activation: updatedActivation }
     const newStatus: ItemStatus = deriveStatus(updatedItem)
 

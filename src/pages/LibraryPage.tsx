@@ -1056,7 +1056,7 @@ export function LibraryPage() {
                     {hasBoth && (
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest shrink-0">
-                          New · needs activation
+                          New · not yet practised
                         </span>
                         <div className="h-px flex-1 bg-slate-200" />
                       </div>

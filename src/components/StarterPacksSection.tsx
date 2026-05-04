@@ -67,7 +67,7 @@ function ActivateModal({ packTitle, importedIds, onActivate, onDismiss }: Activa
             onClick={onDismiss}
             className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 font-medium text-sm hover:bg-slate-200 active:scale-[0.98] transition-all"
           >
-            I'll do it myself from Inbox
+            I'll add them manually
           </button>
         </div>
       </div>
@@ -156,7 +156,7 @@ function PackCard({ meta }: PackCardProps) {
             <CheckCircle2 size={12} />
             {result?.imported === 0
               ? 'Already in your library'
-              : `${result?.imported} word${result?.imported !== 1 ? 's' : ''} added to Inbox`}
+              : `${result?.imported} word${result?.imported !== 1 ? 's' : ''} added to your library`}
           </div>
         ) : (
           <button

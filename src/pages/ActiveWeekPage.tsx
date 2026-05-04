@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Target, Star, Plus, CheckCircle2, Search, Zap, Info, TrendingUp, X } from 'lucide-react'
 import { useVocabStore, useFocusThisWeekItems } from '@/store/vocabStore'
-import { StatusBadge } from '@/components/StatusBadge'
+import { LevelBadge } from '@/components/LevelBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { UsageProgress } from '@/components/UsageProgress'
 import { LogUsageModal } from '@/components/LogUsageModal'
@@ -179,7 +179,7 @@ function FocusCard({ item, done, usesDone, onLogUsage, onRemove, onNavigate }: F
           <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="font-bold text-slate-900 text-[15px]">{item.term}</span>
             <TypeBadge type={item.type} />
-            <StatusBadge status={item.status} />
+            <LevelBadge item={item} />
           </div>
           {item.definitionEn && (
             <p className="text-xs text-slate-500 line-clamp-1">{item.definitionEn}</p>
@@ -349,7 +349,7 @@ function CandidateBrowser({
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-sm font-semibold text-slate-800 truncate">{item.term}</span>
                 <TypeBadge type={item.type} />
-                <StatusBadge status={item.status} />
+                <LevelBadge item={item} />
               </div>
               {item.definitionEn && (
                 <p className="text-xs text-slate-400 truncate">{item.definitionEn}</p>

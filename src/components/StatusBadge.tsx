@@ -4,8 +4,8 @@ import { ItemStatus } from '@/types/vocabulary'
 const CONFIG: Record<ItemStatus, { label: string; className: string; icon?: boolean }> = {
   inbox:      { label: 'New',      className: 'bg-slate-100 text-slate-600' },
   learning:   { label: 'Learning', className: 'bg-blue-100 text-blue-700' },
-  stable:     { label: 'Stable',   className: 'bg-teal-100 text-teal-700' },
-  activation: { label: 'Active',   className: 'bg-amber-100 text-amber-700' },
+  stable:     { label: 'Familiar',   className: 'bg-teal-100 text-teal-700' },
+  activation: { label: 'Activating', className: 'bg-amber-100 text-amber-700' },
   mastered:   { label: 'Mastered', className: 'bg-violet-100 text-violet-700', icon: true },
 }
 

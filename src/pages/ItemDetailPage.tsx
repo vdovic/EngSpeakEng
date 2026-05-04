@@ -9,7 +9,7 @@ import {
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { STATUS_FLOW } from '@/lib/constants'
-import { StatusBadge } from '@/components/StatusBadge'
+import { LevelBadge } from '@/components/LevelBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { WordRelationGraph } from '@/components/WordRelationGraph'
 import { LogUsageModal } from '@/components/LogUsageModal'
@@ -28,6 +28,14 @@ const CONTEXT_LABEL: Record<UsageContext, string> = {
   'note':            'Note',
   'reading-listening':'Heard / read',
   'other':           'Other',
+}
+
+const STATUS_LABEL: Record<ItemStatus, string> = {
+  inbox:      'New',
+  learning:   'Learning',
+  stable:     'Familiar',
+  activation: 'Activating',
+  mastered:   'Mastered',
 }
 
 
@@ -464,12 +472,12 @@ export function ItemDetailPage() {
               >
                 <option value="inbox">New</option>
                 <option value="learning">Learning</option>
-                <option value="stable">Stable</option>
-                <option value="activation">Active</option>
+                <option value="stable">Familiar</option>
+                <option value="activation">Activating</option>
                 <option value="mastered">Mastered</option>
               </select>
             ) : (
-              <StatusBadge status={current.status} />
+              <LevelBadge item={current} />
             )}
           </div>
         </div>
@@ -491,7 +499,7 @@ export function ItemDetailPage() {
             onClick={advanceStatus}
             className="mt-3 w-full py-2 text-xs font-medium text-brand-700 bg-brand-50 rounded-xl border border-brand-100 hover:bg-brand-100 transition-colors"
           >
-            Move to {STATUS_FLOW[STATUS_FLOW.indexOf(item.status) + 1]} →
+            Move to {STATUS_LABEL[STATUS_FLOW[STATUS_FLOW.indexOf(item.status) + 1]]} →
           </button>
         )}
 

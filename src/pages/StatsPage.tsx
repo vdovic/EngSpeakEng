@@ -636,8 +636,8 @@ export function StatsPage() {
             <div>
               <p className="font-semibold text-slate-900 mb-1">Your journey starts here</p>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Activate <span className="font-semibold text-brand-700">10–20 words</span> from your
-                Inbox to unlock challenge history, streak tracking, and personalised learning insights.
+                Start with <span className="font-semibold text-brand-700">10–20 words</span> from your
+                library to unlock challenge history, streak tracking, and personalised learning insights.
               </p>
               <button
                 onClick={() => navigate('/library')}
@@ -726,7 +726,7 @@ export function StatsPage() {
           </div>
           <div className="bg-amber-50 rounded-xl p-3 text-center">
             <div className="text-2xl font-bold text-amber-700">{highExpNoUsage.length}</div>
-            <div className="text-xs text-slate-500 mt-0.5">Need activation</div>
+            <div className="text-xs text-slate-500 mt-0.5">Not yet used</div>
           </div>
         </div>
 

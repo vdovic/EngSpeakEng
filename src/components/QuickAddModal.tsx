@@ -256,7 +256,7 @@ export function QuickAddModal({ onClose }: Props) {
           {/* Header */}
           <div className="flex items-center justify-between px-5 pt-5 pb-3">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Add to Inbox</h2>
+              <h2 className="text-base font-bold text-slate-900">Add word</h2>
               {savedCount > 0 && (
                 <p className="text-xs text-emerald-600 font-medium mt-0.5">
                   {savedCount} word{savedCount !== 1 ? 's' : ''} added this session
@@ -492,7 +492,7 @@ export function QuickAddModal({ onClose }: Props) {
           <div>
             <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold px-2.5 py-1 rounded-full mb-2">
               <Check size={11} />
-              <span>"{savedTerm}" added to Inbox</span>
+              <span>"{savedTerm}" saved</span>
             </div>
             <h2 className="text-base font-bold text-slate-900">Where should this go?</h2>
             <p className="text-xs text-slate-500 mt-0.5">Assign to a theme for faster learning</p>
