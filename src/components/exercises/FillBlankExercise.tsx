@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Lightbulb, ChevronDown, CheckCircle, XCircle } from 'lucide-react'
+import { Lightbulb, ChevronDown, CheckCircle, XCircle, BookOpen } from 'lucide-react'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
 import { WordPeek } from './WordPeek'
 
@@ -187,16 +187,35 @@ export function FillBlankExercise({ item, allItems, onAnswer }: Props) {
           )}
         </div>
       ) : (
-        <p className="text-lg text-slate-900 leading-relaxed font-medium">
-          {prompt.blanked.split('___').map((part, i, arr) => (
-            <span key={i}>
-              {part}
-              {i < arr.length - 1 && (
-                <span className="inline-block min-w-[5rem] border-b-2 border-brand-400 mx-1 align-bottom" />
-              )}
-            </span>
-          ))}
-        </p>
+        <>
+          {/* Sentence with blank */}
+          <p className="text-lg text-slate-900 leading-relaxed font-medium">
+            {prompt.blanked.split('___').map((part, i, arr) => (
+              <span key={i}>
+                {part}
+                {i < arr.length - 1 && (
+                  <span className="inline-block min-w-[5rem] border-b-2 border-brand-400 mx-1 align-bottom" />
+                )}
+              </span>
+            ))}
+          </p>
+
+          {/* Definition hint — always available in sentence mode */}
+          {item.definitionEn && !submitted && (
+            <details className="text-sm">
+              <summary className="cursor-pointer flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-brand-600 transition-colors group select-none">
+                <BookOpen size={12} className="shrink-0 group-hover:text-brand-500" />
+                Show definition
+              </summary>
+              <div className="mt-2 px-3 py-2.5 bg-brand-50 border border-brand-100 rounded-xl">
+                <p className="text-sm text-slate-700 leading-relaxed">{item.definitionEn}</p>
+                {item.partOfSpeech && (
+                  <p className="text-xs text-slate-400 mt-1 italic">{item.partOfSpeech}</p>
+                )}
+              </div>
+            </details>
+          )}
+        </>
       )}
 
       {/* Input — disabled once hint is opened */}

@@ -85,18 +85,30 @@ export function MultipleChoiceExercise({ item, allItems, onAnswer }: Props) {
   return (
     <div className="space-y-5">
       <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-        Which word matches this definition?
+        Select the correct term
       </p>
 
-      {/* Definition card */}
+      {/* Definition card — the prompt */}
       <div className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-200">
+        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+          Definition
+        </p>
         <p className="text-base text-slate-900 leading-relaxed">
           {item.definitionEn ?? item.term}
         </p>
         {item.partOfSpeech && (
           <p className="text-xs text-slate-400 mt-1 italic">{item.partOfSpeech}</p>
         )}
+        {item.exampleSentence && (
+          <p className="text-xs text-slate-500 italic mt-2 pt-2 border-t border-slate-200 leading-relaxed">
+            &ldquo;{item.exampleSentence}&rdquo;
+          </p>
+        )}
       </div>
+
+      <p className="text-sm text-slate-600 font-medium text-center">
+        Which of these words fits the definition above?
+      </p>
 
       {/* Options */}
       <div className="grid grid-cols-1 gap-2">

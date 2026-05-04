@@ -1,28 +1,35 @@
 /**
  * challengeLogic.ts
  *
- * Challenge type selection and attempt modelling for Phase 3 Daily Challenge.
+ * Challenge type selection and attempt modelling for the Daily Challenge.
  *
  * ChallengeType drives which UI component is rendered and how the attempt is
- * recorded.  It escalates difficulty naturally as exposureCount grows:
+ * recorded.  Difficulty escalates with exposureCount in three clear tiers:
  *
- *   exposureCount 0   → recognition                    (pure encounter)
- *   exposureCount 1   → definition-choice              (first recall)
- *   exposureCount 2   → fill-gap (if example), else definition-choice
- *   exposureCount 3–4 → fill-gap or definition-choice  (stable, id-hashed)
- *   exposureCount 5–7 → sentence-production            (active recall)
- *   exposureCount 8   → real-life-use-check  (if sentenceProduced OR usageCount >= 3)
- *                     → sentence-production  (otherwise — needed for Level 3 mastery)
+ *   Tier 1 — First encounters  (0–1)  → definition-choice
+ *     Multiple-choice: show definition, pick the correct term from 4 options.
+ *     Learner meets the word with full context; no recognition gate.
  *
- * Hard guarantees:
- *   • sentence-production is NEVER shown before exposureCount >= 2.
- *   • real-life-use-check is NEVER shown unless mastery evidence exists.
+ *   Tier 2 — Building recall   (2–5)  → fill-gap  (fallback: definition-choice)
+ *     Fill-in-the-blank sentence or definition recall with a hint button
+ *     always available.  Requires a sentence context; falls back to
+ *     definition-choice when neither exampleSentence nor workSentence is set.
+ *     Deterministic 50/50 split at 3–5 so variety doesn't feel random.
  *
- * Phase-11 hardening:
- *   • Replaced Math.random() with stableChoiceFromId() so the challenge type
- *     for a given item is deterministic and reproducible across sessions.
- *   • Exposure-8 check now recognises EITHER sentenceProduced OR usageCount >= 3
- *     as valid mastery evidence — matching deriveLevel() logic exactly.
+ *   Tier 3 — Active production (6–7)  → sentence-production
+ *     Write a sentence using the word; self-assess ("Looks good" / "Try again").
+ *     No AI call required — learner is the judge.
+ *
+ *   Tier 4 — Mastery check     (8)    → real-life-use-check (or sentence-production)
+ *     If mastery evidence exists (sentenceProduced OR usageCount ≥ 3),
+ *     a lightweight real-life check is shown.  Otherwise one more
+ *     sentence-production to unlock Level 3.
+ *
+ * Principles enforced here:
+ *   • NO recognition questions — selection belongs in Focus, not Challenge.
+ *   • Sentence-production NEVER before exposure 6.
+ *   • real-life-use-check NEVER without mastery evidence.
+ *   • All selection is deterministic (no Math.random).
  */
 
 import type { VocabItem, ChallengeType } from '@/types/vocabulary'
@@ -31,10 +38,12 @@ import type { VocabItem, ChallengeType } from '@/types/vocabulary'
 export type { ChallengeType }
 
 // ── Labels ────────────────────────────────────────────────────────────────────
+// 'recognition' kept here only for backward-compatibility display of old
+// session results — it is never returned by getChallengeType() anymore.
 
 export const CHALLENGE_TYPE_LABEL: Record<ChallengeType, string> = {
-  recognition:           'Recognition',
-  'definition-choice':   'Definition choice',
+  recognition:           'Meaning check',     // legacy label only
+  'definition-choice':   'Choose the term',
   'fill-gap':            'Fill the gap',
   'sentence-production': 'Write a sentence',
   'real-life-use-check': 'Real-life check',
@@ -60,13 +69,11 @@ export interface ChallengeAttempt {
 /**
  * Derives a stable boolean from an item's id string.
  *
- * Used to deterministically break ties at exposure bands where two challenge
- * types are equally appropriate (e.g. fill-gap vs definition-choice at
- * exposure 3–4).  The same item always gets the same choice, making
- * behaviour predictable and sessions reproducible.
+ * Used to deterministically break ties where two challenge types are equally
+ * appropriate (e.g. fill-gap vs definition-choice at exposure 3–5).
+ * Same item always gets the same choice across sessions.
  *
- * Algorithm: sum char codes of the id → even = true, odd = false.
- * Distributes roughly 50/50 for UUID-style ids.
+ * Algorithm: sum char codes → even = true, odd = false (~50/50 for UUID ids).
  */
 export function stableChoiceFromId(id: string): boolean {
   let sum = 0
@@ -82,51 +89,47 @@ export function stableChoiceFromId(id: string): boolean {
  * Select the appropriate challenge type for an item based on its current
  * exposure count and production history.
  *
- * The selection is fully deterministic — no random calls.
+ * Selection is fully deterministic — no Math.random() calls.
  *
- * Mastery evidence (for the exposure-8 gate) is consistent with deriveLevel():
+ * Mastery evidence (for the exposure-8 gate) matches deriveLevel() logic:
  *   review.sentenceProduced = true  OR  activation.usageCount >= 3
  */
 export function getChallengeType(item: VocabItem): ChallengeType {
   const exp = item.exposureCount ?? 0
 
-  // ── Recognition band (exposure 0) ────────────────────────────────────────
-  if (exp === 0) return 'recognition'
-
-  // ── First recall (exposure 1) ─────────────────────────────────────────────
-  if (exp === 1) {
-    return item.definitionEn ? 'definition-choice' : 'recognition'
-  }
-
-  // ── Early building band (exposure 2) ─────────────────────────────────────
-  if (exp === 2) {
-    const hasSentence = !!(item.exampleSentence || item.workSentence)
-    return hasSentence ? 'fill-gap' : 'definition-choice'
-  }
-
-  // ── Mid building band (exposures 3–4) ────────────────────────────────────
-  // Use a stable id hash so the same item always gets the same type.
-  // fill-gap requires a sentence to exist; fall back to definition-choice.
-  if (exp <= 4) {
-    const hasSentence = !!(item.exampleSentence || item.workSentence)
-    if (hasSentence) {
-      // ~50% fill-gap, ~50% definition-choice — deterministic per item
-      return stableChoiceFromId(item.id) ? 'fill-gap' : 'definition-choice'
-    }
+  // ── Tier 1: First encounters (0–1) ───────────────────────────────────────
+  // Show the definition → pick the correct term from 4 options.
+  // No recognition gate — the multiple-choice format provides the same
+  // "first encounter" value without the binary "Do you know this?" UX.
+  if (exp <= 1) {
     return 'definition-choice'
   }
 
-  // ── Familiar band (exposures 5–7) ────────────────────────────────────────
-  // Active recall: learner must produce a sentence using the word.
+  // ── Tier 2: Building recall (2–5) ─────────────────────────────────────────
+  // Fill-in-the-blank is the primary exercise type when a sentence exists.
+  // A "Show definition" hint is always available (see FillBlankExercise).
+  // At 2: always fill-gap if sentence available (lower confidence expected).
+  // At 3–5: stable 50/50 split between fill-gap and definition-choice to
+  //         provide variety without random behaviour across sessions.
+  if (exp <= 5) {
+    const hasSentence = !!(item.exampleSentence || item.workSentence)
+    if (!hasSentence) return 'definition-choice'
+
+    if (exp === 2) return 'fill-gap'
+
+    // exp 3–5: deterministic variety
+    return stableChoiceFromId(item.id) ? 'fill-gap' : 'definition-choice'
+  }
+
+  // ── Tier 3: Active production (6–7) ──────────────────────────────────────
+  // Learner writes their own sentence and self-assesses correctness.
   if (exp <= 7) {
     return 'sentence-production'
   }
 
-  // ── Complete (exposure 8) ────────────────────────────────────────────────
-  // Level 3 mastery requires activation evidence: sentenceProduced OR usageCount >= 3.
-  // If the learner has either, the challenge becomes a maintenance check.
-  // If neither, give one more sentence-production attempt to unlock Level 3.
-  const usageCount    = item.activation?.usageCount ?? 0
+  // ── Tier 4: Mastery check (8) ─────────────────────────────────────────────
+  // Mastery evidence = sentence already produced OR ≥ 3 real-life uses logged.
+  const usageCount        = item.activation?.usageCount ?? 0
   const hasMasteryEvidence = item.review.sentenceProduced || usageCount >= 3
   return hasMasteryEvidence ? 'real-life-use-check' : 'sentence-production'
 }

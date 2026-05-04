@@ -15,7 +15,6 @@ import { usagePoints } from '@/lib/mastery'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
 import { LevelBadge } from '@/components/LevelBadge'
 import { ExposureProgress } from '@/components/ExposureProgress'
-import { RecognitionChallenge } from '@/components/challenges/RecognitionChallenge'
 import { DefinitionChoiceChallenge } from '@/components/challenges/DefinitionChoiceChallenge'
 import { FillGapChallenge } from '@/components/challenges/FillGapChallenge'
 import { SentenceProductionChallenge } from '@/components/challenges/SentenceProductionChallenge'
@@ -840,12 +839,24 @@ export function DailyChallengePage() {
   if (!currentSlot) return null
 
   const { challengeType } = currentSlot
+  // Normalise legacy 'recognition' type from old saved sessions → definition-choice.
+  // getChallengeType() no longer returns 'recognition', but sessions persisted before
+  // this change may still contain it.
+  const activeType: ChallengeType = challengeType === 'recognition' ? 'definition-choice' : challengeType
+
   // Always read the live item so progress reflects the latest recordExposure writes.
   const item = allItems.find((i) => i.id === currentSlot.item.id) ?? currentSlot.item
   const progress = (results.length / slots.length) * 100
 
-  // Types that embed the term in their own UI (don't show a separate heading)
-  const embedsTerm = challengeType === 'definition-choice' || challengeType === 'fill-gap'
+  // Types that embed the term/word in their own card UI — no separate heading needed.
+  // definition-choice: definition is the prompt; term appears as an answer option.
+  // fill-gap: answer IS the term; showing it as a heading spoils the exercise.
+  // sentence-production + real-life-use-check: each component shows the word prominently.
+  const embedsTerm =
+    activeType === 'definition-choice' ||
+    activeType === 'fill-gap' ||
+    activeType === 'sentence-production' ||
+    activeType === 'real-life-use-check'
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 min-h-screen relative">
@@ -918,25 +929,22 @@ export function DailyChallengePage() {
         <LevelBadge item={item} />
         <ExposureProgress exposureCount={item.exposureCount ?? 0} compact />
         <span className="ml-auto text-xs font-semibold text-slate-400 uppercase tracking-wide">
-          {CHALLENGE_TYPE_LABEL[challengeType]}
+          {CHALLENGE_TYPE_LABEL[activeType]}
         </span>
       </div>
 
       {/* ── Challenge card ── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        {challengeType === 'recognition' && (
-          <RecognitionChallenge key={`${item.id}-rec`} item={item} onAnswer={handleAnswer} />
-        )}
-        {challengeType === 'definition-choice' && (
+        {activeType === 'definition-choice' && (
           <DefinitionChoiceChallenge key={`${item.id}-def`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
-        {challengeType === 'fill-gap' && (
+        {activeType === 'fill-gap' && (
           <FillGapChallenge key={`${item.id}-fill`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
-        {challengeType === 'sentence-production' && (
+        {activeType === 'sentence-production' && (
           <SentenceProductionChallenge key={`${item.id}-sent`} item={item} onAnswer={handleAnswer} />
         )}
-        {challengeType === 'real-life-use-check' && (
+        {activeType === 'real-life-use-check' && (
           <RealLifeUseCheckChallenge key={`${item.id}-rluc`} item={item} onAnswer={handleAnswer} />
         )}
       </div>
@@ -966,16 +974,16 @@ export function DailyChallengePage() {
                 </div>
               </div>
 
-              {/* Correct answer (when wrong and it's not a recognition challenge) */}
-              {!feedback.correct && challengeType !== 'recognition' && (
+              {/* Correct answer (shown when the learner answered incorrectly) */}
+              {!feedback.correct && feedback.correctAnswer && (
                 <div className="rounded-xl px-4 py-3 mb-3 bg-red-100 border border-red-200">
                   <p className="text-xs font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Correct answer</p>
                   <p className="text-base font-bold text-red-900">{feedback.correctAnswer}</p>
                 </div>
               )}
 
-              {/* For recognition "Not yet", show definition as a learning moment */}
-              {!feedback.correct && challengeType === 'recognition' && item.definitionEn && (
+              {/* Definition reminder on a wrong answer — helps consolidate the learning */}
+              {!feedback.correct && item.definitionEn && (
                 <div className="rounded-xl px-4 py-3 mb-3 bg-slate-100 border border-slate-200">
                   <p className="text-xs font-semibold text-slate-500 mb-0.5 uppercase tracking-wide">Definition</p>
                   <p className="text-sm text-slate-800 leading-relaxed">{item.definitionEn}</p>
