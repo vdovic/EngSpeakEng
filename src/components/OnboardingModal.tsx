@@ -1,50 +1,72 @@
 /**
- * OnboardingModal
+ * OnboardingModal — Phase 8
  *
- * 60-second guided setup flow:
- *  Step 1 — "What's your role?"        (PM / Engineer / Consultant / Student / Other)
- *  Step 2 — "What matters most?"       (Meetings / Writing / Speaking / All)
- *  Step 3 — "Pick 3 focus areas"       (pre-selected grid based on answers)
- *  Step 4 — Completion / loading       (import pack → activate → AI in background)
+ * 5-step personalisation flow + completion screen.
+ *
+ *  Step 1 — Goal        "What do you mainly want to improve?"          (single select, 8 options)
+ *  Step 2 — Contexts    "Where do you want to use better English?"     (multi-select)
+ *  Step 3 — Themes      "Which themes should your focus set include?"  (multi-select, up to 5)
+ *  Step 4 — Intensity   "How intensive should your learning plan be?"  (3 options)
+ *  Step 5 — Focus size  "How many words to start with?"                (adjustable 20–150)
+ *  Step 6 — Completion  Runs recommendation + adds to My Current Focus
+ *
+ * Re-run: when onboarding was already completed, step 6 asks whether to
+ *   add / replace / skip updating focus.
+ *
+ * Mobile-first: bottom-sheet on small screens, centred modal on wide.
  */
 
 import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Check, ChevronRight, ArrowLeft, Zap, Loader2, Sparkles } from 'lucide-react'
 import {
-  useOnboardingStore,
-  OnboardingRole,
-  OnboardingPriority,
-  getPreselectedThemes,
-  getBestPackId,
+  Check, ChevronRight, ArrowLeft, Zap, Loader2, Minus, Plus, Star,
+} from 'lucide-react'
+import {
+  useOnboardingStore, GOAL_THEME_SUGGESTIONS,
 } from '@/store/onboardingStore'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
 import { useVocabStore } from '@/store/vocabStore'
-import { assignWordsToTheme } from '@/lib/aiThemeAssignment'
-import type { StarterPack } from '@/types/starterPacks'
+import {
+  recommendInitialFocusItems,
+} from '@/lib/personalizationLogic'
+import {
+  LearningGoal, LearningContext, LearningIntensity,
+  UserLearningProfile, INTENSITY_CONFIG,
+} from '@/types/profile'
 
-// ── Step data ────────────────────────────────────────────────────────────────
+// ── Step data ──────────────────────────────────────────────────────────────────
 
-const ROLES: { id: OnboardingRole; label: string; emoji: string; detail: string }[] = [
-  { id: 'pm',         label: 'PM / Product',  emoji: '🗺️', detail: 'Roadmaps, stakeholders, decisions' },
-  { id: 'engineer',   label: 'Engineer',      emoji: '⚙️', detail: 'Technical writing, code reviews, docs' },
-  { id: 'consultant', label: 'Consultant',    emoji: '📋', detail: 'Client work, proposals, negotiations' },
-  { id: 'student',    label: 'Student',       emoji: '🎓', detail: 'Essays, presentations, academic English' },
-  { id: 'other',      label: 'Other',         emoji: '✨', detail: 'General professional English' },
+const GOALS: { id: LearningGoal; label: string; emoji: string; detail: string }[] = [
+  { id: 'work-communication', label: 'Work communication',  emoji: '💬', detail: 'Emails, calls, professional exchanges' },
+  { id: 'meetings',           label: 'Meetings',            emoji: '🗓️', detail: 'Participate, chair, and facilitate' },
+  { id: 'presentations',      label: 'Presentations',       emoji: '🎤', detail: 'Pitch, explain, and persuade clearly' },
+  { id: 'writing',            label: 'Writing',             emoji: '✍️', detail: 'Reports, emails, clear documents' },
+  { id: 'product-management', label: 'Product management',  emoji: '🗺️', detail: 'Roadmaps, stakeholders, decisions' },
+  { id: 'general-fluency',    label: 'General fluency',     emoji: '🌐', detail: 'Broader, more natural English' },
+  { id: 'exam-preparation',   label: 'Exam preparation',    emoji: '🎓', detail: 'IELTS, TOEFL, Cambridge exams' },
+  { id: 'other',              label: 'Other',               emoji: '✨', detail: 'Something else entirely' },
 ]
 
-const PRIORITIES: { id: OnboardingPriority; label: string; emoji: string; detail: string }[] = [
-  { id: 'meetings', label: 'Meetings & Presentations', emoji: '📊', detail: 'Speak up, chair, present with confidence' },
-  { id: 'writing',  label: 'Business writing',         emoji: '✍️', detail: 'Emails, reports, clear documents' },
-  { id: 'speaking', label: 'Everyday speaking',        emoji: '💬', detail: 'Natural, fluent conversation' },
-  { id: 'all',      label: 'A bit of everything',      emoji: '🌐', detail: 'Broad professional vocabulary' },
+const CONTEXTS: { id: LearningContext; label: string; emoji: string }[] = [
+  { id: 'work-email',    label: 'Work emails',   emoji: '📧' },
+  { id: 'meetings',      label: 'Meetings',      emoji: '🗓️' },
+  { id: 'small-talk',    label: 'Small talk',    emoji: '☕' },
+  { id: 'presentations', label: 'Presentations', emoji: '🎤' },
+  { id: 'reading',       label: 'Reading',       emoji: '📖' },
+  { id: 'listening',     label: 'Listening',     emoji: '🎧' },
+  { id: 'travel',        label: 'Travel',        emoji: '✈️' },
+  { id: 'academic',      label: 'Academic',      emoji: '🎓' },
 ]
 
-// ── Progress bar ─────────────────────────────────────────────────────────────
+const MAX_THEMES = 5
+const FOCUS_MIN  = 20
+const FOCUS_MAX  = 150
+
+// ── Shared sub-components ──────────────────────────────────────────────────────
 
 function ProgressBar({ step, total }: { step: number; total: number }) {
   return (
-    <div className="flex items-center gap-2 mb-8">
+    <div className="flex items-center gap-1.5 mb-6 shrink-0">
       {Array.from({ length: total }).map((_, i) => (
         <div
           key={i}
@@ -53,196 +75,211 @@ function ProgressBar({ step, total }: { step: number; total: number }) {
           }`}
         />
       ))}
+      <span className="text-[11px] font-medium text-slate-400 ml-1 shrink-0 tabular-nums">
+        {step}/{total}
+      </span>
     </div>
   )
 }
 
-// ── Step 1 — Role ─────────────────────────────────────────────────────────────
-
-function StepRole({
-  selected,
-  onSelect,
-  onNext,
-}: {
-  selected: OnboardingRole | null
-  onSelect: (r: OnboardingRole) => void
-  onNext: () => void
-}) {
-  return (
-    <div className="flex flex-col h-full">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 leading-tight mb-1">
-          What's your role?
-        </h1>
-        <p className="text-sm text-slate-500">
-          We'll suggest focus areas tailored to your work.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
-        {ROLES.map((r) => {
-          const active = selected === r.id
-          return (
-            <button
-              key={r.id}
-              onClick={() => onSelect(r.id)}
-              className={`text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-3 ${
-                active
-                  ? 'border-brand-500 bg-brand-50 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <span className="text-2xl leading-none mt-0.5 shrink-0">{r.emoji}</span>
-              <div className="min-w-0">
-                <p className={`font-semibold text-sm leading-snug ${active ? 'text-brand-700' : 'text-slate-900'}`}>
-                  {r.label}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5 leading-snug">{r.detail}</p>
-              </div>
-              {active && (
-                <div className="ml-auto shrink-0 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
-                  <Check size={11} className="text-white" strokeWidth={3} />
-                </div>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      <div className="mt-6">
-        <button
-          onClick={onNext}
-          disabled={!selected}
-          className="w-full py-3 rounded-2xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none"
-        >
-          Continue <ChevronRight size={16} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Step 2 — Priority ─────────────────────────────────────────────────────────
-
-function StepPriority({
-  selected,
-  onSelect,
-  onNext,
+function NavButtons({
   onBack,
+  onNext,
+  nextDisabled,
+  nextLabel = 'Continue',
+  backLabel  = 'Back',
+  showBack   = true,
 }: {
-  selected: OnboardingPriority | null
-  onSelect: (p: OnboardingPriority) => void
-  onNext: () => void
-  onBack: () => void
+  onBack?:     () => void
+  onNext:      () => void
+  nextDisabled?: boolean
+  nextLabel?:  string
+  backLabel?:  string
+  showBack?:   boolean
 }) {
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 leading-tight mb-1">
-          What matters most?
-        </h1>
-        <p className="text-sm text-slate-500">
-          We'll pre-select focus areas to match your goal.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
-        {PRIORITIES.map((p) => {
-          const active = selected === p.id
-          return (
-            <button
-              key={p.id}
-              onClick={() => onSelect(p.id)}
-              className={`text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-3 ${
-                active
-                  ? 'border-brand-500 bg-brand-50 shadow-sm'
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-              }`}
-            >
-              <span className="text-2xl leading-none mt-0.5 shrink-0">{p.emoji}</span>
-              <div className="min-w-0">
-                <p className={`font-semibold text-sm leading-snug ${active ? 'text-brand-700' : 'text-slate-900'}`}>
-                  {p.label}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5 leading-snug">{p.detail}</p>
-              </div>
-              {active && (
-                <div className="ml-auto shrink-0 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
-                  <Check size={11} className="text-white" strokeWidth={3} />
-                </div>
-              )}
-            </button>
-          )
-        })}
-      </div>
-
-      <div className="mt-6 flex gap-3">
+    <div className="mt-5 flex gap-3 shrink-0 pt-2 border-t border-slate-100">
+      {showBack && onBack && (
         <button
           onClick={onBack}
           className="flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
         >
-          <ArrowLeft size={14} /> Back
+          <ArrowLeft size={14} /> {backLabel}
         </button>
-        <button
-          onClick={onNext}
-          disabled={!selected}
-          className="flex-1 py-3 rounded-2xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none"
-        >
-          Continue <ChevronRight size={16} />
-        </button>
-      </div>
+      )}
+      <button
+        onClick={onNext}
+        disabled={nextDisabled}
+        className="flex-1 py-3 rounded-2xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none"
+      >
+        {nextLabel} <ChevronRight size={16} />
+      </button>
     </div>
   )
 }
 
-// ── Step 3 — Theme grid ───────────────────────────────────────────────────────
+// ── Step 1 — Goal ──────────────────────────────────────────────────────────────
 
-function StepThemes({
-  selected,
-  onToggle,
-  onNext,
-  onBack,
+function StepGoal({
+  selected, onSelect, onNext, onSkip,
 }: {
-  selected: string[]
-  onToggle: (name: string) => void
-  onNext: () => void
-  onBack: () => void
+  selected: LearningGoal | null
+  onSelect: (g: LearningGoal) => void
+  onNext:   () => void
+  onSkip:   () => void
 }) {
-  const MAX = 3
-  const ready = selected.length === MAX
-
   return (
-    <div className="flex flex-col h-full">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-slate-900 leading-tight mb-1">
-          Pick 3 focus areas
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="mb-4 shrink-0">
+        <h1 className="text-xl font-bold text-slate-900 leading-tight mb-1">
+          What do you mainly want to improve?
         </h1>
         <p className="text-sm text-slate-500">
-          We pre-selected these based on your answers. Swap any you like.
+          This shapes your vocabulary recommendations.
         </p>
       </div>
 
-      {/* Counter pill */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-colors ${
-          ready ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500'
-        }`}>
-          <div className={`w-1.5 h-1.5 rounded-full ${ready ? 'bg-brand-500' : 'bg-slate-400'}`} />
-          {selected.length} / {MAX} selected
+      <div className="flex-1 overflow-y-auto -mx-1 px-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-1">
+          {GOALS.map((g) => {
+            const active = selected === g.id
+            return (
+              <button
+                key={g.id}
+                onClick={() => onSelect(g.id)}
+                className={`text-left p-3.5 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                  active
+                    ? 'border-brand-500 bg-brand-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-brand-300 hover:bg-brand-50/30'
+                }`}
+              >
+                <span className="text-xl leading-none mt-0.5 shrink-0">{g.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <p className={`font-semibold text-sm leading-snug ${active ? 'text-brand-700' : 'text-slate-900'}`}>
+                    {g.label}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-snug">{g.detail}</p>
+                </div>
+                {active && (
+                  <div className="ml-auto shrink-0 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
+                    <Check size={10} className="text-white" strokeWidth={3} />
+                  </div>
+                )}
+              </button>
+            )
+          })}
         </div>
-        {ready && (
-          <span className="text-xs text-brand-600 font-medium animate-pulse">
-            Ready to go!
-          </span>
-        )}
       </div>
 
-      {/* Theme grid — scrollable */}
+      <NavButtons
+        onNext={onNext}
+        nextDisabled={!selected}
+        showBack={false}
+      />
+      <button
+        onClick={onSkip}
+        className="mt-2 text-center text-xs text-slate-400 hover:text-slate-600 transition-colors py-1"
+      >
+        Skip setup →
+      </button>
+    </div>
+  )
+}
+
+// ── Step 2 — Contexts ──────────────────────────────────────────────────────────
+
+function StepContexts({
+  selected, onToggle, onNext, onBack,
+}: {
+  selected: LearningContext[]
+  onToggle: (c: LearningContext) => void
+  onNext:   () => void
+  onBack:   () => void
+}) {
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="mb-4 shrink-0">
+        <h1 className="text-xl font-bold text-slate-900 leading-tight mb-1">
+          Where do you want to use better English?
+        </h1>
+        <p className="text-sm text-slate-500">
+          Select all that apply — helps us weight the right vocabulary.
+        </p>
+      </div>
+
       <div className="flex-1 overflow-y-auto -mx-1 px-1">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-2">
+        <div className="grid grid-cols-2 gap-2 pb-1">
+          {CONTEXTS.map((c) => {
+            const active = selected.includes(c.id)
+            return (
+              <button
+                key={c.id}
+                onClick={() => onToggle(c.id)}
+                className={`text-left p-3.5 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                  active
+                    ? 'border-brand-500 bg-brand-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-brand-300 hover:bg-brand-50/30'
+                }`}
+              >
+                <span className="text-xl leading-none shrink-0">{c.emoji}</span>
+                <span className={`font-semibold text-xs leading-snug ${active ? 'text-brand-700' : 'text-slate-800'}`}>
+                  {c.label}
+                </span>
+                {active && (
+                  <div className="ml-auto shrink-0 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
+                    <Check size={10} className="text-white" strokeWidth={3} />
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <NavButtons
+        onBack={onBack}
+        onNext={onNext}
+        nextDisabled={selected.length === 0}
+        nextLabel="Continue"
+      />
+    </div>
+  )
+}
+
+// ── Step 3 — Themes ────────────────────────────────────────────────────────────
+
+function StepThemes({
+  selected, onToggle, onNext, onBack,
+}: {
+  selected: string[]
+  onToggle: (name: string) => void
+  onNext:   () => void
+  onBack:   () => void
+}) {
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="mb-3 shrink-0">
+        <h1 className="text-xl font-bold text-slate-900 leading-tight mb-1">
+          Which themes should your focus set include?
+        </h1>
+        <p className="text-sm text-slate-500">
+          Pre-selected based on your goal. Swap any you like.{' '}
+          <span className="text-slate-400">(up to {MAX_THEMES})</span>
+        </p>
+      </div>
+
+      <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3 shrink-0 transition-colors ${
+        selected.length > 0 ? 'bg-brand-100 text-brand-700' : 'bg-slate-100 text-slate-500'
+      }`}>
+        <div className={`w-1.5 h-1.5 rounded-full ${selected.length > 0 ? 'bg-brand-500' : 'bg-slate-400'}`} />
+        {selected.length} / {MAX_THEMES} selected
+      </div>
+
+      <div className="flex-1 overflow-y-auto -mx-1 px-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pb-1">
           {SUGGESTED_THEMES.map((theme) => {
-            const active = selected.includes(theme.name)
-            const disabled = !active && selected.length >= MAX
+            const active   = selected.includes(theme.name)
+            const disabled = !active && selected.length >= MAX_THEMES
             return (
               <button
                 key={theme.name}
@@ -255,7 +292,7 @@ function StepThemes({
                     : 'border-slate-200 bg-white hover:border-brand-300 hover:bg-brand-50/30'
                 }`}
               >
-                <span className="text-xl leading-none shrink-0">{theme.emoji}</span>
+                <span className="text-lg leading-none shrink-0">{theme.emoji}</span>
                 <div className="flex-1 min-w-0">
                   <p className={`font-semibold text-xs leading-snug ${active ? 'text-brand-700' : 'text-slate-800'}`}>
                     {theme.name}
@@ -265,9 +302,7 @@ function StepThemes({
                   </p>
                 </div>
                 <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                  active
-                    ? 'bg-brand-500 border-brand-500'
-                    : 'border-slate-300 bg-white'
+                  active ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'
                 }`}>
                   {active && <Check size={10} className="text-white" strokeWidth={3} />}
                 </div>
@@ -277,148 +312,355 @@ function StepThemes({
         </div>
       </div>
 
-      <div className="mt-4 flex gap-3 pt-2 border-t border-slate-100">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-4 py-3 rounded-2xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
-        >
-          <ArrowLeft size={14} /> Back
-        </button>
-        <button
-          onClick={onNext}
-          disabled={!ready}
-          className="flex-1 py-3 rounded-2xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:opacity-40 disabled:pointer-events-none"
-        >
-          <Zap size={15} /> Set up my vocabulary
-        </button>
-      </div>
+      <NavButtons
+        onBack={onBack}
+        onNext={onNext}
+        nextDisabled={selected.length === 0}
+      />
     </div>
   )
 }
 
-// ── Step 4 — Completion ───────────────────────────────────────────────────────
+// ── Step 4 — Intensity ─────────────────────────────────────────────────────────
 
-interface CompletionState {
-  themesCreated: boolean
-  wordsImported: number
-  activatedCount: number
-  aiRunning: boolean
-  /** True once themes + import + activation are all done (CTAs unlock) */
-  setupComplete: boolean
-}
-
-function StepComplete({
-  themes,
-  state,
-  onChallenge,
-  onDashboard,
+function StepIntensity({
+  selected, onSelect, onNext, onBack,
 }: {
-  themes: string[]
-  state: CompletionState
-  onChallenge: () => void
-  onDashboard: () => void
+  selected: LearningIntensity | null
+  onSelect: (i: LearningIntensity) => void
+  onNext:   () => void
+  onBack:   () => void
 }) {
-  const ready = state.setupComplete
-
   return (
-    <div className="flex flex-col h-full items-center justify-center text-center py-4">
-      {/* Icon */}
-      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-500 to-violet-600 flex items-center justify-center mb-6 shadow-lg shadow-brand-200">
-        {ready ? (
-          <Zap size={36} className="text-white" />
-        ) : (
-          <Loader2 size={36} className="text-white animate-spin" />
+    <div className="flex flex-col h-full">
+      <div className="mb-6 shrink-0">
+        <h1 className="text-xl font-bold text-slate-900 leading-tight mb-1">
+          How intensive should your plan be?
+        </h1>
+        <p className="text-sm text-slate-500">
+          You can change this any time from your dashboard.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3 flex-1">
+        {(Object.entries(INTENSITY_CONFIG) as [LearningIntensity, typeof INTENSITY_CONFIG[LearningIntensity]][]).map(
+          ([id, cfg]) => {
+            const active = selected === id
+            return (
+              <button
+                key={id}
+                onClick={() => onSelect(id)}
+                className={`text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-4 ${
+                  active
+                    ? 'border-brand-500 bg-brand-50 shadow-sm'
+                    : 'border-slate-200 bg-white hover:border-brand-300 hover:bg-brand-50/30'
+                }`}
+              >
+                <span className="text-2xl leading-none mt-0.5 shrink-0">{cfg.emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <p className={`font-bold text-base leading-snug ${active ? 'text-brand-700' : 'text-slate-900'}`}>
+                    {cfg.label}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-0.5 leading-snug">{cfg.detail}</p>
+                </div>
+                {active && (
+                  <div className="ml-auto shrink-0 w-6 h-6 rounded-full bg-brand-500 flex items-center justify-center">
+                    <Check size={12} className="text-white" strokeWidth={3} />
+                  </div>
+                )}
+              </button>
+            )
+          },
         )}
       </div>
 
-      <h1 className="text-2xl font-bold text-slate-900 mb-2">
-        {ready ? "You're all set! 🎉" : 'Setting things up…'}
-      </h1>
-      <p className="text-sm text-slate-500 mb-8 max-w-xs">
-        {ready
-          ? `${state.activatedCount > 0 ? state.activatedCount + ' words are' : 'Words are'} ready for your first Daily Challenge. Your AI system is working in the background.`
-          : 'Just a moment while we personalise your vocabulary system.'}
-      </p>
+      <NavButtons onBack={onBack} onNext={onNext} nextDisabled={!selected} />
+    </div>
+  )
+}
 
-      {/* Progress checklist */}
-      <div className="w-full max-w-xs bg-slate-50 rounded-2xl p-4 mb-8 text-left space-y-3">
-        <ChecklistRow done={state.themesCreated} label={`${themes.length} focus areas created`} />
-        <ChecklistRow
-          done={state.wordsImported > 0}
-          loading={state.themesCreated && state.wordsImported === 0}
-          label={state.wordsImported > 0 ? `${state.wordsImported} words added to your library` : 'Importing vocabulary…'}
-        />
-        <ChecklistRow
-          done={state.activatedCount > 0}
-          loading={state.wordsImported > 0 && state.activatedCount === 0}
-          label={state.activatedCount > 0 ? `${state.activatedCount} words activated for Daily Challenge` : 'Activating words…'}
-        />
-        <ChecklistRow
-          done={false}
-          loading={state.aiRunning}
-          label="AI assigning words to your themes"
-          subtitle="Runs in the background"
-        />
+// ── Step 5 — Focus size ────────────────────────────────────────────────────────
+
+function StepFocusSize({
+  value, intensity, onChange, onNext, onBack,
+}: {
+  value:     number
+  intensity: LearningIntensity
+  onChange:  (n: number) => void
+  onNext:    () => void
+  onBack:    () => void
+}) {
+  const presets = [
+    { n: 50,  label: 'Starter',    detail: 'Focused, manageable' },
+    { n: 100, label: 'Standard',   detail: 'Good variety'        },
+    { n: 150, label: 'Full focus', detail: 'Maximum coverage'    },
+  ]
+
+  const cfg = INTENSITY_CONFIG[intensity]
+
+  function adjust(delta: number) {
+    onChange(Math.max(FOCUS_MIN, Math.min(FOCUS_MAX, value + delta)))
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="mb-5 shrink-0">
+        <h1 className="text-xl font-bold text-slate-900 leading-tight mb-1">
+          How many words to start with?
+        </h1>
+        <p className="text-sm text-slate-500">
+          These go into My Current Focus — your personalised active word list.
+        </p>
       </div>
 
-      {/* CTAs */}
-      {ready && (
-        <div className="w-full flex flex-col gap-3">
+      {/* Preset buttons */}
+      <div className="grid grid-cols-3 gap-2 mb-5 shrink-0">
+        {presets.map((p) => (
           <button
-            onClick={onChallenge}
-            className="w-full py-3.5 rounded-2xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-[0.98] transition-all shadow-md shadow-brand-200"
+            key={p.n}
+            onClick={() => onChange(p.n)}
+            className={`p-3 rounded-xl border-2 text-center transition-all ${
+              value === p.n
+                ? 'border-brand-500 bg-brand-50'
+                : 'border-slate-200 bg-white hover:border-brand-300'
+            }`}
           >
-            <Zap size={16} /> Start Daily Challenge
+            <div className={`text-xl font-bold leading-none mb-0.5 ${value === p.n ? 'text-brand-700' : 'text-slate-900'}`}>
+              {p.n}
+            </div>
+            <div className={`text-[10px] font-semibold ${value === p.n ? 'text-brand-600' : 'text-slate-500'}`}>
+              {p.label}
+            </div>
+            <div className="text-[9px] text-slate-400 mt-0.5">{p.detail}</div>
           </button>
+        ))}
+      </div>
+
+      {/* Fine-tune */}
+      <div className="bg-slate-50 rounded-2xl p-4 mb-4 shrink-0">
+        <p className="text-xs font-medium text-slate-500 mb-3 text-center">Fine-tune</p>
+        <div className="flex items-center justify-center gap-5">
           <button
-            onClick={onDashboard}
-            className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 active:scale-[0.98] transition-all"
+            onClick={() => adjust(-10)}
+            disabled={value <= FOCUS_MIN}
+            className="w-11 h-11 rounded-full border-2 border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:border-brand-400 hover:text-brand-600 disabled:opacity-30 transition-colors"
           >
-            Explore my dashboard
+            <Minus size={18} />
+          </button>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-slate-900 tabular-nums leading-none">{value}</div>
+            <div className="text-xs text-slate-400 mt-1">words</div>
+          </div>
+          <button
+            onClick={() => adjust(10)}
+            disabled={value >= FOCUS_MAX}
+            className="w-11 h-11 rounded-full border-2 border-slate-200 bg-white flex items-center justify-center text-slate-600 hover:border-brand-400 hover:text-brand-600 disabled:opacity-30 transition-colors"
+          >
+            <Plus size={18} />
           </button>
         </div>
-      )}
+      </div>
+
+      {/* Info */}
+      <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-2.5 text-xs text-amber-700 shrink-0">
+        <span className="font-semibold">{cfg.label} plan:</span> ~{cfg.wordsPerDay} new words/day at this focus size will take around{' '}
+        <span className="font-semibold">{Math.ceil(value / cfg.wordsPerDay)} days</span> to cycle through once.
+      </div>
+
+      <NavButtons onBack={onBack} onNext={onNext} />
     </div>
   )
 }
 
-function ChecklistRow({
-  done,
-  loading = false,
-  label,
-  subtitle,
-}: {
-  done: boolean
-  loading?: boolean
-  label: string
-  subtitle?: string
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5 ${
-        done ? 'bg-emerald-500' : loading ? 'bg-brand-100' : 'bg-slate-200'
-      }`}>
-        {done ? (
-          <Check size={11} className="text-white" strokeWidth={3} />
-        ) : loading ? (
-          <Loader2 size={11} className="text-brand-500 animate-spin" />
-        ) : null}
-      </div>
-      <div>
-        <p className={`text-sm font-medium leading-snug ${done ? 'text-slate-900' : loading ? 'text-slate-600' : 'text-slate-400'}`}>
-          {label}
+// ── Step 6 — Completion ────────────────────────────────────────────────────────
+
+type FocusAction = 'add' | 'replace' | 'profile-only'
+
+interface CompletionProps {
+  profile:      UserLearningProfile
+  isRerun:      boolean
+  currentFocus: number
+  onDone:       (action: FocusAction) => void
+  status:       'idle' | 'loading' | 'done'
+  addedCount:   number
+  onChallenge:  () => void
+  onMyFocus:    () => void
+}
+
+function StepCompletion({
+  profile, isRerun, currentFocus,
+  onDone, status, addedCount,
+  onChallenge, onMyFocus,
+}: CompletionProps) {
+  const [chosenAction, setChosenAction] = useState<FocusAction | null>(
+    isRerun ? null : 'add',
+  )
+
+  const cfg = INTENSITY_CONFIG[profile.intensity]
+
+  if (status === 'done') {
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-center py-4">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-500 to-violet-600 flex items-center justify-center mb-6 shadow-lg shadow-brand-200">
+          <Star size={36} className="text-white fill-white" />
+        </div>
+
+        <h1 className="text-2xl font-bold text-slate-900 mb-2">
+          {addedCount > 0 ? 'Your focus set is ready! 🎉' : 'Profile saved!'}
+        </h1>
+        <p className="text-sm text-slate-500 mb-8 max-w-xs">
+          {addedCount > 0
+            ? `${addedCount} words added to My Current Focus based on your profile.`
+            : 'Your learning profile has been updated. Focus set unchanged.'}
         </p>
-        {subtitle && (
-          <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-            <Sparkles size={9} /> {subtitle}
-          </p>
+
+        <div className="w-full flex flex-col gap-3">
+          {addedCount > 0 && (
+            <>
+              <button
+                onClick={onChallenge}
+                className="w-full py-3.5 rounded-2xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-[0.98] transition-all shadow-md shadow-brand-200"
+              >
+                <Zap size={16} /> Start Daily Challenge
+              </button>
+              <button
+                onClick={onMyFocus}
+                className="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 active:scale-[0.98] transition-all"
+              >
+                Review My Current Focus
+              </button>
+            </>
+          )}
+          {addedCount === 0 && (
+            <button
+              onClick={onMyFocus}
+              className="w-full py-3 rounded-2xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 active:scale-[0.98] transition-all"
+            >
+              Go to dashboard
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className="flex flex-col h-full items-center justify-center text-center py-4">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-500 to-violet-600 flex items-center justify-center mb-6 shadow-lg shadow-brand-200">
+          <Loader2 size={36} className="text-white animate-spin" />
+        </div>
+        <h1 className="text-xl font-bold text-slate-900 mb-2">Setting up your focus set…</h1>
+        <p className="text-sm text-slate-500">Analysing your library and picking the best words.</p>
+      </div>
+    )
+  }
+
+  // idle — show profile summary and focus action picker
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="mb-4 shrink-0">
+        <h1 className="text-xl font-bold text-slate-900 leading-tight mb-1">
+          {isRerun ? 'Update your learning setup' : 'Your personalised setup'}
+        </h1>
+        <p className="text-sm text-slate-500">
+          {isRerun
+            ? 'Choose how to apply your new profile.'
+            : 'We\'ll pick the best words from your library.'}
+        </p>
+      </div>
+
+      {/* Profile summary */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 space-y-2 shrink-0">
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400 w-20 text-xs font-medium shrink-0">Goal</span>
+          <span className="font-semibold text-slate-800">{GOALS.find((g) => g.id === profile.goal)?.label}</span>
+        </div>
+        <div className="flex items-start gap-2 text-sm">
+          <span className="text-slate-400 w-20 text-xs font-medium shrink-0 mt-0.5">Contexts</span>
+          <div className="flex flex-wrap gap-1">
+            {profile.contexts.slice(0, 4).map((c) => (
+              <span key={c} className="text-[10px] bg-white border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded-full font-medium">
+                {CONTEXTS.find((x) => x.id === c)?.label ?? c}
+              </span>
+            ))}
+            {profile.contexts.length > 4 && (
+              <span className="text-[10px] text-slate-400">+{profile.contexts.length - 4}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400 w-20 text-xs font-medium shrink-0">Intensity</span>
+          <span className="font-semibold text-slate-800">{cfg.emoji} {cfg.label} · {cfg.wordsPerDay} words/day</span>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-slate-400 w-20 text-xs font-medium shrink-0">Focus size</span>
+          <span className="font-semibold text-slate-800">{profile.targetFocusSize} words</span>
+        </div>
+      </div>
+
+      {/* Focus action choice */}
+      <div className="space-y-2 flex-1 overflow-y-auto">
+        {isRerun ? (
+          <>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              What should we do with My Current Focus?
+            </p>
+            {[
+              { id: 'add'          as FocusAction, label: 'Add recommended words',       detail: `Add up to ${profile.targetFocusSize} words · keeps your ${currentFocus} existing` },
+              { id: 'replace'      as FocusAction, label: 'Replace with new selection',  detail: 'Clear current focus and apply new recommendation' },
+              { id: 'profile-only' as FocusAction, label: 'Save profile only',           detail: 'Update profile without changing My Current Focus' },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => setChosenAction(opt.id)}
+                className={`w-full text-left p-3.5 rounded-xl border-2 transition-all flex items-start gap-3 ${
+                  chosenAction === opt.id
+                    ? 'border-brand-500 bg-brand-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition-colors ${
+                  chosenAction === opt.id ? 'bg-brand-500 border-brand-500' : 'border-slate-300 bg-white'
+                }`}>
+                  {chosenAction === opt.id && <Check size={10} className="text-white" strokeWidth={3} />}
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${chosenAction === opt.id ? 'text-brand-800' : 'text-slate-800'}`}>
+                    {opt.label}
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">{opt.detail}</p>
+                </div>
+              </button>
+            ))}
+          </>
+        ) : (
+          <div className="bg-brand-50 border border-brand-100 rounded-xl p-3.5">
+            <p className="text-sm font-semibold text-brand-800 mb-0.5">
+              Recommended: {profile.targetFocusSize} words
+            </p>
+            <p className="text-xs text-brand-600">
+              Selected from your library based on your goal, contexts, and themes.
+            </p>
+          </div>
         )}
       </div>
+
+      <div className="shrink-0 pt-3 border-t border-slate-100 mt-4">
+        <button
+          onClick={() => onDone(chosenAction ?? 'add')}
+          disabled={isRerun && !chosenAction}
+          className="w-full py-3 rounded-2xl bg-brand-600 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-700 active:scale-[0.98] transition-all disabled:opacity-40"
+        >
+          <Zap size={15} />
+          {isRerun ? 'Apply' : 'Build my focus set'}
+        </button>
+      </div>
     </div>
   )
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Main export ────────────────────────────────────────────────────────────────
 
 interface OnboardingModalProps {
   onClose?: () => void
@@ -426,195 +668,200 @@ interface OnboardingModalProps {
 
 export function OnboardingModal({ onClose }: OnboardingModalProps) {
   const navigate = useNavigate()
-  const { role, priority, selectedThemes, setRole, setPriority, setSelectedThemes, markComplete } =
-    useOnboardingStore()
-  const { addTheme } = useThemesStore()
-  const { importPack, moveToLearning } = useVocabStore()
+  const { completed: wasCompleted, profile: savedProfile, setProfile, markComplete } = useOnboardingStore()
+  const { addTheme }                = useThemesStore()
+  const { items, addToFocus, removeFromFocus } = useVocabStore()
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
-  const [completionState, setCompletionState] = useState<CompletionState>({
-    themesCreated: false,
-    wordsImported: 0,
-    activatedCount: 0,
-    aiRunning: false,
-    setupComplete: false,
-  })
+  // Determine if this is a re-run at the time the modal opens
+  const [isRerun]      = useState(() => wasCompleted)
+  const currentFocusCount = items.filter((i) => i.inFocus).length
 
-  // ── Step handlers ──────────────────────────────────────────────────────────
+  // ── Local draft state ──────────────────────────────────────────────────────
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
 
-  function handleRoleSelect(r: OnboardingRole) {
-    setRole(r)
+  const [goal,       setGoal]       = useState<LearningGoal | null>(savedProfile?.goal ?? null)
+  const [contexts,   setContexts]   = useState<LearningContext[]>(savedProfile?.contexts ?? [])
+  const [themes,     setThemes]     = useState<string[]>(
+    savedProfile?.preferredThemes ?? [],
+  )
+  const [intensity,  setIntensity]  = useState<LearningIntensity | null>(savedProfile?.intensity ?? null)
+  const [focusSize,  setFocusSize]  = useState<number>(savedProfile?.targetFocusSize ?? 100)
+
+  // Completion state
+  const [compStatus,  setCompStatus]  = useState<'idle' | 'loading' | 'done'>('idle')
+  const [addedCount,  setAddedCount]  = useState(0)
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  function toggleContext(c: LearningContext) {
+    setContexts((prev) =>
+      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c],
+    )
   }
 
-  function handleRoleNext() {
-    if (!role) return
-    setStep(2)
+  function toggleTheme(name: string) {
+    setThemes((prev) =>
+      prev.includes(name)
+        ? prev.filter((t) => t !== name)
+        : prev.length < MAX_THEMES
+        ? [...prev, name]
+        : prev,
+    )
   }
 
-  function handlePrioritySelect(p: OnboardingPriority) {
-    setPriority(p)
-    // Auto-compute preselected themes whenever priority changes
-    if (role) {
-      setSelectedThemes(getPreselectedThemes(role, p))
-    }
-  }
-
-  function handlePriorityNext() {
-    if (!priority || !role) return
-    // Ensure preselection is computed (handles edge case of priority already set)
-    if (selectedThemes.length === 0) {
-      setSelectedThemes(getPreselectedThemes(role, priority))
+  // Auto pre-select themes when moving to step 3
+  function goToThemes() {
+    if (!goal) return
+    if (themes.length === 0) {
+      setThemes(GOAL_THEME_SUGGESTIONS[goal].slice(0, MAX_THEMES))
     }
     setStep(3)
   }
 
-  function handleThemeToggle(name: string) {
-    setSelectedThemes(
-      selectedThemes.includes(name)
-        ? selectedThemes.filter((t) => t !== name)
-        : selectedThemes.length < 3
-        ? [...selectedThemes, name]
-        : selectedThemes,
-    )
+  // Auto-set focus size based on intensity when moving to step 5
+  function goToFocusSize() {
+    if (!intensity) return
+    // Only set default if user hasn't already explicitly changed it
+    setFocusSize((prev) => {
+      const defaults = [50, 100, 150]
+      return defaults.includes(prev) ? INTENSITY_CONFIG[intensity].defaultFocus : prev
+    })
+    setStep(5)
   }
 
-  // ── Setup action (step 3 → 4) ──────────────────────────────────────────────
+  const handleApply = useCallback(
+    async (action: FocusAction) => {
+      if (!goal || !intensity) return
+      setCompStatus('loading')
 
-  const handleSetup = useCallback(async () => {
-    if (selectedThemes.length !== 3) return
-    setStep(4)
-
-    // 1. Create themes
-    for (const theme of selectedThemes) {
-      addTheme(theme)
-    }
-    setCompletionState((s) => ({ ...s, themesCreated: true }))
-
-    // 2. Import best-matching starter pack
-    const packId = getBestPackId(selectedThemes)
-    let importedIds: string[] = []
-    try {
-      const res = await fetch(`/data/starter-packs/${packId}.json`)
-      if (res.ok) {
-        const pack: StarterPack = await res.json()
-        const outcome = await importPack(pack)
-        importedIds = outcome.ids
-        setCompletionState((s) => ({ ...s, wordsImported: outcome.imported }))
+      const now = new Date().toISOString()
+      const profile: UserLearningProfile = {
+        goal,
+        contexts,
+        preferredThemes: themes,
+        intensity,
+        targetFocusSize: focusSize,
+        createdAt: savedProfile?.createdAt ?? now,
+        updatedAt: now,
       }
-    } catch {
-      // Pack fetch failed — not fatal, continue
-      setCompletionState((s) => ({ ...s, wordsImported: 0 }))
-    }
 
-    // 3. Activate first 10 imported words for Daily Challenge
-    const toActivate = importedIds.slice(0, 10)
-    if (toActivate.length > 0) {
-      await moveToLearning(toActivate)
-    }
-    setCompletionState((s) => ({
-      ...s,
-      activatedCount: toActivate.length,
-      setupComplete: true,   // unlock CTAs — core setup is done
-    }))
+      // 1. Save profile
+      setProfile(profile)
+      markComplete()
 
-    // 4. AI assignment — fire-and-forget (works in prod, 404 in local dev)
-    setCompletionState((s) => ({ ...s, aiRunning: true }))
-    const { items } = useVocabStore.getState()
-    Promise.all(
-      selectedThemes.map((theme) =>
-        assignWordsToTheme(theme, items)
-          .then(async ({ assignedIds }) => {
-            const { assignThemes } = useVocabStore.getState()
-            for (const id of assignedIds) {
-              const item = useVocabStore.getState().items.find((i) => i.id === id)
-              if (!item) continue
-              const merged = Array.from(new Set([...(item.themes ?? []), theme]))
-              await assignThemes(id, merged)
-            }
-          })
-          .catch(() => { /* local dev — silently ignore */ }),
-      ),
-    ).finally(() => {
-      setCompletionState((s) => ({ ...s, aiRunning: false }))
-    })
+      // 2. Create themes in theme store
+      for (const t of themes) addTheme(t)
 
-    // 5. Mark onboarding complete
-    markComplete()
-  }, [selectedThemes, addTheme, importPack, moveToLearning, markComplete])
+      // 3. Apply focus changes
+      if (action !== 'profile-only') {
+        const recommended = recommendInitialFocusItems(items, profile, focusSize)
+        const ids = recommended.map((i) => i.id)
 
-  // ── Close / navigate ───────────────────────────────────────────────────────
+        if (action === 'replace') {
+          // Clear all existing focus first
+          const focusedIds = items.filter((i) => i.inFocus || i.weeklyFocus).map((i) => i.id)
+          for (const id of focusedIds) {
+            await removeFromFocus(id)
+          }
+        }
+
+        const { added } = await addToFocus(ids)
+        setAddedCount(added)
+      }
+
+      setCompStatus('done')
+    },
+    [
+      goal, contexts, themes, intensity, focusSize,
+      savedProfile, setProfile, markComplete, addTheme,
+      items, addToFocus, removeFromFocus,
+    ],
+  )
 
   function close() {
     markComplete()
     onClose?.()
   }
 
-  function goChallenge() {
-    markComplete()
-    onClose?.()
-    navigate('/challenge')
-  }
-
-  function goDashboard() {
-    markComplete()
-    onClose?.()
-    navigate('/')
-  }
-
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const TOTAL_STEPS = 5
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-6">
       <div
-        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg flex flex-col"
-        style={{ maxHeight: 'min(85vh, 680px)', height: step === 3 ? 'min(85vh, 680px)' : 'auto' }}
+        className="relative bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full sm:max-w-lg flex flex-col"
+        style={{ maxHeight: 'min(92dvh, 700px)', height: step < 6 ? 'min(92dvh, 700px)' : 'auto' }}
       >
-        {/* Inner padding wrapper */}
-        <div className="flex flex-col flex-1 p-6 sm:p-8 overflow-hidden">
+        <div className="flex flex-col flex-1 p-5 sm:p-7 overflow-hidden">
 
-          {/* Skip / close — only shown on steps 1-3 */}
-          {step < 4 && (
-            <button
-              onClick={close}
-              className="absolute top-4 right-4 text-xs text-slate-400 hover:text-slate-600 transition-colors font-medium"
-            >
-              Skip →
-            </button>
-          )}
-
-          {/* Progress bar — steps 1-3 */}
-          {step < 4 && <ProgressBar step={step} total={3} />}
+          {/* Progress bar — steps 1-5 */}
+          {step < 6 && <ProgressBar step={step - 1} total={TOTAL_STEPS} />}
 
           {/* Step content */}
           {step === 1 && (
-            <StepRole
-              selected={role}
-              onSelect={handleRoleSelect}
-              onNext={handleRoleNext}
+            <StepGoal
+              selected={goal}
+              onSelect={(g) => {
+                setGoal(g)
+                // Reset themes when goal changes so pre-selection is recalculated
+                setThemes([])
+              }}
+              onNext={() => setStep(2)}
+              onSkip={close}
             />
           )}
           {step === 2 && (
-            <StepPriority
-              selected={priority}
-              onSelect={handlePrioritySelect}
-              onNext={handlePriorityNext}
+            <StepContexts
+              selected={contexts}
+              onToggle={toggleContext}
+              onNext={() => goToThemes()}
               onBack={() => setStep(1)}
             />
           )}
           {step === 3 && (
             <StepThemes
-              selected={selectedThemes}
-              onToggle={handleThemeToggle}
-              onNext={handleSetup}
+              selected={themes}
+              onToggle={toggleTheme}
+              onNext={() => setStep(4)}
               onBack={() => setStep(2)}
             />
           )}
           {step === 4 && (
-            <StepComplete
-              themes={selectedThemes}
-              state={completionState}
-              onChallenge={goChallenge}
-              onDashboard={goDashboard}
+            <StepIntensity
+              selected={intensity}
+              onSelect={setIntensity}
+              onNext={() => goToFocusSize()}
+              onBack={() => setStep(3)}
+            />
+          )}
+          {step === 5 && (
+            <StepFocusSize
+              value={focusSize}
+              intensity={intensity ?? 'standard'}
+              onChange={setFocusSize}
+              onNext={() => setStep(6)}
+              onBack={() => setStep(4)}
+            />
+          )}
+          {step === 6 && goal && intensity && (
+            <StepCompletion
+              profile={{
+                goal,
+                contexts,
+                preferredThemes: themes,
+                intensity,
+                targetFocusSize: focusSize,
+                createdAt: savedProfile?.createdAt ?? new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              }}
+              isRerun={isRerun}
+              currentFocus={currentFocusCount}
+              onDone={handleApply}
+              status={compStatus}
+              addedCount={addedCount}
+              onChallenge={() => { close(); navigate('/challenge') }}
+              onMyFocus={() => { close(); navigate('/week') }}
             />
           )}
         </div>

@@ -20,12 +20,14 @@ import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabSt
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
+import { useOnboardingStore } from '@/store/onboardingStore'
 import { isDueChallengeNow } from '@/lib/challengeSchedule'
 import { CHALLENGE_SESSION_CAP } from '@/lib/constants'
 import { todayDateKey } from '@/lib/dateUtils'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { StarterPacksSection } from '@/components/StarterPacksSection'
 import { subDays, startOfDay, isWithinInterval } from 'date-fns'
+import { GOAL_LABELS, INTENSITY_CONFIG } from '@/types/profile'
 
 // ── Module-level constants ─────────────────────────────────────────────────────
 
@@ -984,6 +986,80 @@ function HowItWorks() {
   )
 }
 
+// ── LearningProfileCard ───────────────────────────────────────────────────────
+
+function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
+  const profile    = useOnboardingStore((s) => s.profile)
+  const focusCount = useVocabStore((s) => s.items.filter((i) => i.inFocus).length)
+
+  if (!profile) {
+    // No profile yet — show a prompt button
+    return (
+      <div className="mb-5">
+        <button
+          onClick={onAdjust}
+          className="w-full flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:border-brand-200 hover:bg-brand-50/30 transition-all group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-brand-100 flex items-center justify-center shrink-0 group-hover:bg-brand-200 transition-colors">
+              <SlidersHorizontal size={16} className="text-brand-600" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-slate-800 leading-snug">Personalise my setup</p>
+              <p className="text-xs text-slate-400 mt-0.5">Set your learning goal and build a focus set</p>
+            </div>
+          </div>
+          <ChevronRight size={16} className="text-slate-300 group-hover:text-brand-400 transition-colors shrink-0" />
+        </button>
+      </div>
+    )
+  }
+
+  const cfg = INTENSITY_CONFIG[profile.intensity]
+
+  return (
+    <div className="mb-5 bg-white border border-slate-200 rounded-2xl px-5 py-4">
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Learning profile</p>
+        <button
+          onClick={onAdjust}
+          className="flex items-center gap-1 text-xs text-brand-600 font-medium hover:text-brand-800 transition-colors"
+        >
+          <SlidersHorizontal size={11} />
+          Adjust
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Goal</p>
+          <p className="text-sm font-semibold text-slate-800 leading-snug">
+            {GOAL_LABELS[profile.goal] ?? profile.goal}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Intensity</p>
+          <p className="text-sm font-semibold text-slate-800 leading-snug">
+            {cfg.emoji} {cfg.label}
+            <span className="font-normal text-slate-500"> · {cfg.wordsPerDay}/day</span>
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">My Current Focus</p>
+          <p className="text-sm font-semibold text-slate-800">
+            {focusCount}
+            <span className="font-normal text-slate-500"> / {profile.targetFocusSize} target</span>
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wide mb-0.5">Themes</p>
+          <p className="text-sm font-semibold text-slate-800">{profile.preferredThemes.length} selected</p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── DashboardPage ─────────────────────────────────────────────────────────────
 
 export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => void }) {
@@ -1148,25 +1224,9 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
       {/* 6. AI Insight */}
       <AIInsightCard insight={insight} />
 
-      {/* 7. Re-personalise — available for repeat users */}
+      {/* 7. Learning profile summary card */}
       {onOpenOnboarding && (
-        <div className="mt-6 mb-2">
-          <button
-            onClick={onOpenOnboarding}
-            className="w-full flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl px-5 py-4 hover:border-brand-200 hover:bg-brand-50/30 transition-all group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-brand-100 flex items-center justify-center shrink-0 group-hover:bg-brand-200 transition-colors">
-                <SlidersHorizontal size={16} className="text-brand-600" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-semibold text-slate-800 leading-snug">Personalise my setup</p>
-                <p className="text-xs text-slate-400 mt-0.5">Re-run the guided setup to refresh your focus areas</p>
-              </div>
-            </div>
-            <ChevronRight size={16} className="text-slate-300 group-hover:text-brand-400 transition-colors shrink-0" />
-          </button>
-        </div>
+        <LearningProfileCard onAdjust={onOpenOnboarding} />
       )}
 
       {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} />}

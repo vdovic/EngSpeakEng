@@ -1,27 +1,46 @@
+/**
+ * onboardingStore.ts
+ *
+ * Persists onboarding completion state and the user's learning profile.
+ * Version 2 adds `profile: UserLearningProfile | null`.
+ * The legacy role/priority/selectedThemes fields are kept for backward compat.
+ */
+
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { UserLearningProfile, LearningGoal } from '@/types/profile'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Legacy types (kept for backward compat) ───────────────────────────────────
 
 export type OnboardingRole = 'pm' | 'engineer' | 'consultant' | 'student' | 'other'
 export type OnboardingPriority = 'meetings' | 'writing' | 'speaking' | 'all'
 
+// ── Store shape ────────────────────────────────────────────────────────────────
+
 interface OnboardingStore {
   /** True once the user has completed (or explicitly skipped) onboarding */
   completed: boolean
-  /** Role chosen in step 1 */
-  role: OnboardingRole | null
-  /** Priority chosen in step 2 */
-  priority: OnboardingPriority | null
-  /** The 3 focus area names chosen in step 3 */
+
+  // ── Phase-8 profile ──────────────────────────────────────────────────────────
+  /** Full learning profile — null until onboarding v2 is completed */
+  profile: UserLearningProfile | null
+
+  // ── Legacy fields (Phase-1 onboarding, kept for compat) ─────────────────────
+  role:           OnboardingRole     | null
+  priority:       OnboardingPriority | null
   selectedThemes: string[]
 
-  markComplete: () => void
-  setRole: (role: OnboardingRole) => void
-  setPriority: (priority: OnboardingPriority) => void
-  setSelectedThemes: (themes: string[]) => void
+  // ── Actions ──────────────────────────────────────────────────────────────────
+  markComplete:      ()                          => void
+  setProfile:        (p: UserLearningProfile)    => void
+  /** @deprecated use setProfile */
+  setRole:           (role: OnboardingRole)      => void
+  /** @deprecated use setProfile */
+  setPriority:       (priority: OnboardingPriority) => void
+  /** @deprecated use setProfile */
+  setSelectedThemes: (themes: string[])          => void
   /** Reset so the modal can be re-triggered from the dashboard */
-  reset: () => void
+  reset:             ()                          => void
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -29,26 +48,63 @@ interface OnboardingStore {
 export const useOnboardingStore = create<OnboardingStore>()(
   persist(
     (set) => ({
-      completed: false,
-      role: null,
-      priority: null,
+      completed:      false,
+      profile:        null,
+      role:           null,
+      priority:       null,
       selectedThemes: [],
 
-      markComplete: () => set({ completed: true }),
-      setRole: (role) => set({ role }),
-      setPriority: (priority) => set({ priority }),
-      setSelectedThemes: (themes) => set({ selectedThemes: themes }),
+      markComplete:      ()  => set({ completed: true }),
+      setProfile:        (p) => set({ profile: p }),
+      setRole:           (r) => set({ role: r }),
+      setPriority:       (p) => set({ priority: p }),
+      setSelectedThemes: (t) => set({ selectedThemes: t }),
+
       reset: () =>
-        set({ completed: false, role: null, priority: null, selectedThemes: [] }),
+        set({
+          completed:      false,
+          profile:        null,
+          role:           null,
+          priority:       null,
+          selectedThemes: [],
+        }),
     }),
     {
-      name: 'speak-english-onboarding',
-      version: 1,
+      name:    'speak-english-onboarding',
+      version: 2,
+      // Migrate v1 → v2: preserve completed flag, add profile: null
+      migrate: (persisted: unknown, version: number) => {
+        if (version < 2) {
+          const old = persisted as Partial<OnboardingStore>
+          return {
+            completed:      old.completed      ?? false,
+            profile:        null,
+            role:           old.role           ?? null,
+            priority:       old.priority       ?? null,
+            selectedThemes: old.selectedThemes ?? [],
+          }
+        }
+        return persisted as OnboardingStore
+      },
     },
   ),
 )
 
-// ── Pre-selection logic ───────────────────────────────────────────────────────
+// ── Pre-selection logic (Phase-8) ─────────────────────────────────────────────
+
+/** Goal → 3 pre-selected theme names for the themes step */
+export const GOAL_THEME_SUGGESTIONS: Record<LearningGoal, string[]> = {
+  'work-communication': ['Business & Professional', 'Written Communication', 'Meetings & Presentations'],
+  'meetings':           ['Meetings & Presentations', 'Leadership & Management', 'Business & Professional'],
+  'presentations':      ['Meetings & Presentations', 'Leadership & Management', 'Business & Professional'],
+  'writing':            ['Written Communication', 'Transitions & Connectors', 'Business & Professional'],
+  'product-management': ['Business & Professional', 'Problem-solving & Analysis', 'Leadership & Management'],
+  'general-fluency':    ['Everyday Conversation', 'Idioms & Expressions', 'Phrasal Verbs'],
+  'exam-preparation':   ['Formal & Academic', 'Transitions & Connectors', 'Written Communication'],
+  'other':              ['Business & Professional', 'Everyday Conversation', 'Written Communication'],
+}
+
+// ── Legacy helpers (kept for any existing callers) ────────────────────────────
 
 /** Role → 3 suggested focus area names */
 export const ROLE_THEMES: Record<OnboardingRole, string[]> = {
@@ -59,7 +115,6 @@ export const ROLE_THEMES: Record<OnboardingRole, string[]> = {
   other:      ['Business & Professional', 'Everyday Conversation', 'Written Communication'],
 }
 
-/** Priority → the theme that must be in the selection */
 const PRIORITY_MUST_HAVE: Record<OnboardingPriority, string> = {
   meetings: 'Meetings & Presentations',
   writing:  'Written Communication',
@@ -67,24 +122,16 @@ const PRIORITY_MUST_HAVE: Record<OnboardingPriority, string> = {
   all:      'Business & Professional',
 }
 
-/**
- * Returns 3 pre-selected theme names based on role + priority.
- * If the priority's "must-have" theme isn't already in the role defaults,
- * it replaces the last slot.
- */
 export function getPreselectedThemes(
   role: OnboardingRole,
   priority: OnboardingPriority,
 ): string[] {
-  const base = [...ROLE_THEMES[role]]
+  const base     = [...ROLE_THEMES[role]]
   const mustHave = PRIORITY_MUST_HAVE[priority]
-  if (!base.includes(mustHave)) {
-    base[2] = mustHave
-  }
+  if (!base.includes(mustHave)) base[2] = mustHave
   return base
 }
 
-/** Returns the best matching starter pack ID for the selected themes */
 export function getBestPackId(themes: string[]): string {
   const priority: Array<[string, string]> = [
     ['Meetings & Presentations', 'meetings-presentations'],
