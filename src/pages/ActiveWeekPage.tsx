@@ -4,15 +4,14 @@ import {
   Target, Plus, CheckCircle2, Info, TrendingUp, X, Search,
 } from 'lucide-react'
 import { useVocabStore, useFocusThisWeekItems } from '@/store/vocabStore'
+import { useThemesStore } from '@/store/themesStore'
 import { LevelBadge } from '@/components/LevelBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { LogUsageModal } from '@/components/LogUsageModal'
 import { usagePoints } from '@/lib/mastery'
 import { VocabItem } from '@/types/vocabulary'
-import {
-  FOCUS_MAX, FOCUS_RECOMMENDED_MIN, FOCUS_RECOMMENDED_MAX,
-  getRuleACandidates, getRuleBCandidates,
-} from '@/lib/focusWeek'
+import { FOCUS_MAX, FOCUS_RECOMMENDED_MIN, FOCUS_RECOMMENDED_MAX } from '@/lib/focusWeek'
+import { generateCandidates } from '@/lib/candidateLogic'
 
 // ─── Capacity bar ─────────────────────────────────────────────────────────────
 
@@ -22,8 +21,8 @@ function CapacityBar({ count }: { count: number }) {
   const tooMany = count > FOCUS_RECOMMENDED_MAX && count < FOCUS_MAX
   const atCap   = count >= FOCUS_MAX
 
-  const barColor = atCap ? 'bg-red-500' : tooMany ? 'bg-amber-500' : ideal ? 'bg-emerald-500' : 'bg-brand-500'
-  const textColor = atCap ? 'text-red-500' : tooMany ? 'text-amber-600' : ideal ? 'text-emerald-600' : 'text-slate-400'
+  const barColor  = atCap ? 'bg-red-500'    : tooMany ? 'bg-amber-500' : ideal ? 'bg-emerald-500' : 'bg-brand-500'
+  const textColor = atCap ? 'text-red-500'  : tooMany ? 'text-amber-600' : ideal ? 'text-emerald-600' : 'text-slate-400'
   const label = atCap
     ? `At the ${FOCUS_MAX}-word limit — remove words to add more`
     : tooMany
@@ -52,10 +51,48 @@ function CapacityBar({ count }: { count: number }) {
   )
 }
 
+// ─── Exposure bar ─────────────────────────────────────────────────────────────
+//
+// Shows challenge-exposure progress (0–8) as a coloured micro-bar + text.
+// Color progression:
+//   0–1  slate   (new, unchallenged)
+//   2–5  blue    (being challenged)
+//   6–7  violet  (nearly mastered via challenge)
+//   8    emerald (fully challenged)
+
+function ExposureBar({ count }: { count: number }) {
+  const capped = Math.min(count, 8)
+  const pct    = (capped / 8) * 100
+
+  const barColor =
+    capped >= 8 ? 'bg-emerald-500'
+    : capped >= 6 ? 'bg-violet-400'
+    : capped >= 2 ? 'bg-blue-400'
+    : 'bg-slate-300'
+
+  const textColor =
+    capped >= 8 ? 'text-emerald-600'
+    : capped >= 6 ? 'text-violet-500'
+    : capped >= 2 ? 'text-blue-500'
+    : 'text-slate-400'
+
+  return (
+    <span className="flex items-center gap-1 shrink-0">
+      <span className={`text-[9px] font-semibold tabular-nums ${textColor}`}>{capped}/8</span>
+      <span className="w-8 h-1 bg-slate-100 rounded-full overflow-hidden shrink-0">
+        <span
+          className={`block h-full ${barColor} rounded-full`}
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+    </span>
+  )
+}
+
 // ─── Compact focus-word row (2 lines max) ─────────────────────────────────────
 //
 // Line 1: [usage dots]  term  TypeBadge  LevelBadge        [log] [×]
-// Line 2:               definition · tag · tag
+// Line 2:               definition · tags              [ExposureBar]
 
 function CompactFocusRow({
   item,
@@ -99,6 +136,7 @@ function CompactFocusRow({
 
       {/* Content — tappable to view word detail */}
       <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
+        {/* Line 1: term + badges */}
         <div className="flex items-center gap-1.5 flex-wrap leading-snug">
           <span className={`text-sm font-semibold ${done ? 'line-through text-slate-400' : 'text-slate-900'}`}>
             {item.term}
@@ -106,9 +144,13 @@ function CompactFocusRow({
           <TypeBadge type={item.type} />
           <LevelBadge item={item} compact />
         </div>
-        {meta && (
-          <p className="text-[11px] text-slate-400 truncate mt-0.5">{meta}</p>
-        )}
+        {/* Line 2: definition snippet + exposure bar */}
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          <p className="text-[11px] text-slate-400 truncate min-w-0">
+            {meta || ' '}
+          </p>
+          <ExposureBar count={item.exposureCount ?? 0} />
+        </div>
       </button>
 
       {/* Actions */}
@@ -138,7 +180,8 @@ function CompactFocusRow({
 
 // ─── Compact candidate row ────────────────────────────────────────────────────
 //
-// Same 2-line layout but with an "+ Add" button instead of log/remove.
+// Line 1: term  TypeBadge  LevelBadge  [ready badge]      [Add]
+// Line 2: definition · tags            [ExposureBar]
 
 function CompactCandidateRow({
   item,
@@ -159,6 +202,7 @@ function CompactCandidateRow({
   return (
     <div className="flex items-start gap-2.5 bg-white border border-slate-200 rounded-xl px-3 py-2.5 hover:border-slate-300 transition-colors">
       <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
+        {/* Line 1: term + badges */}
         <div className="flex items-center gap-1.5 flex-wrap leading-snug">
           <span className="text-sm font-semibold text-slate-800">{item.term}</span>
           <TypeBadge type={item.type} />
@@ -169,9 +213,13 @@ function CompactCandidateRow({
             </span>
           )}
         </div>
-        {meta && (
-          <p className="text-[11px] text-slate-400 truncate mt-0.5">{meta}</p>
-        )}
+        {/* Line 2: definition snippet + exposure bar */}
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          <p className="text-[11px] text-slate-400 truncate min-w-0">
+            {meta || ' '}
+          </p>
+          <ExposureBar count={item.exposureCount ?? 0} />
+        </div>
       </button>
 
       <button
@@ -187,12 +235,13 @@ function CompactCandidateRow({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const CANDIDATE_PAGE = 15   // show this many candidates at a time
+const CANDIDATE_PAGE = 15   // candidates shown per page
 
 export function ActiveWeekPage() {
   const navigate   = useNavigate()
   const focusItems = useFocusThisWeekItems()
   const { setFocusThisWeek, items } = useVocabStore()
+  const { themes: activeThemes }    = useThemesStore()
 
   const [logTarget,    setLogTarget]    = useState<{ id: string; term: string } | null>(null)
   const [showInfo,     setShowInfo]     = useState(false)
@@ -212,22 +261,11 @@ export function ActiveWeekPage() {
     return { inProgress: ip, completed: done }
   }, [focusItems])
 
-  // Build candidate list: Rule A (ready) → Rule B (struggling) → rest
-  const allCandidates = useMemo(() => {
-    const ruleAIds = new Set(getRuleACandidates(items).map((i) => i.id))
-    const ruleBIds = new Set(getRuleBCandidates(items).map((i) => i.id))
-    const ruleA = items.filter((i) => ruleAIds.has(i.id))
-    const ruleB = items.filter((i) => ruleBIds.has(i.id) && !ruleAIds.has(i.id))
-    const rest  = items
-      .filter(
-        (i) =>
-          !i.weeklyFocus && !i.inFocus && !i.archived &&
-          i.status !== 'mastered' && i.status !== 'inbox' &&
-          !ruleAIds.has(i.id) && !ruleBIds.has(i.id),
-      )
-      .sort((a, b) => (b.focusPriority ?? 0) - (a.focusPriority ?? 0))
-    return [...ruleA, ...ruleB, ...rest]
-  }, [items])
+  // Balance-aware candidates list
+  const allCandidates = useMemo(
+    () => generateCandidates(items, focusItems, activeThemes),
+    [items, focusItems, activeThemes],
+  )
 
   // Filter candidates by search query
   const candidates = useMemo(() => {
@@ -247,7 +285,7 @@ export function ActiveWeekPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-28 md:pb-8">
 
-      {/* ── Page title ── */}
+      {/* ── Page header ── */}
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="flex items-center gap-2">
@@ -258,12 +296,20 @@ export function ActiveWeekPage() {
             The words you're actively practising in real life — aim for 100–150.
           </p>
         </div>
-        <button
-          onClick={() => setShowInfo((v) => !v)}
-          className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors mt-0.5 shrink-0"
-        >
-          <Info size={16} />
-        </button>
+        <div className="flex items-center gap-1 shrink-0 mt-0.5">
+          <button
+            onClick={() => navigate('/themes')}
+            className="text-[11px] font-semibold text-brand-500 hover:text-brand-700 px-2 py-1 rounded-lg hover:bg-brand-50 transition-colors"
+          >
+            Adjust themes
+          </button>
+          <button
+            onClick={() => setShowInfo((v) => !v)}
+            className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+          >
+            <Info size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Info panel */}
@@ -272,6 +318,7 @@ export function ActiveWeekPage() {
           <p className="font-semibold text-slate-800">My Current Focus</p>
           <p>These are the words you're working to <em>use</em>, not just recognise. Keep the list deliberate.</p>
           <p>Tap <strong>+</strong> on a focus word to log a real-life use. Three uses marks a word done for the week. Tap <strong>×</strong> to remove it from focus.</p>
+          <p>The exposure bar <span className="font-semibold">(0/8 → 8/8)</span> shows how many times a word has appeared in your daily challenges.</p>
           <p className="text-slate-400">Ideal: {FOCUS_RECOMMENDED_MIN}–{FOCUS_RECOMMENDED_MAX} words. Max: {FOCUS_MAX}.</p>
         </div>
       )}
@@ -301,16 +348,23 @@ export function ActiveWeekPage() {
           <p className="text-xs text-slate-400 max-w-xs mx-auto">
             Add words from the list below — the system prioritises words you've already practised in challenges.
           </p>
-          {allCandidates.length > 0 && (
+          {allCandidates.length > 0 ? (
             <p className="mt-2 text-xs text-brand-500 flex items-center justify-center gap-1">
               <TrendingUp size={11} />
               {allCandidates.length} candidate{allCandidates.length !== 1 ? 's' : ''} ready to add
             </p>
+          ) : (
+            <button
+              onClick={() => navigate('/themes')}
+              className="mt-3 text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
+            >
+              Adjust your themes →
+            </button>
           )}
         </div>
       ) : (
         <div className="space-y-1.5 mb-6">
-          {/* In-progress */}
+          {/* In-progress words */}
           {inProgress.map((item) => (
             <CompactFocusRow
               key={item.id}
@@ -322,7 +376,7 @@ export function ActiveWeekPage() {
             />
           ))}
 
-          {/* Completed */}
+          {/* Completed this week */}
           {completed.length > 0 && (
             <>
               {inProgress.length > 0 && (
@@ -363,7 +417,7 @@ export function ActiveWeekPage() {
             )}
           </div>
 
-          {/* Search filter */}
+          {/* Search filter — only shown when list is long enough */}
           {allCandidates.length > 6 && (
             <div className="relative mb-2">
               <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
