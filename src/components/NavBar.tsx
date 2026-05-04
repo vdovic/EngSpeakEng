@@ -3,7 +3,7 @@ import { NavLink, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, RefreshCw, Library,
   Target, BarChart2, Zap, Layers, GraduationCap, Sparkles,
-  MoreHorizontal, X,
+  MoreHorizontal, X, Settings,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -40,7 +40,8 @@ const SIDEBAR_GROUPS: NavGroup[] = [
   {
     label: 'Track',
     links: [
-      { to: '/stats', icon: BarChart2, label: 'Stats' },
+      { to: '/stats',    icon: BarChart2, label: 'Stats' },
+      { to: '/settings', icon: Settings,  label: 'Settings' },
     ],
   },
 ]
@@ -58,10 +59,11 @@ const MOBILE_PRIMARY: NavLinkDef[] = [
 ]
 
 const MOBILE_MORE: NavLinkDef[] = [
-  { to: '/',        icon: LayoutDashboard, label: 'Home' },
-  { to: '/week',    icon: Target,          label: 'My Current Focus' },
-  { to: '/themes',  icon: Layers,          label: 'Themes' },
-  { to: '/stats',   icon: BarChart2,       label: 'Stats' },
+  { to: '/',         icon: LayoutDashboard, label: 'Home' },
+  { to: '/week',     icon: Target,          label: 'My Current Focus' },
+  { to: '/themes',   icon: Layers,          label: 'Themes' },
+  { to: '/stats',    icon: BarChart2,       label: 'Stats' },
+  { to: '/settings', icon: Settings,        label: 'Settings' },
 ]
 
 // Routes that belong to the "More" drawer — used to highlight the More tab

@@ -9,6 +9,7 @@ import { ActiveWeekPage } from '@/pages/ActiveWeekPage'
 import { DailyChallengePage } from '@/pages/DailyChallengePage'
 import { ThemesPage } from '@/pages/ThemesPage'
 import { ThemeDetailPage } from '@/pages/ThemeDetailPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { Spinner } from '@/components/Spinner'
 import { OnboardingModal } from '@/components/OnboardingModal'
 
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/challenge" element={<DailyChallengePage />} />
           <Route path="/themes"    element={<ThemesPage />} />
           <Route path="/themes/:themeName" element={<ThemeDetailPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </main>
 

@@ -102,6 +102,13 @@ interface VocabStore {
   /** Tag helpers */
   addTag:    (id: string, tag: string)  => Promise<void>
   removeTag: (id: string, tag: string)  => Promise<void>
+
+  /**
+   * Phase-9 bulk import: write a merged set of items to IndexedDB and reload.
+   * The merge logic lives in vocabImportExport.ts; this action only persists
+   * the final merged array and refreshes the in-memory store.
+   */
+  bulkImport: (items: VocabItem[]) => Promise<void>
 }
 
 function uid(): string {
@@ -948,6 +955,14 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     await get().recordExposure(id, correct)
   },
 
+  // ── bulkImport ──────────────────────────────────────────────────────────────
+  // Persists the fully-merged array (computed by mergeImportedVocabItems in
+  // vocabImportExport.ts) to Dexie using bulkPut, then reloads the store.
+  bulkImport: async (items) => {
+    await db.items.bulkPut(items)
+    // Reload so Zustand state reflects the new library
+    await get().load()
+  },
 
 }))
 
