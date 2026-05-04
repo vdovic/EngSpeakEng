@@ -11,7 +11,7 @@ import { useRef, useState } from 'react'
 import {
   Download, Upload, ShieldCheck, AlertTriangle, Info,
   CheckCircle2, XCircle, ChevronDown, ChevronUp, FileJson,
-  AlertCircle,
+  AlertCircle, Activity,
 } from 'lucide-react'
 import { useVocabStore }  from '@/store/vocabStore'
 import {
@@ -28,6 +28,8 @@ import {
   type VocabValidationIssue,
   type ValidationSummary,
 } from '@/lib/vocabValidation'
+import { buildDiagnosticReport, downloadDiagnosticReport } from '@/lib/diagnostics'
+import { APP_VERSION, APP_PHASE, BUILD_DATE } from '@/lib/appVersion'
 import type { VocabItem } from '@/types/vocabulary'
 
 // ── Section wrapper ────────────────────────────────────────────────────────────
@@ -433,6 +435,76 @@ function ValidationSection({ items }: { items: VocabItem[] }) {
   )
 }
 
+// ── Diagnostics section ────────────────────────────────────────────────────────
+
+function DiagnosticsSection({ items }: { items: VocabItem[] }) {
+  const [downloaded, setDownloaded] = useState(false)
+
+  function handleDownload() {
+    const report = buildDiagnosticReport(items)
+    downloadDiagnosticReport(report)
+    setDownloaded(true)
+    setTimeout(() => setDownloaded(false), 3000)
+  }
+
+  return (
+    <Section title="Diagnostics" icon={Activity}>
+      <p className="text-sm text-slate-600 leading-relaxed">
+        Download a technical snapshot of app state to help diagnose issues.
+        The report includes item counts, validation summary, localStorage keys,
+        and browser info — <strong>no vocabulary content or personal notes</strong>.
+      </p>
+
+      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-200">
+        <div className="text-sm text-slate-600 space-y-0.5">
+          <p className="font-medium text-slate-700">Diagnostic report</p>
+          <p className="text-xs text-slate-400">ese-diagnostics-YYYY-MM-DD.json</p>
+        </div>
+        <button
+          onClick={handleDownload}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            downloaded
+              ? 'bg-emerald-600 text-white'
+              : 'bg-slate-700 hover:bg-slate-800 text-white'
+          }`}
+        >
+          {downloaded ? (
+            <><CheckCircle2 size={15} /> Downloaded!</>
+          ) : (
+            <><Download size={15} /> Download report</>
+          )}
+        </button>
+      </div>
+    </Section>
+  )
+}
+
+// ── About section ──────────────────────────────────────────────────────────────
+
+function AboutSection() {
+  return (
+    <Section title="About" icon={Info}>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[
+          { label: 'App version', value: `v${APP_VERSION}` },
+          { label: 'Current phase', value: APP_PHASE },
+          { label: 'Build date', value: BUILD_DATE },
+          { label: 'Storage', value: 'Local (IndexedDB + localStorage)' },
+        ].map(({ label, value }) => (
+          <div key={label} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1">{label}</p>
+            <p className="text-sm font-medium text-slate-700 break-words">{value}</p>
+          </div>
+        ))}
+      </dl>
+      <p className="text-xs text-slate-400 leading-relaxed pt-1">
+        All vocabulary data is stored entirely in your browser. Nothing is sent to a server.
+        Export backups regularly to protect against browser data loss.
+      </p>
+    </Section>
+  )
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export function SettingsPage() {
@@ -444,13 +516,15 @@ export function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Manage your library data — export backups, import from a file, and validate content quality.
+          Manage your library data — export backups, import from a file, validate content quality, and view app info.
         </p>
       </div>
 
       <ExportSection items={allItems} />
       <ImportSection items={allItems} />
       <ValidationSection items={allItems} />
+      <DiagnosticsSection items={allItems} />
+      <AboutSection />
     </div>
   )
 }

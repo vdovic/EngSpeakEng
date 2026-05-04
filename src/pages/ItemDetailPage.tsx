@@ -284,11 +284,28 @@ export function ItemDetailPage() {
 
   if (!item) {
     return (
-      <div className="max-w-2xl mx-auto px-4 py-12 text-center text-slate-400">
-        <p>Item not found.</p>
-        <button onClick={() => navigate(-1)} className="mt-4 text-brand-600 hover:underline text-sm">
-          Go back
-        </button>
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <BookText size={24} className="text-slate-400" />
+        </div>
+        <h2 className="text-lg font-semibold text-slate-700 mb-2">Word not found</h2>
+        <p className="text-sm text-slate-400 mb-6 max-w-xs mx-auto">
+          This word may have been deleted or the link is out of date.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2.5 border border-slate-200 text-slate-600 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
+          >
+            Go back
+          </button>
+          <button
+            onClick={() => navigate('/library')}
+            className="px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 transition-colors"
+          >
+            Open library
+          </button>
+        </div>
       </div>
     )
   }

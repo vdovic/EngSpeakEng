@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
-import { RefreshCw, AlertTriangle } from 'lucide-react'
+import { RefreshCw, AlertTriangle, Download } from 'lucide-react'
+import { APP_VERSION, APP_PHASE } from '@/lib/appVersion'
 
 interface Props {
   children: ReactNode
@@ -8,29 +9,60 @@ interface Props {
 interface State {
   hasError: boolean
   error: Error | null
+  stack: string | null
 }
 
 /**
- * Top-level error boundary.
+ * Top-level error boundary — Phase 10 upgraded.
  *
  * Catches any render-time exception in the React tree and shows a recovery
  * screen instead of a blank white page.  Vocab data is always safe — it lives
  * in IndexedDB and is never affected by a render crash.
+ *
+ * New in Phase 10:
+ *   • "Export crash info" button downloads a lightweight JSON with the error
+ *     message, stack, app version, and timestamp — no personal data included.
  */
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, error: null }
+  state: State = { hasError: false, error: null, stack: null }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error }
+    return { hasError: true, error, stack: null }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // In production this is where you'd send to a crash-reporting service
     console.error('[ErrorBoundary] Uncaught error:', error, info.componentStack)
+    this.setState({ stack: info.componentStack ?? null })
   }
 
-  private reload = () => window.location.reload()
-  private recover = () => this.setState({ hasError: false, error: null })
+  private reload   = () => window.location.reload()
+  private recover  = () => this.setState({ hasError: false, error: null, stack: null })
+
+  private exportCrashInfo = () => {
+    const report = {
+      type:        'crash-report',
+      generatedAt: new Date().toISOString(),
+      appVersion:  APP_VERSION,
+      appPhase:    APP_PHASE,
+      userAgent:   navigator.userAgent,
+      error: {
+        message: this.state.error?.message ?? 'Unknown error',
+        name:    this.state.error?.name    ?? 'Error',
+        stack:   this.state.error?.stack   ?? null,
+      },
+      componentStack: this.state.stack,
+    }
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], {
+      type: 'application/json',
+    })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `ese-crash-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 5_000)
+  }
 
   render() {
     if (!this.state.hasError) return this.props.children
@@ -76,7 +108,19 @@ export class ErrorBoundary extends Component<Props, State> {
             >
               Try to recover
             </button>
+            <button
+              onClick={this.exportCrashInfo}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-slate-400 hover:text-slate-600 text-xs font-medium transition-colors"
+            >
+              <Download size={13} />
+              Export crash info (no personal data)
+            </button>
           </div>
+
+          {/* Version */}
+          <p className="mt-6 text-[10px] text-slate-300 font-mono">
+            v{APP_VERSION}
+          </p>
         </div>
       </div>
     )
