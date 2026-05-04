@@ -10,7 +10,7 @@
  */
 
 import type { VocabItem, Level } from '@/types/vocabulary'
-import { deriveLevel } from '@/lib/progressionLogic'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
 import { MAX_EXPOSURE } from '@/lib/constants'
 import { searchVocabulary } from '@/utils/vocabSearch'
 
@@ -66,9 +66,15 @@ export const DEFAULT_FILTERS: LibraryFilters = {
 
 // ── Item accessors ────────────────────────────────────────────────────────────
 
-/** Returns the item's canonical learning level, deriving it if not yet stored. */
+/**
+ * Returns the item's canonical learning level — always derived from live data.
+ *
+ * Never reads `item.level` directly: the stored field may be stale if a store
+ * write was missed between progression updates.  `getCanonicalLevel` (= `deriveLevel`)
+ * recomputes from `exposureCount`, `sentenceProduced`, and `usageCount` each time.
+ */
 export function getItemLevel(item: VocabItem): Level {
-  return item.level ?? deriveLevel(item)
+  return getCanonicalLevel(item)
 }
 
 /** Returns true when the item is in the learner's current focus. */

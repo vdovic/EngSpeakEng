@@ -1,11 +1,17 @@
 /**
- * vocabValidation.ts — Phase 9
+ * vocabValidation.ts — Phase 9, hardened in Phase 11
  *
  * Pure validation helpers for the vocabulary library.
  * No side-effects, no React, no store — just data in, issues out.
+ *
+ * Phase-11 additions:
+ *   • exposureCount > MAX_EXPOSURE (8) is flagged as an error
+ *   • stored item.level inconsistent with derived level → 'inconsistent-level' warning
  */
 
 import type { VocabItem, ItemType, Level } from '@/types/vocabulary'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
+import { MAX_EXPOSURE } from '@/lib/constants'
 
 // ── Issue types ────────────────────────────────────────────────────────────────
 
@@ -18,6 +24,7 @@ export type ValidationCode =
   | 'missing-type'
   | 'invalid-type'
   | 'invalid-level'
+  | 'inconsistent-level'
   | 'invalid-exposure'
   | 'missing-tags'
   | 'missing-theme'
@@ -82,17 +89,28 @@ export function validateVocabItem(item: VocabItem): VocabValidationIssue[] {
       ...ref,
       severity: 'error',
       code: 'invalid-level',
-      message: `Level ${item.level} is out of range (0–3).`,
+      message: `Stored level ${item.level} is out of range (must be 0–3).`,
     })
   }
 
-  const exp = item.exposureCount ?? 0
-  if (exp < 0 || !Number.isInteger(exp)) {
+  // exposureCount must be a non-negative integer that does not exceed MAX_EXPOSURE (8).
+  // Values < 0 or non-integers are data corruption errors.
+  // Values > MAX_EXPOSURE indicate a store bug where the counter was not clamped.
+  const rawExp = item.exposureCount
+  const exp    = rawExp ?? 0
+  if (rawExp !== undefined && rawExp !== null && (!Number.isInteger(rawExp) || rawExp < 0)) {
     issues.push({
       ...ref,
       severity: 'error',
       code: 'invalid-exposure',
-      message: `exposureCount must be a non-negative integer (got ${item.exposureCount}).`,
+      message: `exposureCount must be a non-negative integer (got ${rawExp}).`,
+    })
+  } else if (exp > MAX_EXPOSURE) {
+    issues.push({
+      ...ref,
+      severity: 'error',
+      code: 'invalid-exposure',
+      message: `exposureCount ${exp} exceeds the maximum of ${MAX_EXPOSURE} — the counter was not clamped correctly.`,
     })
   }
 
@@ -125,6 +143,23 @@ export function validateVocabItem(item: VocabItem): VocabValidationIssue[] {
     })
   }
 
+  // Stored level vs derived level consistency check.
+  // item.level may be stale if the store write was skipped or if mastery
+  // criteria have been updated since the item was last persisted.
+  // This is a warning (not an error) because the UI always uses getCanonicalLevel().
+  if (item.level !== undefined && VALID_LEVELS.includes(item.level as Level)) {
+    const derived = getCanonicalLevel(item)
+    if (item.level !== derived) {
+      issues.push({
+        ...ref,
+        severity: 'warning',
+        code: 'inconsistent-level',
+        message: `Stored level (${item.level}) differs from derived level (${derived}). ` +
+          `The migration or progression update may be stale — UI uses the derived value.`,
+      })
+    }
+  }
+
   // ── Info ──────────────────────────────────────────────────────────────────
 
   const hasEnrichment =
@@ -141,9 +176,7 @@ export function validateVocabItem(item: VocabItem): VocabValidationIssue[] {
     })
   }
 
-  // Check that relatedEntries IDs will resolve (we only know about this item here,
-  // so the cross-item check lives in validateVocabItems).
-  // We flag items that have relatedEntries with no explanation as info.
+  // Items that have relatedEntries with no explanation are flagged as info.
   if (item.relatedEntries && item.relatedEntries.length > 0) {
     const noExplanation = item.relatedEntries.filter((r) => !r.explanation?.trim())
     if (noExplanation.length > 0) {
@@ -171,15 +204,14 @@ export function findDuplicateTerms(items: VocabItem[]): VocabValidationIssue[] {
 
   for (const item of items) {
     if (!item.term) continue
-    const key = item.term.trim().toLowerCase()
+    const key   = item.term.trim().toLowerCase()
     const first = seen.get(key)
     if (first) {
-      // Flag the duplicate (the second occurrence)
       issues.push({
         itemId: item.id,
-        term: item.term,
+        term:   item.term,
         severity: 'error',
-        code: 'duplicate-term',
+        code:    'duplicate-term',
         message: `Duplicate of "${first.term}" (id: ${first.id}).`,
       })
     } else {
@@ -197,7 +229,7 @@ export function findDuplicateTerms(items: VocabItem[]): VocabValidationIssue[] {
  * Returns one warning per broken reference.
  */
 function findBrokenRelationships(items: VocabItem[]): VocabValidationIssue[] {
-  const ids = new Set(items.map((i) => i.id))
+  const ids    = new Set(items.map((i) => i.id))
   const issues: VocabValidationIssue[] = []
 
   for (const item of items) {
@@ -206,9 +238,9 @@ function findBrokenRelationships(items: VocabItem[]): VocabValidationIssue[] {
       if (!ids.has(rel.id)) {
         issues.push({
           itemId: item.id,
-          term: item.term,
+          term:   item.term,
           severity: 'warning',
-          code: 'relationship-broken',
+          code:    'relationship-broken',
           message: `Related entry "${rel.term}" (id: ${rel.id}) not found in library.`,
         })
       }

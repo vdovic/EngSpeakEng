@@ -255,7 +255,7 @@ const LEVEL_ROWS: { level: Level; label: string; color: string; desc: string }[]
   { level: 0, label: 'New',      color: 'bg-slate-400',   desc: 'Not yet encountered' },
   { level: 1, label: 'Learning', color: 'bg-blue-500',    desc: '1–2 exposures' },
   { level: 2, label: 'Familiar', color: 'bg-amber-500',   desc: '3–7 exposures' },
-  { level: 3, label: 'Mastered', color: 'bg-violet-500',  desc: '8+ & sentence produced' },
+  { level: 3, label: 'Mastered', color: 'bg-violet-500',  desc: '8+ exposures & activation evidence' },
 ]
 
 function LevelSection({ dist, total }: { dist: Record<Level, number>; total: number }) {

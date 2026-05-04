@@ -8,12 +8,13 @@
  *   2 = Familiar  (blue)
  *   3 = Mastered  (green)
  *
- * Uses `item.level` when stored; falls back to `deriveLevel(item)`.
+ * Always derives level from live item data via getCanonicalLevel() — never
+ * reads the potentially-stale stored item.level field.
  * compact=true renders a smaller coloured dot instead of the full label pill.
  */
 
 import type { VocabItem, Level } from '@/types/vocabulary'
-import { deriveLevel } from '@/lib/progressionLogic'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,8 @@ export interface LevelBadgeProps {
 }
 
 export function LevelBadge({ item, compact = false, className = '' }: LevelBadgeProps) {
-  const lvl: Level = item.level ?? deriveLevel(item)
+  // Always derive from live data — never trust the stored item.level field
+  const lvl: Level = getCanonicalLevel(item)
   const cfg = LEVEL_CONFIG[lvl]
 
   if (compact) {

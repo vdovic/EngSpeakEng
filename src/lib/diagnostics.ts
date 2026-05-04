@@ -8,6 +8,7 @@
 import type { VocabItem } from '@/types/vocabulary'
 import { APP_VERSION, APP_PHASE, BUILD_DATE } from '@/lib/appVersion'
 import { validateVocabItems, summariseValidation } from '@/lib/vocabValidation'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
 
 // ── Known localStorage keys ────────────────────────────────────────────────────
 
@@ -82,7 +83,7 @@ export function buildDiagnosticReport(items: VocabItem[]): DiagnosticReport {
     library: {
       totalItems:       items.length,
       archivedItems:    items.filter((i) => i.archived).length,
-      masteredItems:    items.filter((i) => (i.level ?? 0) >= 3).length,
+      masteredItems:    items.filter((i) => getCanonicalLevel(i) >= 3).length,
       focusItems:       items.filter((i) => i.inFocus).length,
       itemsWithDef:     items.filter((i) => !!i.definitionEn).length,
       itemsWithTags:    items.filter((i) => (i.tags ?? []).length > 0).length,

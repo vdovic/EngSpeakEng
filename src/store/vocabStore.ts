@@ -58,7 +58,7 @@ interface VocabStore {
   moveToLearning: (ids: string[]) => Promise<{ moved: number; skipped: number }>
   /** Set items as immediately due for Daily Challenge (promotes inbox→learning). */
   addToChallenge: (ids: string[]) => Promise<{ added: number; skipped: number }>
-  /** Add items to This Week's Focus (promotes inbox→learning). */
+  /** Add items to My Current Focus (promotes inbox→learning). Legacy alias for addToFocus. */
   addToWeekFocus: (ids: string[]) => Promise<{ added: number; skipped: number }>
   /** Archive (soft-delete) multiple items at once. */
   deleteItems: (ids: string[]) => Promise<void>
@@ -66,20 +66,21 @@ interface VocabStore {
    *  Returns the count and the IDs of newly added items for immediate activation. */
   importPack: (pack: StarterPack) => Promise<{ imported: number; skipped: number; ids: string[] }>
   /**
-   * Add/remove a single item from Focus This Week.
+   * Add/remove a single item from My Current Focus.
    * On add: computes priority, sets focusAddedAt, enforces the 50-word cap.
    * On remove: clears focus fields.
+   * Writes both `inFocus` (new) and `weeklyFocus` (legacy) for backward compatibility.
    */
   setFocusThisWeek: (id: string, inFocus: boolean) => Promise<void>
   /**
-   * Bulk-add multiple items to Focus This Week.
+   * Bulk-add multiple items to My Current Focus.
    * Respects the 50-word cap — lowest-priority items are evicted to make room.
    * Returns { added, evicted } counts.
    */
   addToFocusThisWeek: (ids: string[]) => Promise<{ added: number; evicted: number }>
   /**
    * Rule B auto-promote: adds struggling words (≥2 failures in recent reviews)
-   * to Focus This Week automatically.
+   * to My Current Focus automatically.
    * Returns the number of words auto-promoted.
    */
   autoPromoteToFocus: () => Promise<number>
@@ -182,7 +183,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       }
     }
 
-    // ── Weekly Focus reset ────────────────────────────────────────────────────
+    // ── My Current Focus weekly reset ─────────────────────────────────────────
     // If a new week has started since the last load, evict the lowest-priority
     // focus items (keep top 65%) to make room for fresh struggling/new words.
     const storedWeek = localStorage.getItem(FOCUS_WEEK_LS_KEY)
@@ -815,7 +816,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     // Auto-create the pack's theme in themesStore (no-op if it already exists)
     useThemesStore.getState().addTheme(pack.theme)
 
-    // Rule C: auto-add first 15–20 imported words to Focus This Week
+    // Rule C: auto-add first 15–20 imported words to My Current Focus
     if (toAdd.length > 0) {
       const focusIds = toAdd.slice(0, Math.min(20, toAdd.length)).map((i) => i.id)
       get().addToFocusThisWeek(focusIds).catch(() => {})
@@ -977,7 +978,7 @@ export function useDueItems(): VocabItem[] {
   )
 }
 
-/** Returns Focus This Week items sorted by priority desc (highest priority first). */
+/** Returns My Current Focus items sorted by priority desc (highest priority first). */
 export function useWeeklyFocusItems(): VocabItem[] {
   return useVocabStore((s) =>
     s.items

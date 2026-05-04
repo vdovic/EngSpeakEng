@@ -7,6 +7,7 @@
 
 import type { VocabItem } from '@/types/vocabulary'
 import type { UserLearningProfile, LearningGoal, LearningContext } from '@/types/profile'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
 
 // ── Tag keyword maps ────────────────────────────────────────────────────────────
 
@@ -61,8 +62,8 @@ export function scoreItemForProfile(
   item: VocabItem,
   profile: UserLearningProfile,
 ): number {
-  // Exclude mastered items from focus candidates
-  if ((item.level ?? 0) >= 3) return -100
+  // Exclude mastered items from focus candidates (use canonical derived level)
+  if (getCanonicalLevel(item) >= 3) return -100
 
   let score = 0
 
@@ -101,7 +102,7 @@ export function scoreItemForProfile(
   score += Math.max(0, 8 - exp)
 
   // ── 7. Slight preference for actively-studied words (they have more data) ─
-  const level = item.level ?? 0
+  const level = getCanonicalLevel(item)
   if (level === 1) score += 5  // Learning
   if (level === 2) score += 3  // Familiar
 
@@ -118,7 +119,7 @@ export function recommendInitialFocusItems(
   profile: UserLearningProfile,
   maxItems: number,
 ): VocabItem[] {
-  const eligible = items.filter((i) => !i.archived && (i.level ?? 0) < 3)
+  const eligible = items.filter((i) => !i.archived && getCanonicalLevel(i) < 3)
 
   const scored = eligible.map((item) => ({
     item,

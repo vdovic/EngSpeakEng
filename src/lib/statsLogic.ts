@@ -8,6 +8,7 @@
 
 import { VocabItem, Level, UsageContext, UsageLog } from '@/types/vocabulary'
 import { usagePoints } from '@/lib/mastery'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,15 +59,21 @@ export function getStartedWordsCount(items: VocabItem[]): number {
   ).length
 }
 
-/** Words at Level 3 (exp ≥ 8 AND sentenceProduced). */
+/**
+ * Words at Level 3 (exp ≥ 8 AND activation evidence).
+ * Uses canonical derived level — never the potentially-stale stored field.
+ */
 export function getMasteredWordsCount(items: VocabItem[]): number {
-  return items.filter((i) => (i.level ?? 0) === 3).length
+  return items.filter((i) => getCanonicalLevel(i) === 3).length
 }
 
-/** Words at Level 1 (Learning) or Level 2 (Familiar). */
+/**
+ * Words at Level 1 (Learning) or Level 2 (Familiar).
+ * Uses canonical derived level — never the potentially-stale stored field.
+ */
 export function getInProgressWordsCount(items: VocabItem[]): number {
   return items.filter((i) => {
-    const l = i.level ?? 0
+    const l = getCanonicalLevel(i)
     return l === 1 || l === 2
   }).length
 }
@@ -118,10 +125,15 @@ export function getGoalProgress(
 
 // ── Level distribution ────────────────────────────────────────────────────────
 
+/**
+ * Returns counts per level, derived from live item data.
+ * Uses getCanonicalLevel so the distribution stays accurate even when
+ * stored item.level values are stale.
+ */
 export function getLevelDistribution(items: VocabItem[]): Record<Level, number> {
   const dist: Record<Level, number> = { 0: 0, 1: 0, 2: 0, 3: 0 }
   for (const item of items) {
-    const l = (item.level ?? 0) as Level
+    const l = getCanonicalLevel(item)
     dist[l]++
   }
   return dist
