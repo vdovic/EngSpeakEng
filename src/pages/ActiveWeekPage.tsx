@@ -1,6 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Target, Star, Plus, CheckCircle2, Search, Zap, Info, TrendingUp, X } from 'lucide-react'
+import {
+  Target, Plus, CheckCircle2, Info, TrendingUp, X,
+  ChevronRight, BookOpen,
+} from 'lucide-react'
 import { useVocabStore, useFocusThisWeekItems } from '@/store/vocabStore'
 import { LevelBadge } from '@/components/LevelBadge'
 import { TypeBadge } from '@/components/TypeBadge'
@@ -8,7 +11,10 @@ import { UsageProgress } from '@/components/UsageProgress'
 import { LogUsageModal } from '@/components/LogUsageModal'
 import { usagePoints } from '@/lib/mastery'
 import { VocabItem } from '@/types/vocabulary'
-import { FOCUS_MAX, FOCUS_RECOMMENDED_MIN, FOCUS_RECOMMENDED_MAX, getRuleACandidates } from '@/lib/focusWeek'
+import {
+  FOCUS_MAX, FOCUS_RECOMMENDED_MIN, FOCUS_RECOMMENDED_MAX,
+  getRuleACandidates, getRuleBCandidates,
+} from '@/lib/focusWeek'
 
 // ─── Tag-aware prompt system ──────────────────────────────────────────────────
 
@@ -70,7 +76,7 @@ function CapacityBar({ count }: { count: number }) {
     : 'bg-brand-500'
 
   const label = atCap
-    ? 'At limit — remove lower-priority words to add new ones'
+    ? `At the ${FOCUS_MAX}-word limit — remove lower-priority words to add new ones`
     : tooMany
     ? `${count} words — slightly above the ideal range`
     : ideal
@@ -223,73 +229,13 @@ function FocusCard({ item, done, usesDone, onLogUsage, onRemove, onNavigate }: F
   )
 }
 
-// ─── Auto-suggest panel (Rule A) ──────────────────────────────────────────────
+// ─── Focus Discovery Panel ────────────────────────────────────────────────────
+//
+// Shows a featured word card with definition + example always visible.
+// User chooses "Add to Focus" or "Not yet" (skip). Replaced the old
+// AutoSuggestPanel + CandidateBrowser combo.
 
-function AutoSuggestPanel({
-  suggestions,
-  currentCount,
-  onAdd,
-  onDismiss,
-}: {
-  suggestions: VocabItem[]
-  currentCount: number
-  onAdd: (id: string) => void
-  onDismiss: () => void
-}) {
-  if (suggestions.length === 0) return null
-  const canAdd = currentCount < FOCUS_MAX
-
-  return (
-    <div className="mb-5 bg-brand-50 border border-brand-200 rounded-2xl p-4">
-      <div className="flex items-start gap-2 mb-3">
-        <TrendingUp size={15} className="text-brand-600 mt-0.5 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-brand-800 leading-snug">
-            Ready to practise in real life
-          </p>
-          <p className="text-xs text-brand-600 mt-0.5">
-            You've reviewed {suggestions.length === 1 ? 'this word' : 'these words'} enough to start using {suggestions.length === 1 ? 'it' : 'them'} — add to My Current Focus.
-          </p>
-        </div>
-        <button onClick={onDismiss} className="text-brand-300 hover:text-brand-500 transition-colors shrink-0">
-          <X size={14} />
-        </button>
-      </div>
-      <div className="space-y-1.5">
-        {suggestions.slice(0, 4).map((item) => (
-          <div key={item.id} className="flex items-center gap-2 bg-white border border-brand-100 rounded-xl px-3 py-2">
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-semibold text-slate-900">{item.term}</span>
-              {item.definitionEn && (
-                <p className="text-xs text-slate-400 truncate">{item.definitionEn}</p>
-              )}
-            </div>
-            <span className="text-[10px] text-slate-400 shrink-0">{item.review.successfulRecalls} reviews</span>
-            {canAdd ? (
-              <button
-                onClick={() => onAdd(item.id)}
-                className="shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-700 bg-brand-100 rounded-lg hover:bg-brand-200 transition-colors"
-              >
-                <Plus size={11} /> Add
-              </button>
-            ) : (
-              <span className="text-[10px] text-slate-300 shrink-0">Cap reached</span>
-            )}
-          </div>
-        ))}
-        {suggestions.length > 4 && (
-          <p className="text-xs text-brand-500 text-center pt-1">
-            +{suggestions.length - 4} more ready — browse library to add
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Candidate browser ────────────────────────────────────────────────────────
-
-function CandidateBrowser({
+function FocusDiscoveryPanel({
   candidates,
   currentCount,
   onAdd,
@@ -300,82 +246,186 @@ function CandidateBrowser({
   onAdd: (id: string) => void
   onNavigate: (id: string) => void
 }) {
-  const [query, setQuery] = useState('')
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
 
-  const filtered = useMemo(() => {
-    if (!query.trim()) return candidates
-    const q = query.toLowerCase()
-    return candidates.filter(
-      (i) =>
-        i.term.toLowerCase().includes(q) ||
-        i.definitionEn?.toLowerCase().includes(q) ||
-        i.tags.some((t) => t.includes(q))
-    )
-  }, [candidates, query])
+  // Remove added items (they leave the candidates list) and skipped ones
+  const available = useMemo(
+    () => candidates.filter((c) => !skippedIds.has(c.id)),
+    [candidates, skippedIds],
+  )
 
-  const atCap = currentCount >= FOCUS_MAX
+  const featured  = available[0] ?? null
+  const restCount = Math.max(0, available.length - 1)
+  const atCap     = currentCount >= FOCUS_MAX
+
+  function skip(id: string) {
+    setSkippedIds((prev) => new Set([...prev, id]))
+  }
+
+  function addWord(id: string) {
+    onAdd(id)
+    // The item will disappear from candidates; skip it locally too so state
+    // doesn't briefly show it again before the store updates.
+    setSkippedIds((prev) => new Set([...prev, id]))
+  }
+
+  if (candidates.length === 0) return null
 
   return (
-    <div>
-      <h2 className="text-sm font-semibold text-slate-600 mb-3">Add words to Focus</h2>
+    <div className="mt-8">
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-700">Suggested for Focus</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Review each word — add the ones you want to practise in real life.
+          </p>
+        </div>
+        {restCount > 0 && (
+          <span className="text-xs text-slate-400 shrink-0 ml-2">{restCount} more</span>
+        )}
+      </div>
 
+      {/* Cap warning */}
       {atCap && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3 text-xs text-amber-700">
           <Info size={13} className="shrink-0" />
-          Focus is at the 50-word limit. Remove a word first to add a new one.
+          Focus is at the {FOCUS_MAX}-word limit. Remove a word above to add more.
         </div>
       )}
 
-      {candidates.length > 6 && (
-        <div className="relative mb-2">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter candidates…"
-            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-300 bg-white"
-          />
-        </div>
-      )}
-
-      <div className="space-y-1.5">
-        {filtered.slice(0, 8).map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 hover:border-slate-300 transition-colors"
-          >
-            <button onClick={() => onNavigate(item.id)} className="flex-1 text-left min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-sm font-semibold text-slate-800 truncate">{item.term}</span>
-                <TypeBadge type={item.type} />
-                <LevelBadge item={item} />
+      {/* Featured word card */}
+      {featured ? (
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm mb-3">
+          {/* Word header */}
+          <div className="px-5 pt-5 pb-1">
+            <button
+              onClick={() => onNavigate(featured.id)}
+              className="w-full text-left group"
+            >
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="text-xl font-bold text-slate-900 group-hover:text-brand-700 transition-colors">
+                  {featured.term}
+                </span>
+                <TypeBadge type={featured.type} />
+                <LevelBadge item={featured} />
               </div>
-              {item.definitionEn && (
-                <p className="text-xs text-slate-400 truncate">{item.definitionEn}</p>
+              {featured.review.successfulRecalls > 0 && (
+                <p className="text-[10px] text-brand-500 font-medium">
+                  Recalled {featured.review.successfulRecalls}× in challenges — ready to use!
+                </p>
               )}
             </button>
+          </div>
+
+          {/* Definition — always open */}
+          <div className="mx-5 my-3 bg-slate-50 rounded-xl px-4 py-3">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">
+              Definition
+            </p>
+            {featured.definitionEn ? (
+              <p className="text-sm text-slate-700 leading-relaxed">{featured.definitionEn}</p>
+            ) : (
+              <p className="text-sm text-slate-400 italic">
+                No definition yet —{' '}
+                <button
+                  onClick={() => onNavigate(featured.id)}
+                  className="text-brand-500 hover:underline"
+                >
+                  open the word
+                </button>{' '}
+                to add one.
+              </p>
+            )}
+          </div>
+
+          {/* Example sentence */}
+          {featured.exampleSentence && (
+            <p className="mx-5 mb-4 text-xs text-slate-400 italic leading-relaxed">
+              "{featured.exampleSentence}"
+            </p>
+          )}
+
+          {/* Synonyms / collocations hint */}
+          {featured.synonyms && featured.synonyms.length > 0 && (
+            <p className="mx-5 mb-3 text-[10px] text-slate-400">
+              Also: {featured.synonyms.slice(0, 3).join(', ')}
+            </p>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-2 px-5 pb-4">
             <button
-              onClick={() => !atCap && onAdd(item.id)}
+              onClick={() => !atCap && addWord(featured.id)}
               disabled={atCap}
-              className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:pointer-events-none"
             >
-              <Star size={12} />
-              Add
+              <Plus size={15} />
+              Add to Focus
+            </button>
+            <button
+              onClick={() => skip(featured.id)}
+              className="px-5 py-2.5 text-slate-500 border border-slate-200 rounded-xl text-sm font-medium hover:bg-slate-50 active:bg-slate-100 transition-colors"
+            >
+              Not yet
             </button>
           </div>
-        ))}
 
-        {filtered.length === 0 && (
-          <p className="text-xs text-slate-400 text-center py-4">No matching words.</p>
-        )}
-
-        {filtered.length > 8 && (
-          <p className="text-xs text-slate-400 text-center py-2">
-            +{filtered.length - 8} more — search to narrow down
+          {/* View full word link */}
+          <button
+            onClick={() => onNavigate(featured.id)}
+            className="w-full flex items-center justify-center gap-1 py-2.5 text-xs text-brand-600 font-semibold border-t border-slate-100 hover:bg-brand-50 transition-colors"
+          >
+            <BookOpen size={12} />
+            View full word details
+            <ChevronRight size={12} />
+          </button>
+        </div>
+      ) : (
+        /* All candidates reviewed */
+        <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-5 text-center mb-3">
+          <CheckCircle2 size={24} className="mx-auto mb-2 text-emerald-400" />
+          <p className="text-sm font-semibold text-slate-600 mb-0.5">You've seen all suggestions</p>
+          <p className="text-xs text-slate-400">
+            Keep learning and new candidates will appear here.
           </p>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Compact list of remaining candidates (after the featured one) */}
+      {available.length > 1 && (
+        <div className="space-y-1.5">
+          {available.slice(1, 7).map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 hover:border-slate-300 transition-colors"
+            >
+              <button onClick={() => onNavigate(item.id)} className="flex-1 text-left min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-semibold text-slate-800 truncate">{item.term}</span>
+                  <TypeBadge type={item.type} />
+                  <LevelBadge item={item} />
+                </div>
+                {item.definitionEn && (
+                  <p className="text-xs text-slate-400 truncate">{item.definitionEn}</p>
+                )}
+              </button>
+              <button
+                onClick={() => !atCap && addWord(item.id)}
+                disabled={atCap}
+                className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-brand-700 bg-brand-50 border border-brand-200 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Plus size={11} /> Add
+              </button>
+            </div>
+          ))}
+          {available.length > 7 && (
+            <p className="text-xs text-slate-400 text-center py-1">
+              +{available.length - 7} more words in your library
+            </p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -383,12 +433,11 @@ function CandidateBrowser({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function ActiveWeekPage() {
-  const navigate = useNavigate()
+  const navigate   = useNavigate()
   const focusItems = useFocusThisWeekItems()
   const { setFocusThisWeek, items } = useVocabStore()
-  const [logTarget, setLogTarget] = useState<{ id: string; term: string } | null>(null)
-  const [showInfo, setShowInfo] = useState(false)
-  const [dismissedSuggestions, setDismissedSuggestions] = useState(false)
+  const [logTarget,  setLogTarget]  = useState<{ id: string; term: string } | null>(null)
+  const [showInfo,   setShowInfo]   = useState(false)
 
   const { inProgress, completed } = useMemo(() => {
     const ip: VocabItem[] = []
@@ -402,22 +451,33 @@ export function ActiveWeekPage() {
     return { inProgress: ip, completed: done }
   }, [focusItems])
 
-  // Rule A suggestions — words reviewed 2-3 times, not yet in focus
-  const autoSuggestions = useMemo(
-    () => (!dismissedSuggestions ? getRuleACandidates(items) : []),
-    [items, dismissedSuggestions],
-  )
+  // Combined candidates for discovery panel:
+  // Rule A (reviewed 2–3 times) and Rule B (struggling) come first,
+  // then all other non-focus, non-mastered, non-inbox words.
+  const candidates = useMemo(() => {
+    const ruleAIds = new Set(getRuleACandidates(items).map((i) => i.id))
+    const ruleBIds = new Set(getRuleBCandidates(items).map((i) => i.id))
 
-  const candidates = useMemo(
-    () =>
-      items
-        .filter((i) => !i.weeklyFocus && i.status !== 'mastered' && i.status !== 'inbox')
-        .sort((a, b) => (b.focusPriority ?? 0) - (a.focusPriority ?? 0)),
-    [items],
-  )
+    const ruleA = items.filter((i) => ruleAIds.has(i.id))
+    const ruleB = items.filter((i) => ruleBIds.has(i.id) && !ruleAIds.has(i.id))
+    const rest  = items
+      .filter(
+        (i) =>
+          !i.weeklyFocus &&
+          !i.inFocus &&
+          !i.archived &&
+          i.status !== 'mastered' &&
+          i.status !== 'inbox' &&
+          !ruleAIds.has(i.id) &&
+          !ruleBIds.has(i.id),
+      )
+      .sort((a, b) => (b.focusPriority ?? 0) - (a.focusPriority ?? 0))
+
+    return [...ruleA, ...ruleB, ...rest]
+  }, [items])
 
   const totalFocus = focusItems.length
-  const totalDone = completed.length
+  const totalDone  = completed.length
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 pb-28 md:pb-8">
@@ -433,30 +493,22 @@ export function ActiveWeekPage() {
             The words you're actively practising in real life — aim for 100–150.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/challenge')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 transition-colors"
-          >
-            <Zap size={12} /> Practice now
-          </button>
-          <button
-            onClick={() => setShowInfo((v) => !v)}
-            className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
-            title="What is My Current Focus?"
-          >
-            <Info size={16} />
-          </button>
-        </div>
+        <button
+          onClick={() => setShowInfo((v) => !v)}
+          className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors mt-0.5 shrink-0"
+          title="What is My Current Focus?"
+        >
+          <Info size={16} />
+        </button>
       </div>
 
       {/* Info panel */}
       {showInfo && (
         <div className="mb-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed space-y-2">
           <p className="font-semibold text-slate-800">My Current Focus</p>
-          <p>These are the words you're actively working to <em>use</em>, not just recognise. Keep this list small and deliberate.</p>
-          <p>The system auto-selects words based on what you've learned, where you're struggling, and what matters for your goals. Your goal: use each word at least 3× in real life this week.</p>
-          <p className="text-slate-400">Ideal range: {FOCUS_RECOMMENDED_MIN}–{FOCUS_RECOMMENDED_MAX} words. Maximum: {FOCUS_MAX}. Words are refreshed each Monday.</p>
+          <p>These are the words you're actively working to <em>use</em>, not just recognise. Keep this list deliberate and manageable.</p>
+          <p>The system suggests words based on what you've already learned in challenges. Your goal: use each word at least 3× in real life. You can log a use directly from each word card.</p>
+          <p className="text-slate-400">Ideal range: {FOCUS_RECOMMENDED_MIN}–{FOCUS_RECOMMENDED_MAX} words for focused practice. Maximum: {FOCUS_MAX}.</p>
         </div>
       )}
 
@@ -466,28 +518,20 @@ export function ActiveWeekPage() {
       {/* Week progress */}
       <WeekHeader total={totalFocus} done={totalDone} />
 
-      {/* Auto-suggestions (Rule A) */}
-      <AutoSuggestPanel
-        suggestions={autoSuggestions}
-        currentCount={totalFocus}
-        onAdd={(id) => setFocusThisWeek(id, true)}
-        onDismiss={() => setDismissedSuggestions(true)}
-      />
-
       {/* Empty state */}
       {focusItems.length === 0 ? (
         <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-200 mb-8">
           <Target size={36} className="mx-auto mb-3 text-slate-300" />
           <p className="font-semibold text-slate-600 mb-1">No words in focus yet</p>
-          <p className="text-sm text-slate-400 mb-4 max-w-xs mx-auto">
-            The system adds words automatically as you learn. You can also add them manually below.
+          <p className="text-sm text-slate-400 mb-3 max-w-xs mx-auto">
+            Add words below to start tracking your real-life practice. The system will suggest the best candidates from your library.
           </p>
-          <button
-            onClick={() => navigate('/challenge')}
-            className="px-4 py-2 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700"
-          >
-            Start Daily Challenge
-          </button>
+          {candidates.length > 0 && (
+            <p className="text-xs text-slate-400 flex items-center justify-center gap-1">
+              <TrendingUp size={12} className="text-brand-400" />
+              {candidates.length} word{candidates.length !== 1 ? 's' : ''} ready to add — see suggestions below
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-3 mb-8">
@@ -528,9 +572,9 @@ export function ActiveWeekPage() {
         </div>
       )}
 
-      {/* Manual add — candidate browser */}
+      {/* ── Focus Discovery Panel — word suggestions with definition ── */}
       {candidates.length > 0 && (
-        <CandidateBrowser
+        <FocusDiscoveryPanel
           candidates={candidates}
           currentCount={totalFocus}
           onAdd={(id) => setFocusThisWeek(id, true)}
