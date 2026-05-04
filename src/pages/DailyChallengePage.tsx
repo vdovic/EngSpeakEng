@@ -422,12 +422,15 @@ export function DailyChallengePage() {
 
   function restartSameWords() {
     clearSession()
-    const newSlots = slots.map((s) => ({
-      item: s.item,
-      challengeType: getChallengeType(s.item),
-    }))
-    usedItemIds.current = new Set(newSlots.map((s) => s.item.id))
-    setSlots(newSlots)
+    // Always look up live item data from the Zustand store so that exposureCount
+    // and other fields updated during the just-completed session are reflected in
+    // the new session's challenge type selection and preview card.
+    const liveSlots = slots.map((s) => {
+      const liveItem = allItems.find((i) => i.id === s.item.id) ?? s.item
+      return { item: liveItem, challengeType: getChallengeType(liveItem) }
+    })
+    usedItemIds.current = new Set(liveSlots.map((s) => s.item.id))
+    setSlots(liveSlots)
     setCurrentIndex(0)
     setResults([])
     setIsBonus(false)

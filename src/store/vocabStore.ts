@@ -116,17 +116,21 @@ function uid(): string {
   return crypto.randomUUID()
 }
 
-// Helper: write a patch to both IndexedDB and Zustand state atomically
+// Helper: write a patch to Zustand state immediately (optimistic), then persist to IndexedDB.
+// Optimistic update ensures callers see the new values without waiting for the DB round-trip,
+// which prevents stale exposureCount being read when a new challenge session starts shortly
+// after the previous one completes.
 function applyPatch(
   id: string,
   patch: Partial<VocabItem>,
   set: (fn: (s: { items: VocabItem[] }) => { items: VocabItem[] }) => void
 ) {
-  return db.items.update(id, patch).then(() => {
-    set((s) => ({
-      items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)),
-    }))
-  })
+  // 1. Update Zustand immediately so UI and any subsequent reads see fresh data.
+  set((s) => ({
+    items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)),
+  }))
+  // 2. Persist to IndexedDB in the background (fire-and-forget; failures are non-fatal here).
+  return db.items.update(id, patch)
 }
 
 export const useVocabStore = create<VocabStore>((set, get) => ({
