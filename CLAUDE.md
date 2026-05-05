@@ -27,14 +27,17 @@ Claude must preserve this loop in all suggestions.
 
 Focus is the most important product area.
 
-* 100–150 active words
+**My Current Focus is the user's active vocabulary portfolio: a curated and evolving set of words selected from the larger Library, balanced by the system, shaped by the user's goals, and trained through Challenges and real-life usage.**
+
+#### Focus Portfolio
+
+The Focus Portfolio is the broader learning pool:
+
+* can contain around 100–150 relevant words
+* shaped by onboarding, themes, Library, and Candidates
 * always pre-filled where possible
 * continuously evolving
 * user can add/remove words instantly
-* shows progress per word:
-
-  * exposure progress: 0–8
-  * real-life usage progress
 
 The system should maintain balance automatically:
 
@@ -43,6 +46,20 @@ The system should maintain balance automatically:
 * approximately 30% advanced words: 6–8 exposures
 
 Do not ask users to manage this balance manually.
+
+#### Active Focus
+
+Active Focus is the visible working set for the user:
+
+* should normally show around 20–25 words
+* these are the words the user is actively engaging with now
+* selected from the Focus Portfolio by the system (due for challenge, low exposure, high difficulty, matching themes)
+* shows progress per word:
+
+  * exposure progress: 0–8
+  * real-life usage progress: 0–3 uses
+
+* should be easy to scan and act on
 
 ---
 
