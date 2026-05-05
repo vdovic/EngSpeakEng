@@ -3,43 +3,46 @@
  *
  * Balance-aware candidate generation for the Focus page.
  *
- * Scoring weights:
- *   Theme relevance                 → +40  (user's active learning themes)
- *   Balance gap fill (30% target)   → +30  (fills under-represented exposure tier)
- *   Recall readiness (2–6 recalls)  → +20  (ready to activate, not yet mastered)
- *   Recency (added < 14 days ago)   → +10  (fresh vocab benefits from active use)
- *   focusPriority field             → up to +20 (system/user-set priority)
+ * Scoring weights (none of these are surfaced to the user):
+ *   Theme relevance          → +40  matches the user's active learning themes
+ *   Balance gap fill         → +30  prefer 0–5 exposure (under-represented tiers)
+ *   Low real-life usage      → +20  usageCount === 0 (never activated in real life)
+ *   High difficulty          → +20  difficultyScore > 70 (hard for this learner)
+ *   Not recently challenged  → +10  lastExposureAt > 7 days ago or never exposed
+ *   focusPriority tiebreak   → up to +10
  *
- * The 30/30/30 balance (new / mid / advanced) is maintained silently —
- * it is never surfaced to the user directly.
- *
- * Exposure tiers:
- *   new       0–1  exposures  (never/barely challenged)
- *   mid       2–5  exposures  (actively being challenged)
- *   advanced  6–8  exposures  (nearly / fully challenged)
+ * The 30/30/30 balance logic (new / mid / advanced exposure tiers) is
+ * maintained silently — it is never surfaced in the UI.
  */
 
 import type { VocabItem } from '@/types/vocabulary'
 
 /**
- * Returns the top `limit` candidates for Focus, scored by relevance and balance.
+ * Returns the top candidates for adding to Focus.
  *
- * @param items        All vocab items in the store
- * @param focusItems   Items currently in focus (used to measure tier balance)
- * @param activeThemes User's active theme names from themesStore
- * @param limit        Maximum candidates to return (default 50)
+ * @param allItems     Every VocabItem in the store
+ * @param focusItems   Items currently in the Focus Portfolio
+ * @param activeItems  Items in the Active Focus view (already shown to user)
+ * @param activeThemes User's active theme names (from themesStore)
+ * @param limit        Max candidates to return (default 30)
  */
 export function generateCandidates(
-  items: VocabItem[],
+  allItems: VocabItem[],
   focusItems: VocabItem[],
-  activeThemes: string[],
-  limit = 50,
+  activeItems: VocabItem[],
+  activeThemes: string[] = [],
+  limit = 30,
 ): VocabItem[] {
-  // Pool: not in focus, not archived, not mastered, not inbox
-  const focusIds = new Set(focusItems.map((i) => i.id))
-  const pool = items.filter(
+  // Exclude anything already in the portfolio (which subsumes activeItems)
+  // or flagged as archived / mastered / inbox.
+  const excludeIds = new Set([
+    ...focusItems.map((i) => i.id),
+    ...activeItems.map((i) => i.id),
+  ])
+
+  const pool = allItems.filter(
     (i) =>
-      !focusIds.has(i.id) &&
+      !excludeIds.has(i.id) &&
       !i.weeklyFocus &&
       !i.inFocus &&
       !i.archived &&
@@ -49,32 +52,28 @@ export function generateCandidates(
 
   if (pool.length === 0) return []
 
-  // ── Measure current focus tier balance ────────────────────────────────────────
-  const focusTotal = focusItems.length || 1
-  const newCount = focusItems.filter((i) => (i.exposureCount ?? 0) <= 1).length
-  const midCount = focusItems.filter((i) => {
-    const e = i.exposureCount ?? 0
-    return e >= 2 && e <= 5
-  }).length
-  const advCount = focusItems.filter((i) => (i.exposureCount ?? 0) >= 6).length
+  // ── Measure current Active Focus tier balance (30/30/30 target) ───────────────
+  const refItems  = activeItems.length > 0 ? activeItems : focusItems
+  const refTotal  = refItems.length || 1
+  const newCount  = refItems.filter((i) => (i.exposureCount ?? 0) <= 1).length
+  const midCount  = refItems.filter((i) => { const e = i.exposureCount ?? 0; return e >= 2 && e <= 5 }).length
+  const advCount  = refItems.filter((i) => (i.exposureCount ?? 0) >= 6).length
+  const newPct    = newCount / refTotal
+  const midPct    = midCount / refTotal
+  const advPct    = advCount / refTotal
 
-  const newPct = newCount / focusTotal
-  const midPct = midCount / focusTotal
-  const advPct = advCount / focusTotal
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1_000
+  const now         = Date.now()
 
   // ── Score each candidate ──────────────────────────────────────────────────────
   const scored = pool.map((item) => {
     let score = 0
-    const exp     = item.exposureCount ?? 0
-    const recalls = item.review.successfulRecalls
-    const daysSinceAdded =
-      (Date.now() - new Date(item.createdAt).getTime()) / 86_400_000
+    const exp = item.exposureCount ?? 0
 
-    // Theme relevance
-    const inActiveTheme = (item.themes ?? []).some((t) => activeThemes.includes(t))
-    if (inActiveTheme) score += 40
+    // +40 — theme relevance
+    if ((item.themes ?? []).some((t) => activeThemes.includes(t))) score += 40
 
-    // Balance gap fill — boost whichever tier is most under-represented
+    // +30 — fill under-represented exposure tier (prefer 0–5)
     const isNew = exp <= 1
     const isMid = exp >= 2 && exp <= 5
     const isAdv = exp >= 6
@@ -82,19 +81,25 @@ export function generateCandidates(
     else if (isMid && midPct < 0.30) score += 30
     else if (isAdv && advPct < 0.30) score += 30
 
-    // Recall readiness — knows it well enough to try in real life
-    if (recalls >= 2 && recalls <= 6) score += 20
+    // +20 — low real-life usageCount (never activated)
+    if ((item.activation?.usageCount ?? 0) === 0) score += 20
 
-    // Freshness — recently added words benefit from early activation
-    if (daysSinceAdded < 14) score += 10
+    // +20 — high learner-specific difficulty
+    const difficulty = item.difficultyScore ?? 50
+    if (difficulty > 70) score += 20
+    else if (difficulty > 55) score += 10
 
-    // System/user-set priority (capped to avoid domination)
-    score += Math.min(item.focusPriority ?? 0, 20)
+    // +10 — not recently challenged (stale or brand-new to challenges)
+    const lastExp = item.lastExposureAt
+    const notRecentlyChallenged = !lastExp || (now - new Date(lastExp).getTime()) > sevenDaysMs
+    if (notRecentlyChallenged) score += 10
+
+    // Tiebreak — system/user-set priority (capped)
+    score += Math.min(item.focusPriority ?? 0, 10)
 
     return { item, score }
   })
 
   scored.sort((a, b) => b.score - a.score)
-
   return scored.slice(0, limit).map((s) => s.item)
 }

@@ -464,10 +464,10 @@ export function ActiveWeekPage() {
     [focusItems, activeFocusIds],
   )
 
-  // ── Candidates ───────────────────────────────────────────────────────────────
+  // ── Candidates — excluded from active focus view, scored by relevance ──────────
   const allCandidates = useMemo(
-    () => generateCandidates(items, focusItems, activeThemes),
-    [items, focusItems, activeThemes],
+    () => generateCandidates(items, focusItems, activeFocusItems, activeThemes),
+    [items, focusItems, activeFocusItems, activeThemes],
   )
 
   const candidates = useMemo(() => {
@@ -485,7 +485,8 @@ export function ActiveWeekPage() {
   const summary = useMemo(() => getFocusProgressSummary(focusItems), [focusItems])
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
-  const isFull = focusItems.length >= ACTIVE_FOCUS_LIMIT
+  // isFull = the VISIBLE active focus is at its 25-word target, not the total portfolio.
+  const isFull = orderedActiveFocus.length >= ACTIVE_FOCUS_LIMIT
 
   function handleAddCandidate(item: VocabItem) {
     if (isFull) {
@@ -638,7 +639,7 @@ export function ActiveWeekPage() {
             {/* Under-20 nudge */}
             {orderedActiveFocus.length < 20 && allCandidates.length > 0 && (
               <p className="mt-3 text-xs text-slate-400 text-center">
-                Add a few more words to keep your practice varied.{' '}
+                Add a few more words to keep your learning effective.{' '}
                 <button
                   className="text-brand-500 font-semibold hover:text-brand-700 transition-colors"
                   onClick={() => {
@@ -657,75 +658,100 @@ export function ActiveWeekPage() {
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ZONE 2 — Suggested Candidates                                         */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {allCandidates.length > 0 && (
-        <section id="candidates-section" className="mb-8">
-          <div className="mb-3">
-            <h2 className="text-base font-bold text-slate-800">Suggested Candidates</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Words that match your goals and current progress.
+      <section id="candidates-section" className="mb-8">
+        <div className="mb-3">
+          <h2 className="text-base font-bold text-slate-800">Suggested Candidates</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Words that match your goals and help you progress.
+          </p>
+        </div>
+
+        {allCandidates.length === 0 ? (
+          /* ── Empty state ── */
+          <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200">
+            <p className="text-sm font-medium text-slate-500 mb-1">No suggestions right now.</p>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto mb-4">
+              Try adjusting your themes or exploring your Library.
             </p>
-          </div>
-
-          {/* Active Focus full message */}
-          {showFullMessage && isFull && (
-            <div className="mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium flex items-start gap-2">
-              <Lightbulb size={13} className="shrink-0 mt-0.5 text-amber-500" />
-              <span>
-                Your Active Focus is full.{' '}
-                <button
-                  className="underline hover:text-amber-900 transition-colors"
-                  onClick={() => {
-                    setShowFullMessage(false)
-                    window.scrollTo({ top: 0, behavior: 'smooth' })
-                  }}
-                >
-                  Remove a word first
-                </button>{' '}
-                or replace one.
-              </span>
-            </div>
-          )}
-
-          {/* Search — only when list is long enough */}
-          {allCandidates.length > 6 && (
-            <div className="relative mb-2">
-              <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setCandidateCap(CANDIDATE_PAGE) }}
-                placeholder="Filter by word, definition or tag…"
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-300 bg-white"
-              />
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            {candidates.slice(0, candidateCap).map((item) => (
-              <CandidateRow
-                key={item.id}
-                item={item}
-                activeThemes={activeThemes}
-                onAdd={() => handleAddCandidate(item)}
-                onNavigate={() => navigate(`/item/${item.id}`)}
-              />
-            ))}
-
-            {candidates.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-4">No matching words.</p>
-            )}
-
-            {candidates.length > candidateCap && (
+            <div className="flex items-center justify-center gap-4">
               <button
-                onClick={() => setCandidateCap((c) => c + CANDIDATE_PAGE)}
-                className="w-full py-2 text-xs font-semibold text-brand-600 hover:text-brand-700 text-center transition-colors"
+                onClick={() => navigate('/themes')}
+                className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
               >
-                Show {Math.min(CANDIDATE_PAGE, candidates.length - candidateCap)} more…
+                Adjust themes
               </button>
-            )}
+              <span className="text-slate-300">·</span>
+              <button
+                onClick={() => navigate('/library')}
+                className="text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Open Library
+              </button>
+            </div>
           </div>
-        </section>
-      )}
+        ) : (
+          <>
+            {/* Active Focus full message */}
+            {showFullMessage && isFull && (
+              <div className="mb-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium flex items-start gap-2">
+                <Lightbulb size={13} className="shrink-0 mt-0.5 text-amber-500" />
+                <span>
+                  Your Active Focus is full.{' '}
+                  <button
+                    className="underline hover:text-amber-900 transition-colors"
+                    onClick={() => {
+                      setShowFullMessage(false)
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                  >
+                    Remove a word to add a new one.
+                  </button>
+                </span>
+              </div>
+            )}
+
+            {/* Search — only when list is long enough */}
+            {allCandidates.length > 6 && (
+              <div className="relative mb-2">
+                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setCandidateCap(CANDIDATE_PAGE) }}
+                  placeholder="Filter by word, definition or tag…"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-300 bg-white"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              {candidates.slice(0, candidateCap).map((item) => (
+                <CandidateRow
+                  key={item.id}
+                  item={item}
+                  activeThemes={activeThemes}
+                  onAdd={() => handleAddCandidate(item)}
+                  onNavigate={() => navigate(`/item/${item.id}`)}
+                />
+              ))}
+
+              {/* No results for current search query */}
+              {candidates.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">No matching words.</p>
+              )}
+
+              {candidates.length > candidateCap && (
+                <button
+                  onClick={() => setCandidateCap((c) => c + CANDIDATE_PAGE)}
+                  className="w-full py-2 text-xs font-semibold text-brand-600 hover:text-brand-700 text-center transition-colors"
+                >
+                  Show {Math.min(CANDIDATE_PAGE, candidates.length - candidateCap)} more…
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </section>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
       {/* ZONE 3 — Portfolio Overview                                            */}
