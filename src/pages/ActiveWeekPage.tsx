@@ -3,11 +3,12 @@
  *
  * Three-zone layout:
  *
- *   Zone 1 — Active Focus
+ *   Zone 1 — Active Focus  (drag-and-drop sortable)
  *     The 20–25 words most ready to practise right now, selected from the
  *     Focus Portfolio by selectActiveFocusItems().  Each row shows the term,
  *     type, level, a short definition, exposure progress (0/8), real-life
  *     usage progress (0/3), and one compact usage prompt.
+ *     The user can drag rows to reorder them; the order is saved to localStorage.
  *
  *   Zone 2 — Suggested Candidates
  *     Balance-aware suggestions from the Library.  Each candidate shows a
@@ -25,8 +26,26 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Target, Plus, CheckCircle2, Info, X, Search,
-  ChevronDown, ChevronUp, Lightbulb,
+  ChevronDown, ChevronUp, Lightbulb, GripVertical,
 } from 'lucide-react'
+import {
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useVocabStore, useFocusThisWeekItems } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { LevelBadge } from '@/components/LevelBadge'
@@ -77,9 +96,22 @@ function ExposureBar({ count }: { count: number }) {
 
 // ─── Active Focus row ─────────────────────────────────────────────────────────
 //
-// Line 1: term · TypeBadge · LevelBadge            [+ log] [×]
-// Line 2: short definition          usage dots 0/3 · ExposureBar
-// Line 3: 💡 usage prompt (always visible)
+// [⋮⋮]  term · TypeBadge · LevelBadge            [+ log] [×]
+//        short definition      usage dots 0/3 · ExposureBar
+//        💡 usage prompt (always visible)
+//
+// dragHandleProps is spread onto the grip button so @dnd-kit can bind its
+// pointer/touch listeners there rather than on the whole card.
+
+interface ActiveFocusRowProps {
+  item: VocabItem
+  usesDone: number
+  onLogUsage: () => void
+  onRemove: () => void
+  onNavigate: () => void
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
+  isDragging?: boolean
+}
 
 function ActiveFocusRow({
   item,
@@ -87,24 +119,31 @@ function ActiveFocusRow({
   onLogUsage,
   onRemove,
   onNavigate,
-}: {
-  item: VocabItem
-  usesDone: number
-  onLogUsage: () => void
-  onRemove: () => void
-  onNavigate: () => void
-}) {
-  const done       = usesDone >= 3
-  const shortDef   = item.shortDefinition ?? item.definitionEn ?? ''
+  dragHandleProps,
+  isDragging = false,
+}: ActiveFocusRowProps) {
+  const done        = usesDone >= 3
+  const shortDef    = item.shortDefinition ?? item.definitionEn ?? ''
   const usagePrompt = getSuggestedUsagePrompt(item)
 
   return (
     <div className={`bg-white border rounded-2xl px-3.5 py-3 transition-colors ${
-      done ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'
-    }`}>
+      done       ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'
+    } ${isDragging ? 'shadow-lg ring-2 ring-brand-300 opacity-90' : ''}`}>
 
-      {/* ── Line 1: term + badges + actions ── */}
-      <div className="flex items-start gap-2">
+      {/* ── Line 1: drag handle + term + badges + actions ── */}
+      <div className="flex items-start gap-1.5">
+        {/* Drag handle — only drag trigger, doesn't navigate */}
+        <button
+          {...dragHandleProps}
+          className="mt-0.5 shrink-0 text-slate-300 hover:text-slate-400 cursor-grab active:cursor-grabbing touch-none focus:outline-none"
+          title="Drag to reorder"
+          tabIndex={0}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical size={14} />
+        </button>
+
         <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
           <div className="flex items-center gap-1.5 flex-wrap leading-snug">
             <span className={`text-sm font-semibold ${done ? 'text-slate-400' : 'text-slate-900'}`}>
@@ -138,7 +177,7 @@ function ActiveFocusRow({
       </div>
 
       {/* ── Line 2: definition + progress ── */}
-      <button onClick={onNavigate} className="w-full text-left mt-1">
+      <button onClick={onNavigate} className="w-full text-left mt-1 pl-5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] text-slate-400 truncate min-w-0">{shortDef}</p>
           <div className="flex items-center gap-2 shrink-0">
@@ -162,10 +201,46 @@ function ActiveFocusRow({
       </button>
 
       {/* ── Line 3: usage prompt ── */}
-      <p className="mt-2 text-[11px] text-slate-500 italic leading-snug flex items-start gap-1.5">
+      <p className="mt-2 pl-5 text-[11px] text-slate-500 italic leading-snug flex items-start gap-1.5">
         <Lightbulb size={10} className="shrink-0 mt-[2px] text-amber-400" />
         <span>{usagePrompt}</span>
       </p>
+    </div>
+  )
+}
+
+// ─── Sortable wrapper for ActiveFocusRow ──────────────────────────────────────
+//
+// Thin wrapper that connects @dnd-kit's useSortable hook to the row.
+// The drag handle props are forwarded so only the grip triggers a drag —
+// tap on the row body still navigates normally.
+
+function SortableActiveFocusRow(props: Omit<ActiveFocusRowProps, 'dragHandleProps' | 'isDragging'>) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.item.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        // Keep layout space while dragging so other items slide smoothly
+        zIndex: isDragging ? 10 : undefined,
+        position: isDragging ? 'relative' : undefined,
+      }}
+    >
+      <ActiveFocusRow
+        {...props}
+        isDragging={isDragging}
+        dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>}
+      />
     </div>
   )
 }
@@ -326,6 +401,7 @@ function PortfolioOverview({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const CANDIDATE_PAGE = 15
+const FOCUS_ORDER_LS_KEY = 'active-focus-order'
 
 export function ActiveWeekPage() {
   const navigate   = useNavigate()
@@ -340,11 +416,43 @@ export function ActiveWeekPage() {
   const [showFullMessage,  setShowFullMessage]  = useState(false)
   const [showAllPortfolio, setShowAllPortfolio] = useState(false)
 
-  // ── Active Focus — top 25 from portfolio ─────────────────────────────────────
+  // ── Manual order — persisted to localStorage ──────────────────────────────────
+  // Stores an array of item IDs in the user's preferred display sequence.
+  // Empty = use the system's priority ordering (default).
+  const [manualOrder, setManualOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(FOCUS_ORDER_LS_KEY)
+      return saved ? (JSON.parse(saved) as string[]) : []
+    } catch {
+      return []
+    }
+  })
+
+  // ── DnD sensors ───────────────────────────────────────────────────────────────
+  // PointerSensor: requires 8px movement before activating (prevents mis-fires on click).
+  // TouchSensor:   250ms press delay + 5px tolerance for mobile scroll safety.
+  // KeyboardSensor: allows keyboard-driven reordering for accessibility.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  // ── Active Focus — top 25 from portfolio, then apply manual order ─────────────
   const activeFocusItems = useMemo(
     () => selectActiveFocusItems(focusItems, ACTIVE_FOCUS_LIMIT, activeThemes),
     [focusItems, activeThemes],
   )
+
+  const orderedActiveFocus = useMemo(() => {
+    if (manualOrder.length === 0) return activeFocusItems
+    const posMap = new Map(manualOrder.map((id, i) => [id, i]))
+    return [...activeFocusItems].sort((a, b) => {
+      const pa = posMap.get(a.id) ?? Infinity
+      const pb = posMap.get(b.id) ?? Infinity
+      return pa - pb
+    })
+  }, [activeFocusItems, manualOrder])
 
   // ── Portfolio overflow — items beyond the top-25 active view ─────────────────
   const activeFocusIds = useMemo(
@@ -386,6 +494,18 @@ export function ActiveWeekPage() {
     }
     setShowFullMessage(false)
     setFocusThisWeek(item.id, true)
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = orderedActiveFocus.findIndex((i) => i.id === active.id)
+    const newIndex = orderedActiveFocus.findIndex((i) => i.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(orderedActiveFocus, oldIndex, newIndex)
+    const newOrder  = reordered.map((i) => i.id)
+    setManualOrder(newOrder)
+    try { localStorage.setItem(FOCUS_ORDER_LS_KEY, JSON.stringify(newOrder)) } catch { /* noop */ }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -436,6 +556,7 @@ export function ActiveWeekPage() {
           <p>
             Tap <strong>+</strong> to log a real-life use. Three uses activates a word.
             Tap <strong>×</strong> to remove it from your portfolio.
+            Drag the <strong>⋮⋮</strong> handle to reorder words.
           </p>
           <p>
             The exposure bar{' '}
@@ -490,21 +611,32 @@ export function ActiveWeekPage() {
           </div>
         ) : (
           <>
-            <div className="space-y-2">
-              {activeFocusItems.map((item) => (
-                <ActiveFocusRow
-                  key={item.id}
-                  item={item}
-                  usesDone={usagePoints(item.activation.usageLogs)}
-                  onLogUsage={() => setLogTarget({ id: item.id, term: item.term })}
-                  onRemove={() => setFocusThisWeek(item.id, false)}
-                  onNavigate={() => navigate(`/item/${item.id}`)}
-                />
-              ))}
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={orderedActiveFocus.map((i) => i.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {orderedActiveFocus.map((item) => (
+                    <SortableActiveFocusRow
+                      key={item.id}
+                      item={item}
+                      usesDone={usagePoints(item.activation.usageLogs)}
+                      onLogUsage={() => setLogTarget({ id: item.id, term: item.term })}
+                      onRemove={() => setFocusThisWeek(item.id, false)}
+                      onNavigate={() => navigate(`/item/${item.id}`)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             {/* Under-20 nudge */}
-            {activeFocusItems.length < 20 && allCandidates.length > 0 && (
+            {orderedActiveFocus.length < 20 && allCandidates.length > 0 && (
               <p className="mt-3 text-xs text-slate-400 text-center">
                 Add a few more words to keep your practice varied.{' '}
                 <button
