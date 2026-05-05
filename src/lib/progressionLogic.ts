@@ -11,8 +11,9 @@
  * Level 3 (Mastered) requires BOTH:
  *   • exposureCount >= 8  (full challenge drilling completed)
  *   • activation evidence — at least one of:
- *       – review.sentenceProduced = true  (produced a sentence in a challenge), OR
- *       – activation.usageCount >= 3      (logged ≥ 3 real-life uses)
+ *       – review.sentenceProduced = true        (produced a sentence in a challenge), OR
+ *       – activation.usageCount >= 3            (logged ≥ 3 real-life uses), OR
+ *       – activation.confidenceLevel >= 3       (self-reported comfort via ConfidenceDots)
  *
  * The legacy `status` field is preserved for backward compatibility.
  * Use `getCanonicalLevel` (= `deriveLevel`) for all runtime logic.
@@ -42,9 +43,10 @@ export const LEVEL_LABEL: Record<Level, string> = {
  *   • exposureCount >= 8, AND
  *   • proof of active production in any form:
  *       – review.sentenceProduced = true, OR
- *       – activation.usageCount >= 3 (≥ 3 logged real-life uses)
+ *       – activation.usageCount >= 3 (≥ 3 logged real-life uses), OR
+ *       – activation.confidenceLevel >= 3 (self-reported comfort via ConfidenceDots)
  *
- * Items with usageCount >= 3 but exposureCount < 8 stay at Level 2.
+ * Items without exposureCount >= 8 stay at Level 2 even with max confidence.
  * Old items that became mastered via sentenceProduced alone still qualify.
  */
 export function deriveLevel(item: VocabItem): Level {
@@ -52,9 +54,10 @@ export function deriveLevel(item: VocabItem): Level {
   if (exp === 0) return 0
   if (exp <= 2)  return 1
   if (exp <= 7)  return 2
-  // 8+ exposures: Level 3 only when the learner has produced the word
-  const usageCount = item.activation?.usageCount ?? 0
-  if (item.review.sentenceProduced || usageCount >= 3) return 3
+  // 8+ exposures: Level 3 (Mastered) when the learner has activated the word
+  const usageCount       = item.activation?.usageCount ?? 0
+  const confidenceLevel  = item.activation?.confidenceLevel ?? 0
+  if (item.review.sentenceProduced || usageCount >= 3 || confidenceLevel >= 3) return 3
   return 2   // fully drilled but not yet activated — stays at Familiar
 }
 

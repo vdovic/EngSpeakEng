@@ -15,8 +15,8 @@ import { VocabItem } from '@/types/vocabulary'
 import { TypeBadge } from './TypeBadge'
 import { LevelBadge } from './LevelBadge'
 import { ExposureProgress } from './ExposureProgress'
-import { UsageProgress } from './UsageProgress'
-import { usagePoints } from '@/lib/mastery'
+import { ConfidenceDots } from './ConfidenceDots'
+import { useVocabStore } from '@/store/vocabStore'
 
 interface Props {
   item: VocabItem
@@ -43,12 +43,12 @@ export function VocabCard({
   selected = false,
   onSelect,
 }: Props) {
-  const navigate      = useNavigate()
-  const usesDone      = usagePoints(item.activation.usageLogs)
-  const isPending     = item.generationStatus === 'pending'
-  const isFailed      = item.generationStatus === 'failed'
-  const hasCheckbox   = onSelect !== undefined
-  const hasFocusStar  = onFocusToggle !== undefined
+  const navigate           = useNavigate()
+  const setConfidenceLevel = useVocabStore((s) => s.setConfidenceLevel)
+  const isPending          = item.generationStatus === 'pending'
+  const isFailed           = item.generationStatus === 'failed'
+  const hasCheckbox        = onSelect !== undefined
+  const hasFocusStar       = onFocusToggle !== undefined
 
   return (
     <div
@@ -136,14 +136,7 @@ export function VocabCard({
           </>
         )}
 
-        {/* Usage progress bar (activation / mastered only) */}
-        {!compact && (item.status === 'activation' || item.status === 'mastered') && (
-          <div className="mb-2">
-            <UsageProgress done={usesDone} needed={3} size="sm" />
-          </div>
-        )}
-
-        {/* Footer row: tags · themes · exposure · next review */}
+        {/* Footer row: tags · themes · exposure */}
         <div className="flex items-center gap-2 flex-wrap text-xs text-slate-400">
           {item.tags.slice(0, 2).map((tag) => (
             <span key={tag} className="bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
@@ -164,6 +157,21 @@ export function VocabCard({
           />
         </div>
       </button>
+
+      {/* Confidence dots — interactive, outside navigate button to avoid conflict */}
+      {!compact && item.status !== 'inbox' && (
+        <div
+          className="px-4 pb-3 flex items-center gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="text-[10px] text-slate-400">Comfort:</span>
+          <ConfidenceDots
+            item={item}
+            onChange={(level) => setConfidenceLevel(item.id, level)}
+            compact
+          />
+        </div>
+      )}
     </div>
   )
 }

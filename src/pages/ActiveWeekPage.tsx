@@ -50,8 +50,7 @@ import { useVocabStore, useFocusThisWeekItems } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { LevelBadge } from '@/components/LevelBadge'
 import { TypeBadge } from '@/components/TypeBadge'
-import { LogUsageModal } from '@/components/LogUsageModal'
-import { usagePoints } from '@/lib/mastery'
+import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { VocabItem } from '@/types/vocabulary'
 import { generateCandidates } from '@/lib/candidateLogic'
 import {
@@ -105,8 +104,7 @@ function ExposureBar({ count }: { count: number }) {
 
 interface ActiveFocusRowProps {
   item: VocabItem
-  usesDone: number
-  onLogUsage: () => void
+  onConfidenceChange: (level: 0 | 1 | 2 | 3) => void
   onRemove: () => void
   onNavigate: () => void
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
@@ -115,23 +113,23 @@ interface ActiveFocusRowProps {
 
 function ActiveFocusRow({
   item,
-  usesDone,
-  onLogUsage,
+  onConfidenceChange,
   onRemove,
   onNavigate,
   dragHandleProps,
   isDragging = false,
 }: ActiveFocusRowProps) {
-  const done        = usesDone >= 3
-  const shortDef    = item.shortDefinition ?? item.definitionEn ?? ''
-  const usagePrompt = getSuggestedUsagePrompt(item)
+  const confidenceLevel = (item.activation?.confidenceLevel ?? 0) as 0 | 1 | 2 | 3
+  const done            = confidenceLevel >= 3
+  const shortDef        = item.shortDefinition ?? item.definitionEn ?? ''
+  const usagePrompt     = getSuggestedUsagePrompt(item)
 
   return (
     <div className={`bg-white border rounded-2xl px-3.5 py-3 transition-colors ${
       done       ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'
     } ${isDragging ? 'shadow-lg ring-2 ring-brand-300 opacity-90' : ''}`}>
 
-      {/* ── Line 1: drag handle + term + badges + actions ── */}
+      {/* ── Line 1: drag handle + term + badges + remove ── */}
       <div className="flex items-start gap-1.5">
         {/* Drag handle — only drag trigger, doesn't navigate */}
         <button
@@ -155,17 +153,7 @@ function ActiveFocusRow({
         </button>
 
         <div className="flex items-center gap-0.5 shrink-0">
-          {done ? (
-            <CheckCircle2 size={16} className="text-emerald-400 mx-0.5" />
-          ) : (
-            <button
-              onClick={onLogUsage}
-              className="w-7 h-7 flex items-center justify-center rounded-lg text-brand-500 hover:bg-brand-50 transition-colors"
-              title="Log a real-life use"
-            >
-              <Plus size={14} />
-            </button>
-          )}
+          {done && <CheckCircle2 size={16} className="text-emerald-400 mx-0.5" />}
           <button
             onClick={onRemove}
             className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
@@ -176,29 +164,20 @@ function ActiveFocusRow({
         </div>
       </div>
 
-      {/* ── Line 2: definition + progress ── */}
-      <button onClick={onNavigate} className="w-full text-left mt-1 pl-5">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] text-slate-400 truncate min-w-0">{shortDef}</p>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Usage dots */}
-            <span className="flex items-center gap-0.5">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    i < usesDone
-                      ? done ? 'bg-emerald-400' : 'bg-amber-400'
-                      : 'bg-slate-200'
-                  }`}
-                />
-              ))}
-            </span>
-            <span className="text-[9px] text-slate-400 tabular-nums">{usesDone}/3</span>
-            <ExposureBar count={item.exposureCount ?? 0} />
-          </div>
+      {/* ── Line 2: definition · confidence dots · exposure bar ── */}
+      <div className="mt-1 pl-5 flex items-center gap-2">
+        <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
+          <p className="text-[11px] text-slate-400 truncate">{shortDef}</p>
+        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <ConfidenceDots
+            item={item}
+            onChange={onConfidenceChange}
+            compact
+          />
+          <ExposureBar count={item.exposureCount ?? 0} />
         </div>
-      </button>
+      </div>
 
       {/* ── Line 3: usage prompt ── */}
       <p className="mt-2 pl-5 text-[11px] text-slate-500 italic leading-snug flex items-start gap-1.5">
@@ -406,10 +385,9 @@ const FOCUS_ORDER_LS_KEY = 'active-focus-order'
 export function ActiveWeekPage() {
   const navigate   = useNavigate()
   const focusItems = useFocusThisWeekItems()
-  const { setFocusThisWeek, items } = useVocabStore()
+  const { setFocusThisWeek, setConfidenceLevel, items } = useVocabStore()
   const { themes: activeThemes }    = useThemesStore()
 
-  const [logTarget,        setLogTarget]        = useState<{ id: string; term: string } | null>(null)
   const [showInfo,         setShowInfo]         = useState(false)
   const [query,            setQuery]            = useState('')
   const [candidateCap,     setCandidateCap]     = useState(CANDIDATE_PAGE)
@@ -555,8 +533,12 @@ export function ActiveWeekPage() {
             current themes.
           </p>
           <p>
-            Tap <strong>+</strong> to log a real-life use. Three uses activates a word.
-            Tap <strong>×</strong> to remove it from your portfolio.
+            Tap the <strong>three dots</strong> on any word to mark your real-life comfort level —
+            red, yellow, or green. This is the fastest way to track whether you can actually use
+            the word, not just recognise it.
+          </p>
+          <p>
+            Tap <strong>×</strong> to remove a word from your portfolio.
             Drag the <strong>⋮⋮</strong> handle to reorder words.
           </p>
           <p>
@@ -626,8 +608,7 @@ export function ActiveWeekPage() {
                     <SortableActiveFocusRow
                       key={item.id}
                       item={item}
-                      usesDone={usagePoints(item.activation.usageLogs)}
-                      onLogUsage={() => setLogTarget({ id: item.id, term: item.term })}
+                      onConfidenceChange={(level) => setConfidenceLevel(item.id, level)}
                       onRemove={() => setFocusThisWeek(item.id, false)}
                       onNavigate={() => navigate(`/item/${item.id}`)}
                     />
@@ -793,14 +774,6 @@ export function ActiveWeekPage() {
         </section>
       )}
 
-      {/* Usage log modal */}
-      {logTarget && (
-        <LogUsageModal
-          itemId={logTarget.id}
-          term={logTarget.term}
-          onClose={() => setLogTarget(null)}
-        />
-      )}
     </div>
   )
 }

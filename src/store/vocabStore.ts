@@ -110,6 +110,21 @@ interface VocabStore {
    * the final merged array and refreshes the in-memory store.
    */
   bulkImport: (items: VocabItem[]) => Promise<void>
+
+  /**
+   * Set the learner's self-reported confidence level for real-life usage.
+   *
+   *   0 = not set / cleared
+   *   1 = not comfortable yet   (red)
+   *   2 = somewhat comfortable  (yellow)
+   *   3 = comfortable / natural (green)
+   *
+   * Side-effects:
+   *   • updates activation.lastUsedAt to now
+   *   • floors usageCount: level 2 → at least 1, level 3 → at least 3
+   *   • re-derives item level (confidence ≥ 3 + exp ≥ 8 → mastered)
+   */
+  setConfidenceLevel: (id: string, level: 0 | 1 | 2 | 3) => Promise<void>
 }
 
 function uid(): string {
@@ -967,6 +982,39 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     await db.items.bulkPut(items)
     // Reload so Zustand state reflects the new library
     await get().load()
+  },
+
+  // ── setConfidenceLevel ───────────────────────────────────────────────────────
+  setConfidenceLevel: async (id, level) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+    const now = new Date().toISOString()
+
+    // Floor usageCount based on confidence level
+    // level 2 → at least 1 use; level 3 → at least 3 uses
+    const minUsage = level >= 3 ? 3 : level >= 2 ? 1 : 0
+    const newUsageCount = Math.max(item.activation?.usageCount ?? 0, minUsage)
+
+    const updatedActivation = {
+      ...item.activation,
+      confidenceLevel: level,
+      lastUsedAt: level > 0 ? now : item.activation?.lastUsedAt,
+      usageCount: newUsageCount,
+    }
+
+    // Re-derive level with the updated activation (confidence >= 3 + exp >= 8 → mastered)
+    const updatedForLevel = { ...item, activation: updatedActivation }
+    const newLevel = deriveLevel(updatedForLevel)
+
+    await applyPatch(
+      id,
+      {
+        activation: updatedActivation,
+        level: newLevel,
+        updatedAt: now,
+      },
+      set,
+    )
   },
 
 }))

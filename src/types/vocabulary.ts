@@ -77,6 +77,19 @@ export interface ActivationData {
   requiredUses: number
   usageCount: number
   usageLogs: UsageLog[]
+  /**
+   * Learner's self-reported comfort level for using this word in real life.
+   *   0 = not set (default)
+   *   1 = not comfortable yet  (red)
+   *   2 = somewhat comfortable (yellow)
+   *   3 = comfortable / natural (green)
+   *
+   * Acts as an alternative mastery signal alongside usageCount and sentenceProduced.
+   * Updated instantly via ConfidenceDots — no form required.
+   */
+  confidenceLevel?: 0 | 1 | 2 | 3
+  /** ISO timestamp of the last time the learner updated their confidence level. */
+  lastUsedAt?: string
 }
 
 export interface VocabItem {

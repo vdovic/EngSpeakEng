@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
   BookText, Lightbulb, Network, GitBranch, Trash2,
-  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown, RotateCcw,
+  Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown,
   TrendingUp, Info, Zap, GraduationCap, MessageSquarePlus,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
@@ -13,7 +13,8 @@ import { LevelBadge } from '@/components/LevelBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { WordRelationGraph } from '@/components/WordRelationGraph'
 import { LogUsageModal } from '@/components/LogUsageModal'
-import { usagePoints, progressTowardMastery, deriveStatus } from '@/lib/mastery'
+import { ConfidenceDots } from '@/components/ConfidenceDots'
+import { progressTowardMastery, deriveStatus } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType, RelatedSuggestion, UsageContext } from '@/types/vocabulary'
 import { format } from 'date-fns'
 import { loadTodaySession } from '@/lib/challengeSession'
@@ -256,14 +257,13 @@ function ThemeAssignment({ itemId, assigned }: { itemId: string; assigned: strin
 export function ItemDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { items, addItem, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, clearUsageLogs } = useVocabStore()
+  const { items, addItem, updateItem, deleteItem, toggleWeeklyFocus, enrichItem, generateRelatedEntries, setConfidenceLevel } = useVocabStore()
   const [addedTerm, setAddedTerm] = useState<string | null>(null)
   const item = items.find((i) => i.id === id) as VocabItem | undefined
 
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<VocabItem | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [showUsageModal, setShowUsageModal] = useState(false)
   const [loggedSuccessfully, setLoggedSuccessfully] = useState(false)
@@ -311,7 +311,6 @@ export function ItemDetailPage() {
   }
 
   const current = editing ? draft! : item
-  const usesDone = usagePoints(item.activation.usageLogs)
 
   function startEdit() {
     setDraft(JSON.parse(JSON.stringify(item!)) as VocabItem)
@@ -524,44 +523,11 @@ export function ItemDetailPage() {
         {!editing && (
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              {/* Usage dots + clear */}
-              <div className="flex items-center gap-1">
-                {[0, 1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-2.5 h-2.5 rounded-full border-2 transition-colors ${
-                      i < usesDone ? 'bg-brand-600 border-brand-600' : 'bg-white border-slate-300'
-                    }`}
-                  />
-                ))}
-                <span className="text-xs text-slate-400 ml-1.5">{usesDone}/3 used</span>
-                {usesDone > 0 && !showClearConfirm && (
-                  <button
-                    onClick={() => setShowClearConfirm(true)}
-                    className="ml-1 p-0.5 rounded text-slate-300 hover:text-red-400 transition-colors"
-                    title="Clear usage progress"
-                  >
-                    <RotateCcw size={11} />
-                  </button>
-                )}
-                {showClearConfirm && (
-                  <span className="ml-1.5 flex items-center gap-1">
-                    <span className="text-xs text-red-500">Clear?</span>
-                    <button
-                      onClick={async () => { await clearUsageLogs(item.id); setShowClearConfirm(false) }}
-                      className="text-xs text-red-600 hover:text-red-800 font-semibold"
-                    >
-                      Yes
-                    </button>
-                    <button
-                      onClick={() => setShowClearConfirm(false)}
-                      className="text-xs text-slate-400 hover:text-slate-600"
-                    >
-                      No
-                    </button>
-                  </span>
-                )}
-              </div>
+              {/* Confidence dots — real-life comfort */}
+              <ConfidenceDots
+                item={item}
+                onChange={(level) => setConfidenceLevel(item.id, level)}
+              />
               {/* Challenge exposure dots */}
               <div className="flex items-center gap-0.5">
                 {Array.from({ length: 8 }, (_, i) => (
@@ -579,10 +545,10 @@ export function ItemDetailPage() {
             </div>
             <button
               onClick={() => setShowUsageModal(true)}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors shrink-0 active:scale-95"
+              className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-500 bg-slate-50 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors shrink-0 active:scale-95"
             >
               <Plus size={12} />
-              Log use
+              Add note
             </button>
           </div>
         )}
@@ -833,38 +799,39 @@ export function ItemDetailPage() {
           <Section title="Real-life usage" icon={<MessageSquarePlus size={14} />}>
             {(() => {
               const logs = item.activation.usageLogs
-              const needed = item.activation.requiredUses ?? 3
-              const done   = usagePoints(logs)
-              const activated = done >= needed
+              const confidenceLevel = (item.activation?.confidenceLevel ?? 0) as 0 | 1 | 2 | 3
 
               return (
-                <div className="space-y-3">
-                  {/* Progress bar + count */}
+                <div className="space-y-4">
+                  {/* ── Confidence dots — primary signal ── */}
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs text-slate-500">
-                        {activated
-                          ? '✅ Activated in real life'
-                          : `${done} / ${needed} real-life uses`}
-                      </span>
-                      <button
-                        onClick={() => { setLoggedSuccessfully(false); setShowUsageModal(true) }}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg hover:bg-brand-100 border border-brand-100 transition-colors active:scale-95"
-                      >
-                        <Plus size={11} />
-                        Log use
-                      </button>
-                    </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${activated ? 'bg-green-500' : 'bg-brand-500'}`}
-                        style={{ width: `${Math.min(100, (done / needed) * 100)}%` }}
-                      />
-                    </div>
+                    <p className="text-xs text-slate-500 mb-2">
+                      How comfortable are you using this word in real life?
+                    </p>
+                    <ConfidenceDots
+                      item={item}
+                      onChange={(level) => setConfidenceLevel(item.id, level)}
+                    />
+                  </div>
+
+                  {/* ── Log a note — secondary, optional ── */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-400">
+                      {logs.length > 0
+                        ? `${logs.length} usage note${logs.length !== 1 ? 's' : ''} logged`
+                        : 'No usage notes yet'}
+                    </span>
+                    <button
+                      onClick={() => { setLoggedSuccessfully(false); setShowUsageModal(true) }}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-500 bg-slate-50 rounded-lg hover:bg-slate-100 border border-slate-200 transition-colors active:scale-95"
+                    >
+                      <Plus size={11} />
+                      Add note
+                    </button>
                   </div>
 
                   {/* Recent logs */}
-                  {logs.length > 0 ? (
+                  {logs.length > 0 && (
                     <div className="space-y-1.5">
                       {[...logs].reverse().slice(0, 5).map((log) => (
                         <div key={log.id} className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
@@ -886,15 +853,18 @@ export function ItemDetailPage() {
                         </div>
                       ))}
                     </div>
-                  ) : (
+                  )}
+
+                  {/* Confidence context hint */}
+                  {confidenceLevel === 0 && (
                     <p className="text-xs text-slate-400 italic">
-                      No usage logged yet. Use this word in your next meeting, email, or conversation and log it here!
+                      Mark how comfortable you are using this word — it helps the system track your progress.
                     </p>
                   )}
 
                   {/* Success flash */}
                   {loggedSuccessfully && (
-                    <p className="text-xs text-green-600 font-medium">✓ Usage logged!</p>
+                    <p className="text-xs text-green-600 font-medium">✓ Note logged!</p>
                   )}
                 </div>
               )
