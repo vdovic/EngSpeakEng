@@ -244,9 +244,12 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
 
     set({ items: migrated, loaded: true })
 
-    // Re-trigger enrichment for any items that were 'pending' when the app
-    // was previously closed (e.g., tab killed mid-generation).
-    const stuck = all.filter((i) => i.generationStatus === 'pending')
+    // Re-trigger enrichment for items that were 'pending' when the app closed.
+    // Cap at 5 to prevent runaway re-enrichment on a corrupted DB.
+    const stuck = all.filter((i) => i.generationStatus === 'pending').slice(0, 5)
+    if (stuck.length > 0) {
+      console.warn('[AI] Resuming interrupted enrichment for', stuck.length, 'item(s):', stuck.map((i) => i.term))
+    }
     for (const item of stuck) {
       get().enrichItem(item.id).catch(() => {
         // enrichItem handles its own errors; this prevents unhandled rejections
@@ -335,6 +338,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     await applyPatch(id, { generationStatus: 'pending', generationError: undefined }, set)
 
     try {
+      console.warn('[AI CALL] enrichItem triggered:', item.term, '— 1 item')
       const res = await fetch('/api/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -391,9 +395,9 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         }
       }
 
-      // After successful enrichment, auto-generate related entries.
-      // Fire-and-forget — enrichItem's callers are not affected by this.
-      get().generateRelatedEntries(id).catch(() => {})
+      // NOTE: generateRelatedEntries is NOT auto-chained here.
+      // It must only be triggered explicitly by the user (via the word detail page).
+      // Auto-chaining caused unbounded API calls for every newly added word.
     } catch (err: unknown) {
       const generationError =
         err instanceof Error ? err.message : 'Generation failed. Please retry.'
@@ -406,10 +410,13 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
 
   // ── generateRelatedEntries ──────────────────────────────────────────────────
   // Calls POST /api/relatedEntries to find library-internal related words.
-  // Fire-and-forget: can be called manually or after enrichItem succeeds.
+  // Must only be called by explicit user action (e.g., button on word detail page).
+  // Never call this automatically or in a loop.
   generateRelatedEntries: async (id: string) => {
     const item = get().items.find((i) => i.id === id)
     if (!item) return
+
+    console.warn('[AI CALL] generateRelatedEntries triggered:', item.term, '— 1 item')
 
     // Mark as pending
     await applyPatch(id, { relatedEntriesStatus: 'pending' }, set)

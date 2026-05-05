@@ -20,7 +20,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Search, Library, X, ChevronDown, Plus,
   Check, Zap, Star, StarOff, Layers, Trash2,
-  MoreVertical, BookOpen, ArrowRight, Loader2, Tag,
+  MoreVertical, BookOpen, ArrowRight, Tag,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -30,8 +30,6 @@ import { TypeBadge } from '@/components/TypeBadge'
 import { LevelBadge } from '@/components/LevelBadge'
 import { ExposureProgress } from '@/components/ExposureProgress'
 import { VocabItem } from '@/types/vocabulary'
-import { useEtymologyEnricher } from '@/hooks/useEtymologyEnricher'
-import { useRelationshipEnricher } from '@/hooks/useRelationshipEnricher'
 import {
   LevelFilter, FocusFilter, ExposureBandFilter, LibrarySortKey,
   LibraryFilters, DEFAULT_FILTERS,
@@ -614,10 +612,6 @@ export function LibraryPage() {
   const [toast, setToast]    = useState<ToastState | null>(null)
   const toastKeyRef          = useRef(0)
 
-  // ── Background enrichment ─────────────────────────────────────────────────────
-  const etymologyProgress    = useEtymologyEnricher()
-  const relationshipProgress = useRelationshipEnricher()
-
   // Sync URL params (e.g. from global search or theme link)
   useEffect(() => {
     const q = searchParams.get('q') ?? ''
@@ -1171,38 +1165,6 @@ export function LibraryPage() {
 
       {/* Add modal */}
       {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} />}
-
-      {/* Relationship enrichment progress */}
-      {relationshipProgress && (
-        <div className={`fixed right-4 z-50 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 min-w-[220px] transition-all duration-300 ${
-          etymologyProgress ? 'bottom-[168px] md:bottom-[112px]' : 'bottom-20 md:bottom-6'
-        }`}>
-          <Loader2 size={15} className="text-violet-500 animate-spin shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-slate-700">Building word graphs</p>
-            <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-violet-500 rounded-full transition-all duration-500"
-                style={{ width: `${Math.round((relationshipProgress.done / relationshipProgress.total) * 100)}%` }} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">{relationshipProgress.done} / {relationshipProgress.total} words</p>
-          </div>
-        </div>
-      )}
-
-      {/* Etymology enrichment progress */}
-      {etymologyProgress && (
-        <div className="fixed bottom-20 md:bottom-6 right-4 z-50 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3 min-w-[220px]">
-          <Loader2 size={15} className="text-brand-500 animate-spin shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-slate-700">Adding etymology</p>
-            <div className="mt-1.5 h-1 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-brand-500 rounded-full transition-all duration-500"
-                style={{ width: `${Math.round((etymologyProgress.done / etymologyProgress.total) * 100)}%` }} />
-            </div>
-            <p className="text-[10px] text-slate-400 mt-1">{etymologyProgress.done} / {etymologyProgress.total} words</p>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
