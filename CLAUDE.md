@@ -219,6 +219,35 @@ Claude must not:
 
 ---
 
+## AI Safety Rules
+
+AI must never run silently.
+
+Strict rules:
+
+* No AI call may run on page load.
+* No AI call may run on route/navigation change.
+* No AI call may run inside a `useEffect` without an explicit user gesture as the trigger.
+* No AI call may process more than 10 items in a batch without explicit user confirmation showing the count.
+* All AI calls must log `console.warn('[AI CALL] ...')` with the trigger source and item count.
+* Bulk AI processing (enrichment, graph generation, theme assignment) is forbidden unless the user has explicitly pressed a button and seen a count.
+
+Any new AI integration must:
+
+1. Be triggered by an explicit user action (button press, form submit).
+2. Show the user what will be processed (e.g. "Enrich 5 words?").
+3. Have a hard cap enforced by `assertExplicitAiAction` from `src/lib/aiSafety.ts`.
+4. Log via `console.warn('[AI CALL]', ...)` before the fetch.
+
+Claude must never:
+
+* Re-enable `useEtymologyEnricher` or `useRelationshipEnricher` as auto-running hooks.
+* Add a `useEffect` that calls any AI endpoint without a user gesture gate.
+* Remove or weaken the `assertExplicitAiAction` guard.
+* Increase `AI_BATCH_HARD_LIMIT` without explicit instruction.
+
+---
+
 ## Development Behaviour
 
 Before large UX or architecture changes:

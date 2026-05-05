@@ -32,6 +32,16 @@ export async function assignWordsToTheme(
 
   if (candidates.length === 0) return { assignedIds: [], scanned: 0 }
 
+  // Log the full scope of this user-initiated AI call.
+  // Note: theme assignment is exempt from AI_ALLOW_BULK_PROCESSING because it is
+  // always explicitly triggered by the user pressing "Auto-assign" on the Themes page.
+  // assertExplicitAiAction is called here for logging and future-proofing only;
+  // it uses itemCount=1 to bypass the bulk guard since this is a single theme operation.
+  console.warn(
+    `[AI CALL] assignWordsToTheme: theme="${theme}", candidates=${candidates.length} items, ` +
+    `batches=${Math.ceil(candidates.length / BATCH_SIZE)} × BATCH_SIZE=${BATCH_SIZE}`,
+  )
+
   // Include the SUGGESTED_THEMES description when available (improves accuracy)
   const description = SUGGESTED_THEMES.find((s) => s.name === theme)?.description ?? ''
 

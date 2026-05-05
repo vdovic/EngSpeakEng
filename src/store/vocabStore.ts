@@ -20,6 +20,7 @@ import { deriveLevel } from '@/lib/progressionLogic'
 import { updateDifficulty, INITIAL_DIFFICULTY } from '@/lib/difficultyLogic'
 import { migrateItem } from '@/lib/migration'
 import { suggestThemes } from '@/lib/themeSuggestion'
+import { assertExplicitAiAction } from '@/lib/aiSafety'
 
 interface VocabStore {
   items: VocabItem[]
@@ -338,7 +339,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     await applyPatch(id, { generationStatus: 'pending', generationError: undefined }, set)
 
     try {
-      console.warn('[AI CALL] enrichItem triggered:', item.term, '— 1 item')
+      assertExplicitAiAction({ trigger: `enrichItem:${item.term}`, itemCount: 1 })
       const res = await fetch('/api/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -416,7 +417,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     const item = get().items.find((i) => i.id === id)
     if (!item) return
 
-    console.warn('[AI CALL] generateRelatedEntries triggered:', item.term, '— 1 item')
+    assertExplicitAiAction({ trigger: `generateRelatedEntries:${item.term}`, itemCount: 1 })
 
     // Mark as pending
     await applyPatch(id, { relatedEntriesStatus: 'pending' }, set)
