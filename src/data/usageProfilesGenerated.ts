@@ -5,15 +5,22 @@
  * DO NOT EDIT BY HAND — re-run the generation script instead.
  *
  * Derived from existing VocabItem fields in migration-vocab.json.
- * Generation rules v2:
+ * Generation rules v3:
+ *   region       ← REGION_OVERRIDES (curated British-dominant phrases)
  *   formality    ← register
- *   medium       ← register + type + tags + nuance written-markers
+ *   medium       ← MEDIUM_OVERRIDES (explicit) or register + type + tags + first-sentence written-markers
  *   phraseUsage  ← type + tags (phrasal-verb tag → phrase-heavy)
- *   frequency    ← HIGH_FREQ_PHRASES lookup + register + type
+ *   frequency    ← HIGH_FREQ_PHRASES lookup + register + type (chunk included)
  *   naturalnessHint ← first sentence of nuance
  *
+ * v3 changes over v2:
+ *   - Written-marker check now scoped to FIRST SENTENCE only (reduces false positives)
+ *   - Explicit medium overrides for apprehend/animate/arcane
+ *   - conversational chunks now get frequency=very-common (not just phrases)
+ *   - Region signal added for clearly British-dominant phrases
+ *
  * Hand-curated entries in usageProfiles.ts override these.
- * Generated: 2026-05-06T18:40:56.256Z
+ * Generated: 2026-05-06T19:42:30.557Z
  * Entries: 1138
  */
 
@@ -39,6 +46,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiom conveying emotional robustness and unshakeability.",
   },
 
@@ -60,6 +68,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiom suggesting something pleasant and carefree, not just easy.",
   },
 
@@ -139,7 +148,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "all-embracing": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "All-embracing suggests not just breadth but a deliberate intention to include everything relevant.",
   },
@@ -164,7 +173,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "amalgamation": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Amalgamation suggests a deeper, more complete blending than 'merger' (which is more legal/transactional) and implies the result is genuinely unified, not just combined.",
   },
@@ -189,7 +198,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "animate": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Animate suggests introducing energy or vitality into something that lacks it.",
   },
@@ -203,7 +212,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "arcane": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'obscure' (which simply means hard to find or understand), 'arcane' implies intentional secrecy or exclusivity—knowledge deliberately kept within a specialized circle.",
   },
@@ -217,7 +226,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "apprehend": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Apprehend has two distinct meanings: (1) law enforcement context (arrest/capture), where it's formal and specific; (2) cognitive context (understand/grasp), where it's more…",
   },
@@ -247,7 +256,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "astray": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Astray emphasizes unintended deviation and often carries a moral or directional undertone.",
   },
@@ -268,7 +277,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "astringent": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Astringent combines a cutting quality (like acerbic or sharp) with a sense of severity or contraction.",
   },
@@ -581,7 +590,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "conspicuous": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Conspicuous emphasizes visibility that draws unwanted or noteworthy attention—often implying something stands out awkwardly or inappropriately.",
   },
@@ -594,6 +603,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
   },
 
   "crack on": {
+    region:           "british",
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
@@ -610,14 +620,14 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "contrive": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Contrive suggests deliberate ingenuity or effort—and often carries a subtle implication that the result is somewhat artificial, forced, or requires clever maneuvering.",
   },
 
   "convoluted": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Convoluted emphasizes unnecessary complexity—often implying the thing *could* be simpler but isn't.",
   },
@@ -698,14 +708,14 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "depredation": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Depredation suggests destructive raiding or systematic plundering, often with a predatory or hostile element.",
   },
 
   "depose": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Depose carries weight and formality, implying deliberate removal of entrenched authority—more dramatic than simply 'fire' or 'dismiss.' In legal contexts, it means to record sworn…",
   },
@@ -719,7 +729,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "defilement": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Defilement carries a strong moral or spiritual dimension—it's not mere physical dirtiness but a violation of something considered sacred, pure, or inviolable.",
   },
@@ -748,14 +758,14 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "detestable": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Detestable is stronger and more formal than 'dislikeable' or 'unpleasant.' It implies moral disapproval or visceral disgust, making it more severe than mere criticism.",
   },
 
   "dismay": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Dismay is stronger than mere disappointment—it carries a sense of being unsettled or alarmed.",
   },
@@ -847,7 +857,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "dwelling": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'home' (which is emotional and personal), 'dwelling' is more neutral and formal, often used in legal, real estate, or census contexts.",
   },
@@ -1206,7 +1216,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "intricate": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'complex' (which emphasizes difficulty), 'intricate' emphasizes both complexity AND the many interweaving details that create beauty or elegance.",
   },
@@ -1260,7 +1270,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "lament": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Lament is more dramatic and emotionally expressive than 'regret' or 'sorry.' It suggests deep feeling and often vocal expression.",
   },
@@ -1294,7 +1304,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "loath": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Loath carries a stronger, more formal tone than 'reluctant' or 'unwilling'—it suggests deep-seated reluctance tinged with distaste or aversion.",
   },
@@ -1441,7 +1451,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "obscurity": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Obscurity differs from 'darkness' (literal absence of light) and 'ambiguity' (multiple possible interpretations).",
   },
@@ -1605,7 +1615,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "poignant": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Poignant differs from merely 'sad' or 'emotional' by implying a sharp, bittersweet quality that pierces the heart with both pain and beauty.",
   },
@@ -1645,7 +1655,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "proverbial": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike simply 'famous' or 'well-known,' proverbial implies something has become a standard reference point or cliché through repeated mention—often used with a touch of irony or…",
   },
@@ -1709,7 +1719,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "razed": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Raze is more dramatic and total than demolish—it implies complete destruction with nothing remaining.",
   },
@@ -1765,6 +1775,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
   },
 
   "reckon on": {
+    region:           "british",
     formality:        "informal",
     medium:           "spoken",
     frequency:        "very-common",
@@ -1903,7 +1914,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "resurrection": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Resurrection implies something more dramatic and complete than 'revival'—it suggests returning from a state of total absence or death rather than just improving or boosting.",
   },
@@ -2217,14 +2228,14 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "tax": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "As a noun, 'tax' is neutral and formal, referring to the financial obligation itself.",
   },
 
   "testament": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Testament has two distinct uses: the legal/formal meaning (a will or inheritance document) and a figurative meaning (proof or evidence of something).",
   },
@@ -2300,7 +2311,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "venerable": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Venerable carries weight and gravitas—it suggests not just respect but reverence, often tied to age, tradition, or long-established excellence.",
   },
@@ -2337,6 +2348,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is colloquial and slightly informal, suggesting someone is fundamentally misguided in their approach.",
   },
 
@@ -2350,6 +2362,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an optimistic, reassuring phrase often used to comfort someone or to reframe a setback.",
   },
 
@@ -2357,6 +2370,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is more informal and vivid than simply saying 'in trouble.' It suggests immediate discomfort and urgency rather than abstract difficulty.",
   },
 
@@ -2376,6 +2390,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is casual and often humorous or slightly insulting.",
   },
 
@@ -2383,6 +2398,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom emphasizes accumulation—it's not about one crisis, but the final problem after enduring many.",
   },
 
@@ -2402,6 +2418,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiomatic, lighthearted expression for intense happiness—more vivid and poetic than simply saying 'happy' or 'pleased.' It's conversational and warm, often used to…",
   },
 
@@ -2415,6 +2432,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase emphasizes mutual vulnerability and shared circumstance, often with empathetic undertones.",
   },
 
@@ -2446,6 +2464,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom implies persuasion through insistence rather than force or aggression; it's lighthearted and assumes the person *can* be convinced with the right approach.",
   },
 
@@ -2453,6 +2472,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is more vivid and conversational than formal alternatives like 'exceed one's capacity.' It suggests drowning or being submerged, creating a mental image of struggle.",
   },
 
@@ -2460,6 +2480,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is conversational, empathetic, and informal—often used by managers or teammates to offer emotional support rather than just practical advice.",
   },
 
@@ -2473,6 +2494,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "More colloquial and playful than 'disclose' or 'reveal'; suggests accidental or inappropriate timing rather than deliberate betrayal.",
   },
 
@@ -2492,6 +2514,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is vivid and figurative, comparing human discomfort to a literal biological incompatibility.",
   },
 
@@ -2505,6 +2528,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is distinctly conversational and casual—it sounds friendly and relaxed, never formal or cold.",
   },
 
@@ -2518,6 +2542,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom implies a sense of regret and finality—the opportunity is time-sensitive and won't recur easily.",
   },
 
@@ -2525,6 +2550,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is deliberately vague and colloquial—it signals minor illness without requiring specifics.",
   },
 
@@ -2532,6 +2558,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a light, conversational idiom that conveys ease with a touch of casual confidence.",
   },
 
@@ -2539,6 +2566,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an old, well-established idiom emphasizing risk management through diversification.",
   },
 
@@ -2945,6 +2973,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
   },
 
   "get about": {
+    region:           "british",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
     naturalnessHint:  "Less common than 'get around' in American English but standard in British English.",
@@ -2983,6 +3012,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
   },
 
   "ring up": {
+    region:           "british",
     formality:        "formal",
     medium:           "both",
     phraseUsage:      "phrase-heavy",
@@ -3059,7 +3089,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "ardor": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Ardor is more poetic and emotionally charged than 'enthusiasm.' It suggests a deep, burning quality—almost romantic or spiritual in intensity.",
   },
@@ -3253,7 +3283,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "compel": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Compel is stronger and more formal than force; it often implies an external rule, law, or circumstance leaves no real choice.",
   },
@@ -3311,7 +3341,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "decadence": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Decadence carries a stronger moral or cultural judgment than 'decline' alone.",
   },
@@ -3382,14 +3412,14 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "elapse": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'pass,' which is very general, 'elapse' specifically emphasizes the quiet, often unnoticed passage of time.",
   },
 
   "emaciation": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Emaciation is more clinical and serious than 'thinness'—it implies unhealthy, involuntary wasting and carries a note of concern or sympathy.",
   },
@@ -3439,7 +3469,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "ensuing": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'following' or 'next,' ensuing carries a stronger sense of logical consequence or causal relationship — it suggests the later event is linked to or flows from the earlier…",
   },
@@ -3464,7 +3494,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "exasperate": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Exasperate implies a build-up of frustration to an intense level, often from repeated or ongoing issues rather than a single incident.",
   },
@@ -3501,7 +3531,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "flint": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Flint carries both a literal geological meaning and a rich figurative sense suggesting unyielding resolve or emotional coldness.",
   },
@@ -3613,7 +3643,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "impetuous": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Impetuous suggests a forceful, emotional quality that goes beyond mere haste; it implies a kind of passionate momentum or headstrong energy.",
   },
@@ -3685,7 +3715,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "inextricably": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "This word conveys not just connection, but a deep, complex entanglement that resists easy separation.",
   },
@@ -3707,7 +3737,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "inimitable": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'unique' (which simply means one-of-a-kind), 'inimitable' carries the stronger sense that something is not just different, but so exceptional that copying it would be…",
   },
@@ -3868,7 +3898,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "merits": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "As a noun, 'merits' emphasizes inherent strengths or advantages of a thing itself (the plan has merits).",
   },
@@ -4272,7 +4302,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "stiff-necked": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "More colorful and old-fashioned than blunt synonyms like 'stubborn' or 'obstinate.' It carries a moralistic or judgmental tone—suggesting not just rigidity but a kind of…",
   },
@@ -4317,7 +4347,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "sublime": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'beautiful' (which is more general) or 'impressive' (which can be merely striking), 'sublime' carries a sense of emotional overwhelm and often involves something grand,…",
   },
@@ -4349,7 +4379,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "surpassed": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Surpassed implies not just meeting but clearly going beyond a benchmark or rival.",
   },
@@ -4462,7 +4492,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "testimony": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Testimony is stronger and more formal than 'statement'—it implies firsthand knowledge, legal or quasi-legal weight, and often emotional conviction.",
   },
@@ -4525,7 +4555,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "transpire": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Transpire often implies something was hidden or unknown and is now being revealed, or that events unfold over time.",
   },
@@ -4629,7 +4659,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "unremitting": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unremitting carries a tone of inevitability and intensity, often with slight negative connotations (burden, pressure, difficulty).",
   },
@@ -4643,7 +4673,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "unwavering": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Unlike 'resolute' (which emphasizes decisiveness) or 'constant' (which emphasizes continuity), 'unwavering' specifically conveys steadiness *despite* external pressure or…",
   },
@@ -4690,14 +4720,14 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "vigor": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Vigor implies sustained, forceful energy—both physical and mental.",
   },
 
   "vigorous": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "Vigorous implies both strength and purposeful intensity, often with an undertone of determination or drive.",
   },
@@ -4708,7 +4738,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
 
   "void": {
     formality:        "formal",
-    medium:           "written",
+    medium:           "both",
     frequency:        "advanced-common",
     naturalnessHint:  "As a noun, 'void' emphasizes existential emptiness (emotional, physical, or conceptual).",
   },
@@ -4761,6 +4791,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is distinctly conversational and informal, often used when admitting shared confusion or lack of information.",
   },
 
@@ -4768,6 +4799,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is charming and gentle rather than direct.",
   },
 
@@ -4787,6 +4819,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiom, not literal advice about milk.",
   },
 
@@ -4800,6 +4833,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is more vivid and colloquial than simply saying 'become uncontrollable.' It implies a loss of authority or management—as if something was once in your grasp but…",
   },
 
@@ -4807,6 +4841,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase implies deliberate, visible rejection—often with a hint of drama or pettiness.",
   },
 
@@ -4826,6 +4861,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase carries a slightly negative or critical connotation, suggesting uncritical conformity or herd mentality.",
   },
 
@@ -4839,6 +4875,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is conversational and signals that the speaker is being considerate of the listener's time.",
   },
 
@@ -4846,6 +4883,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom suggests immediate danger but not yet catastrophic failure; it implies you still have a chance to recover or improve the situation.",
   },
 
@@ -4865,6 +4903,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is slightly negative or critical in tone—it implies indecision, avoidance, or reluctance to show commitment.",
   },
 
@@ -4884,6 +4923,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is more vivid and colloquial than clinical phrases like 'overcommit.' It implies not just ambition but misjudgment or recklessness.",
   },
 
@@ -4891,6 +4931,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a colorful, conversational idiom that conveys emotional frustration about high prices—more expressive than simply saying 'expensive.' It's widely understood in…",
   },
 
@@ -4898,6 +4939,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom emphasizes caution and realistic optimism.",
   },
 
@@ -4905,6 +4947,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase implies both confrontation *and* acceptance—it's not just acknowledging a problem, but directly meeting the negative consequences.",
   },
 
@@ -4912,6 +4955,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase implies a sudden shift from commitment to hesitation—often unexpected and anxiety-driven rather than rational deliberation.",
   },
 
@@ -4919,6 +4963,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "More casual and energetic than 'depart' or 'leave.' Suggests active readiness and forward momentum.",
   },
 
@@ -4926,6 +4971,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom suggests wisdom and restraint—choosing peace over justice or resolution.",
   },
 
@@ -4933,6 +4979,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is lighter and more colloquial than 'exaggerate.' It specifically criticizes someone for treating something trivial as catastrophic.",
   },
 
@@ -4940,6 +4987,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is gentler and more tactful than blunt rejections like 'I don't like it.' It softens disagreement while being clear about personal preference.",
   },
 
@@ -4947,6 +4995,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is playful and lighthearted rather than genuinely hostile.",
   },
 
@@ -4954,6 +5003,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is gentler and more tactful than 'ruin someone's day.' It suggests disappointment rather than disaster, and is often used when the speaker feels reluctant or apologetic…",
   },
 
@@ -4967,6 +5017,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiomatic expression that is decidedly informal and warm in tone.",
   },
 
@@ -4974,6 +5025,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase carries a slightly accusatory or self-critical tone, implying negligence or lack of attention.",
   },
 
@@ -4981,6 +5033,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiom, not literal advice about books.",
   },
 
@@ -4988,6 +5041,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is lighthearted and informal, often used between peers or friends rather than in formal hierarchical settings.",
   },
 
@@ -4995,6 +5049,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a vivid, somewhat dramatic idiom that conveys resignation or dark humour.",
   },
 
@@ -5002,6 +5057,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "More informal and energetic than 'decompress' or 'unwind.' Suggests a more vigorous or expressive release of emotion, often through physical activity or venting, rather than quiet…",
   },
 
@@ -5015,6 +5071,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase expresses a mild suspicion or cynical confidence in someone's likely behavior based on their character or history.",
   },
 
@@ -5022,6 +5079,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is more relaxed and informal than 'master' or 'become proficient.' It implies gradual, practical learning rather than formal training.",
   },
 
@@ -5029,6 +5087,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom suggests not just surface-level knowledge but practical, insider understanding of how things actually work—often including unwritten rules and shortcuts.",
   },
 
@@ -5036,6 +5095,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "Out of the blue emphasizes the shock factor and complete lack of anticipation.",
   },
 
@@ -5043,6 +5103,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase has a distinctly negative connotation—it implies cowardice or dishonesty, not just delegation.",
   },
 
@@ -5050,6 +5111,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is more informal and colloquial than synonyms like 'challenge the status quo.' It carries a slightly negative or cautionary tone—suggesting the person doing it might…",
   },
 
@@ -5063,6 +5125,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is deliberately non-judgmental and often signals mild acceptance of something you might not personally prefer.",
   },
 
@@ -5070,6 +5133,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase conveys not just caution but anxiety and discomfort—the sense that one wrong step will cause a 'crack.' It implies the person/situation is volatile or hypersensitive.",
   },
 
@@ -5077,6 +5141,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an informal, friendly phrase that signals genuine interest and enthusiasm.",
   },
 
@@ -5090,6 +5155,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a vivid, metaphorical idiom implying betrayal or disloyalty.",
   },
 
@@ -5103,6 +5169,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase carries a tone of excitement and surprise—it suggests luck more than hard work, though the outcome is highly positive.",
   },
 
@@ -5110,6 +5177,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an informal, optimistic expression that signals cautious hope rather than confident certainty.",
   },
 
@@ -5135,6 +5203,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase carries a slightly dismissive or understated tone, implying not just abundance but also lack of distinction or premium value.",
   },
 
@@ -5142,6 +5211,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase carries a slightly critical or impatient tone — the speaker is frustrated that someone isn't being forthright.",
   },
 
@@ -5149,6 +5219,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a reassuring, informal idiom that softens disappointment about delays or missed deadlines.",
   },
 
@@ -5156,6 +5227,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiomatic, conversational phrase that conveys a natural, almost casual decision to stop work.",
   },
 
@@ -5169,6 +5241,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is reassuring and informal, often used to calm someone down or encourage a measured approach.",
   },
 
@@ -5176,6 +5249,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom implies accidental or careless disclosure rather than intentional betrayal.",
   },
 
@@ -5183,6 +5257,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a motivational cliché that acknowledges difficulty is necessary for achievement.",
   },
 
@@ -5190,6 +5265,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase emphasizes both awareness and quick action.",
   },
 
@@ -5197,6 +5273,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "More emphatic and colorful than 'seldom' or 'rarely.' It conveys not just infrequency but a sense of special occasion or near-impossibility.",
   },
 
@@ -5204,6 +5281,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase is distinctly friendly and playful; it implies no real harm or malice, unlike 'deceive' or 'lie.' It's commonly used in casual contexts and shows familiarity between…",
   },
 
@@ -5211,6 +5289,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a light-hearted, conversational phrase that adds a touch of playfulness or irony to an unexpected coincidence.",
   },
 
@@ -5218,6 +5297,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This phrase suggests a uniquely favorable outcome where compromise is unnecessary.",
   },
 
@@ -5231,6 +5311,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "More casual and theatrical than 'good luck'; carries a confident, enthusiastic tone.",
   },
 
@@ -5238,6 +5319,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is a lighthearted, conversational idiom that exaggerates heavy rain through absurd imagery.",
   },
 
@@ -5245,6 +5327,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom references Aesop's fable and implies moral consequence: habitually false alerts damage trust permanently.",
   },
 
@@ -5252,6 +5335,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This idiom is lighter and more vivid than 'obvious problem' or 'unspoken issue.' It conveys a shared, awkward awareness and often carries subtle humor or irony.",
   },
 
@@ -5259,6 +5343,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an irreverent, humorous idiom with a dismissive or sarcastic tone.",
   },
 
@@ -5266,6 +5351,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "More colorful and dismissive than 'dead end' or 'futile effort.' Implies not just difficulty but actual pointlessness—the goal was never achievable.",
   },
 
@@ -5273,6 +5359,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiom (not literal) emphasizing initiative and proactivity.",
   },
 
@@ -5280,6 +5367,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This proverb emphasizes skepticism about claims or promises.",
   },
 
@@ -5293,6 +5381,7 @@ export const USAGE_PROFILES_GENERATED: Record<string, UsageProfile> = {
     formality:        "informal",
     medium:           "spoken",
     phraseUsage:      "phrase-heavy",
+    frequency:        "very-common",
     naturalnessHint:  "This is an idiomatic expression (not literal) that describes a psychological bias rather than a factual observation.",
   },
 

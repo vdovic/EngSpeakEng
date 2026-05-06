@@ -23,20 +23,28 @@ const GENERATED = resolve(__dirname, '../../src/data/usageProfilesGenerated.ts')
 const items = JSON.parse(readFileSync(SOURCE, 'utf8'))
 
 // ── Parse generated profiles (light TS extraction — no TS compiler needed) ───
-// Extract every entry term and its field names from the generated file.
 
 const generatedSource = readFileSync(GENERATED, 'utf8')
 
-// Build a set of terms present in generated output
-const termPattern = /^\s+"([^"]+)":\s*\{/gm
-const generatedTerms = new Set()
+// Build a map of term -> fields from the generated output
+const blockRe = /\"([^\"]+)\":\s*\{([^}]+)\}/g
+const profileMap = {}
 let m
-while ((m = termPattern.exec(generatedSource)) !== null) {
-  generatedTerms.add(m[1])
+while ((m = blockRe.exec(generatedSource)) !== null) {
+  const term = m[1]
+  const body = m[2]
+  const fields = {}
+  const fieldRe = /(\w+):\s*\"([^\"]+)\"/g
+  let fm
+  while ((fm = fieldRe.exec(body)) !== null) {
+    fields[fm[1]] = fm[2]
+  }
+  profileMap[term] = fields
 }
 
-// Count each field occurrence
+// Count field occurrences
 const fieldCounts = {
+  region:          0,
   formality:       0,
   medium:          0,
   phraseUsage:     0,
@@ -56,8 +64,8 @@ const mediumWritten = (generatedSource.match(/medium:\s+"written"/g) || []).leng
 const mediumBoth    = (generatedSource.match(/medium:\s+"both"/g) || []).length
 
 // Count phraseUsage values
-const phraseHeavy       = (generatedSource.match(/phraseUsage:\s+"phrase-heavy"/g) || []).length
-const collocationHeavy  = (generatedSource.match(/phraseUsage:\s+"collocation-heavy"/g) || []).length
+const phraseHeavy      = (generatedSource.match(/phraseUsage:\s+"phrase-heavy"/g) || []).length
+const collocationHeavy = (generatedSource.match(/phraseUsage:\s+"collocation-heavy"/g) || []).length
 
 // Count formality values
 const formalityInformal     = (generatedSource.match(/formality:\s+"informal"/g) || []).length
@@ -69,6 +77,10 @@ const freqVeryCommon     = (generatedSource.match(/frequency:\s+"very-common"/g)
 const freqAdvancedCommon = (generatedSource.match(/frequency:\s+"advanced-common"/g) || []).length
 const freqRare           = (generatedSource.match(/frequency:\s+"rare"/g) || []).length
 
+// Count region values
+const regionBritish  = (generatedSource.match(/region:\s+"british"/g) || []).length
+const regionAmerican = (generatedSource.match(/region:\s+"american"/g) || []).length
+
 // ── Coverage analysis ─────────────────────────────────────────────────────────
 
 const HAND_CURATED = new Set([
@@ -79,34 +91,48 @@ const HAND_CURATED = new Set([
   'dress up', 'bring to the table', 'ease up',
 ])
 
-let noProfile        = 0
-let withProfile      = 0
-let noVisualSignal   = 0  // has profile but only naturalnessHint (no pills/lines)
+let noProfile      = 0
+let withProfile    = 0
+let noVisualSignal = 0
 
 for (const item of items) {
   if (HAND_CURATED.has(item.term)) continue
-  if (!generatedTerms.has(item.term)) {
+  if (!profileMap[item.term]) {
     noProfile++
   } else {
     withProfile++
-    // Approximate: check if the item's block has any signal field besides naturalnessHint
-    // We look for the term in the generated source and check following lines
-    const termIdx = generatedSource.indexOf(`"${item.term}": {`)
-    if (termIdx !== -1) {
-      const block = generatedSource.slice(termIdx, termIdx + 400)
-      const hasVisualField = /formality:|medium:|phraseUsage:|frequency:/.test(block)
-      if (!hasVisualField) noVisualSignal++
-    }
+    const p = profileMap[item.term]
+    const hasVisualField = p.formality || p.medium || p.phraseUsage || p.frequency || p.region
+    if (!hasVisualField) noVisualSignal++
   }
 }
 
-const total = items.length - HAND_CURATED.size
-const coveragePct = ((withProfile / total) * 100).toFixed(1)
+const total        = items.length - HAND_CURATED.size
+const coveragePct  = ((withProfile / total) * 100).toFixed(1)
 const noSignalPct  = ((noVisualSignal / total) * 100).toFixed(1)
+
+// ── Check specific known terms ────────────────────────────────────────────────
+
+// Conversational chunks that should have very-common frequency
+// Exclude hand-curated items — those are managed separately in usageProfiles.ts
+const convChunks = items.filter(i =>
+  i.register === 'conversational' &&
+  i.type === 'chunk' &&
+  !HAND_CURATED.has(i.term)
+)
+const chunksWithVeryCommon = convChunks.filter(i => profileMap[i.term]?.frequency === 'very-common')
+
+// False positives that should now be medium=both
+const falsePositiveTerms = ['apprehend', 'animate', 'arcane']
+const falsePositiveFixed = falsePositiveTerms.filter(t => profileMap[t]?.medium === 'both')
+
+// British region phrases that should have region=british
+const britishPhrases = ['crack on', 'reckon on', 'get about', 'ring up']
+const britishWithRegion = britishPhrases.filter(t => profileMap[t]?.region === 'british')
 
 // ── Report ────────────────────────────────────────────────────────────────────
 
-console.log(`\n## Usage Profile QA Report`)
+console.log(`\n## Usage Profile QA Report (v3)`)
 console.log(``)
 console.log(`### Coverage`)
 console.log(`  Total vocab items (excl. hand-curated): ${total}`)
@@ -115,6 +141,9 @@ console.log(`  Items without profile:                   ${noProfile}`)
 console.log(`  Items profile-only (hint, no signals):  ${noVisualSignal} (${noSignalPct}%)`)
 console.log(``)
 console.log(`### Field distribution (generated profiles)`)
+console.log(`  region:           ${fieldCounts.region}`)
+console.log(`    ↳ british:      ${regionBritish}`)
+console.log(`    ↳ american:     ${regionAmerican}`)
 console.log(`  formality:        ${fieldCounts.formality}`)
 console.log(`    ↳ informal:     ${formalityInformal}`)
 console.log(`    ↳ formal:       ${formalityFormal}`)
@@ -132,16 +161,51 @@ console.log(`    ↳ advanced-common: ${freqAdvancedCommon}`)
 console.log(`    ↳ rare:            ${freqRare}`)
 console.log(`  naturalnessHint:  ${fieldCounts.naturalnessHint}`)
 console.log(``)
+console.log(`### Specific checks`)
+console.log(`  Conv. chunks with very-common: ${chunksWithVeryCommon.length} / ${convChunks.length}`)
+console.log(`  False positives fixed (→both): ${falsePositiveFixed.length} / ${falsePositiveTerms.length} (${falsePositiveTerms.join(', ')})`)
+console.log(`  British region set:            ${britishWithRegion.length} / ${britishPhrases.length} (${britishPhrases.join(', ')})`)
+console.log(``)
 
-// ── Spot-check assertions ─────────────────────────────────────────────────────
-// These are sanity checks — if they fail, the generation rules may have regressed.
+// ── Assertions ────────────────────────────────────────────────────────────────
 
 const assertions = [
-  { label: 'phrasal verbs covered (phrase-heavy ≥ 300)',   pass: phraseHeavy >= 300 },
-  { label: 'formal words not over-written (written ≤ 100)', pass: mediumWritten <= 100 },
-  { label: 'neutral phrases show spoken (spoken ≥ 300)',   pass: mediumSpoken >= 300 },
-  { label: 'coverage ≥ 95%',                               pass: withProfile / total >= 0.95 },
-  { label: 'no-signal items ≤ 30%',                        pass: noVisualSignal / total <= 0.30 },
+  {
+    label: 'phrasal verbs covered (phrase-heavy ≥ 300)',
+    pass:  phraseHeavy >= 300,
+  },
+  {
+    label: 'formal medium=written remains ≤ 50 (first-sentence rule reduces false positives)',
+    pass:  mediumWritten <= 50,
+  },
+  {
+    label: 'neutral phrases show spoken (spoken ≥ 300)',
+    pass:  mediumSpoken >= 300,
+  },
+  {
+    label: 'coverage ≥ 95%',
+    pass:  withProfile / total >= 0.95,
+  },
+  {
+    label: 'no-signal items ≤ 30%',
+    pass:  noVisualSignal / total <= 0.30,
+  },
+  {
+    label: 'conversational chunks get very-common (all chunks covered)',
+    pass:  chunksWithVeryCommon.length === convChunks.length,
+  },
+  {
+    label: 'false positives apprehend/animate/arcane are medium=both',
+    pass:  falsePositiveFixed.length === falsePositiveTerms.length,
+  },
+  {
+    label: 'crack on has region=british',
+    pass:  profileMap['crack on']?.region === 'british',
+  },
+  {
+    label: 'alleging correctly remains medium=written (journalistic in first sentence)',
+    pass:  profileMap['alleging']?.medium === 'written',
+  },
 ]
 
 console.log(`### Assertions`)
