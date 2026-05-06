@@ -1,25 +1,26 @@
 /**
  * usageProfiles.ts
  *
- * Static "usage intelligence" data for a representative set of vocabulary items.
+ * Exports USAGE_PROFILES — the merged lookup used by UsageProfileCard.
  *
- * This is NOT generated at runtime. Data was curated manually.
- * Only populate fields that are genuinely meaningful for the word —
- * omit fields where the default assumption is fine.
+ * Precedence (highest → lowest):
+ *   1. item.usageProfile  (stored on VocabItem; set by future AI enrichment)
+ *   2. HAND_CURATED       (entries in this file — carefully written, full signals)
+ *   3. USAGE_PROFILES_GENERATED (auto-derived from existing register/nuance data)
  *
- * Usage in components:
- *   const profile = item.usageProfile ?? USAGE_PROFILES[item.term]
+ * To extend: add entries to the HAND_CURATED block below.
+ * To regenerate the auto-derived base: run data/migrations/generate-usage-profiles.js
  *
- * When AI enrichment runs for a word, the API-generated usageProfile
- * is stored on the VocabItem directly and takes precedence over this file.
- *
- * Do NOT add automatic enrichment to populate this file — extend it manually
- * or via explicit offline tooling only.
+ * Do NOT add runtime AI calls to populate either source.
  */
 
 import type { UsageProfile } from '@/types/vocabulary'
+import { USAGE_PROFILES_GENERATED } from '@/data/usageProfilesGenerated'
 
-export const USAGE_PROFILES: Record<string, UsageProfile> = {
+// ── Hand-curated entries (26 words with full, carefully considered profiles) ──
+// These override the generated versions for the same terms.
+
+const HAND_CURATED: Record<string, UsageProfile> = {
 
   // ── Words ──────────────────────────────────────────────────────────────────
 
@@ -246,4 +247,12 @@ export const USAGE_PROFILES: Record<string, UsageProfile> = {
     naturalnessHint: 'Used to suggest reducing pressure or intensity — often to a person: "ease up on him", or about a situation: "the traffic eased up".',
   },
 
+}
+
+// ── Merged export ─────────────────────────────────────────────────────────────
+// Generated entries provide the base; hand-curated entries override.
+
+export const USAGE_PROFILES: Record<string, UsageProfile> = {
+  ...USAGE_PROFILES_GENERATED,
+  ...HAND_CURATED,
 }
