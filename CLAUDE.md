@@ -281,7 +281,7 @@ Word detail pages follow this content hierarchy:
 4. **Collocations & Phrase Patterns** — collocations, sentence frames, related phrases
 5. **Practice / Real-life use** — real-life challenge prompt + usage logs
 6. **Etymology** — origin note + memory cue
-7. **Related words** — flat list (synonyms, antonyms, related entries) + optional graph
+7. **Related words** — network diagram (when eligible) + navigable text list + synonyms/antonyms
 
 **Nuance & Register** must combine both:
 - Compact visual signals from `UsageProfile` (formality, frequency, medium, phrase tendency)
@@ -289,13 +289,42 @@ Word detail pages follow this content hierarchy:
 
 Visual-only is too shallow for B2–C1 learning; text-only is harder to scan. Both together is the standard.
 
-**Network diagrams** must be:
-- Selective — only shown when `relatedEntries.length >= 4`
-- Collapsed by default behind "Explore related words visually" toggle
-- Never shown for every word automatically
-
 Display component: `src/pages/ItemDetailPage.tsx`.
 Badge helpers: `inlineFormalityBadge` / `inlineFrequencyBadge` (defined inline in ItemDetailPage).
+
+---
+
+## Relationship Diagrams
+
+Relationship diagrams are selective, not universal.
+
+They appear only when a word/phrase has at least 4 meaningful relationships (from `relatedEntries` or from `STATIC_RELATIONSHIPS`).
+
+**Layout policy:**
+- **≥ 4 relationships** → diagram shown **expanded by default** (no toggle), diagram appears **before** the text related-words list
+- **< 4 relationships** → text list only, no diagram
+- **0 relationships** → "Build" button for user-initiated AI generation (when no static data exists)
+
+The "Explore visually" toggle is NOT used when static or user data has 4+ entries.
+
+**Data sources (priority order):**
+1. `item.relatedEntries` — user/AI-generated entries stored on VocabItem (highest priority)
+2. `STATIC_RELATIONSHIPS[item.term]` — static fallback data from `src/data/staticRelationshipEntries.ts`
+
+Static relationship data is generated offline from existing Library fields (synonyms, antonyms, phrasal verb families). It must never be generated at runtime or via AI.
+
+**Static data rules:**
+- Static relationship data may be generated offline by `data/migrations/generate-static-relationships.js`
+- Each static entry must have at least 4 relationships
+- All relationship targets must refer to existing Library items
+- The live app must never auto-generate relationship data or call AI in the background
+- Static data file: `src/data/staticRelationshipEntries.ts` (DO NOT EDIT BY HAND)
+
+**Do NOT:**
+- Re-enable `useRelationshipEnricher` as an auto-running hook
+- Add a `useEffect` that generates or fetches relationship data automatically
+- Call `/api/relatedEntries` without explicit user action
+- Add a toggle/collapse for diagrams when 4+ relationships exist
 
 ---
 

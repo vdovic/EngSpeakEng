@@ -17,9 +17,20 @@ import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { getUsageProfileLines } from '@/components/UsageProfileCard'
 import { USAGE_PROFILES } from '@/data/usageProfiles'
 import { progressTowardMastery, deriveStatus } from '@/lib/mastery'
-import { VocabItem, ItemStatus, ItemType, RelatedSuggestion, UsageContext } from '@/types/vocabulary'
+import { VocabItem, ItemStatus, ItemType, RelatedSuggestion, UsageContext, RelatedEntry, RelationshipType, RelationshipDirection } from '@/types/vocabulary'
+import { STATIC_RELATIONSHIPS, StaticRelDirection } from '@/data/staticRelationshipEntries'
 import { format } from 'date-fns'
 import { loadTodaySession } from '@/lib/challengeSession'
+
+// ── Static relationship direction → RelationshipType mapping ─────────────────
+// Used when converting static relationship entries into RelatedEntry objects.
+const STATIC_REL_TYPE: Record<StaticRelDirection, RelationshipType> = {
+  synonym:      'meaning',
+  contrast:     'nuance',
+  same_family:  'word_family',
+  confusable:   'confusable',
+  same_context: 'usage_context',
+}
 
 // ── Context label map ─────────────────────────────────────────────────────────
 
@@ -293,7 +304,6 @@ export function ItemDetailPage() {
   const [retrying, setRetrying] = useState(false)
   const [showUsageModal, setShowUsageModal] = useState(false)
   const [loggedSuccessfully, setLoggedSuccessfully] = useState(false)
-  const [showGraph, setShowGraph] = useState(false)
 
   // Detect an in-progress Daily Challenge so we can show a "Return" banner.
   // loadTodaySession() is synchronous — capture once on mount.
@@ -338,6 +348,32 @@ export function ItemDetailPage() {
   }
 
   const current = editing ? draft! : item
+
+  // ── Static relationship lookup ────────────────────────────────────────────
+  // User-generated relatedEntries take priority over static data.
+  // Static data is used as a fallback only when relatedEntries is empty.
+  const userRelatedEntries  = item.relatedEntries ?? []
+  const staticRawRels       = STATIC_RELATIONSHIPS[item.term] ?? []
+  const staticRelatedEntries: RelatedEntry[] = userRelatedEntries.length === 0
+    ? staticRawRels.flatMap(rel => {
+        const target = items.find(i => i.term.toLowerCase() === rel.targetTerm.toLowerCase())
+        if (!target) return []
+        return [{
+          id:               target.id,
+          term:             target.term,
+          relationshipType: STATIC_REL_TYPE[rel.direction],
+          direction:        rel.direction as RelationshipDirection,
+          strength:         rel.strength,
+          explanation:      rel.explanation,
+        }]
+      })
+    : []
+  const effectiveRelatedEntries: RelatedEntry[] =
+    userRelatedEntries.length > 0 ? userRelatedEntries : staticRelatedEntries
+  const graphEligible = effectiveRelatedEntries.length >= 4
+  // Show the "Build" prompt only when there's genuinely no data (user or static)
+  const hasAnyRelationshipData =
+    userRelatedEntries.length > 0 || staticRelatedEntries.length > 0
 
   function startEdit() {
     setDraft(JSON.parse(JSON.stringify(item!)) as VocabItem)
@@ -830,15 +866,17 @@ export function ItemDetailPage() {
       <div className="my-3" />
 
       {/* ── 7. Related Words ─────────────────────────────────────────────────── */}
-      {/* Default: flat list of synonyms, antonyms, related entries.             */}
-      {/* Network diagram: optional, collapsed by default, only ≥4 entries.      */}
+      {/* Policy:                                                                 */}
+      {/*   ≥4 relationships → diagram expanded by default, text list below.     */}
+      {/*   < 4 relationships → text list only, no diagram.                      */}
+      {/*   Static data used as fallback when no user-generated relatedEntries.  */}
       <div className="border border-slate-200 rounded-xl overflow-hidden">
         <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
           <Network size={14} className="text-slate-500 shrink-0" />
           <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex-1">Related words</h3>
-          {(item.relatedEntries?.length ?? 0) > 0 && (
+          {effectiveRelatedEntries.length > 0 && (
             <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
-              {item.relatedEntries!.length}
+              {effectiveRelatedEntries.length}
             </span>
           )}
         </div>
@@ -852,19 +890,36 @@ export function ItemDetailPage() {
           </div>
         )}
 
-        <div className="px-4 py-3 space-y-3">
-          {/* Synonyms & antonyms */}
-          {(editing || current.synonyms.length > 0) && (
-            <ListField label="Synonyms" items={current.synonyms} editing={editing} onChange={(v) => patch('synonyms', v)} />
-          )}
-          {(editing || current.antonyms.length > 0) && (
-            <ListField label="Antonyms" items={current.antonyms} editing={editing} onChange={(v) => patch('antonyms', v)} />
-          )}
+        {/* Network diagram — expanded by default when ≥4 entries exist (static or user) */}
+        {graphEligible && !editing && (
+          <div className="border-b border-slate-100">
+            <WordRelationGraph
+              inline
+              entries={effectiveRelatedEntries}
+              suggestions={userRelatedEntries.length > 0 ? (item.relatedSuggestions ?? []) : []}
+              status={item.relatedEntriesStatus}
+              currentTerm={item.term}
+              onGenerate={userRelatedEntries.length > 0 ? () => generateRelatedEntries(item.id) : undefined}
+              onAdd={userRelatedEntries.length > 0
+                ? async (suggestion: RelatedSuggestion) => {
+                    await addItem({ term: suggestion.term, type: suggestion.type })
+                    setAddedTerm(suggestion.term)
+                    await updateItem(item.id, {
+                      relatedSuggestions: (item.relatedSuggestions ?? []).filter((s) => s.term !== suggestion.term),
+                    })
+                  }
+                : undefined
+              }
+            />
+          </div>
+        )}
 
-          {/* Related entries — flat navigable list */}
-          {(item.relatedEntries?.length ?? 0) > 0 && (
+        <div className="px-4 py-3 space-y-3">
+
+          {/* Related entries list — shown below diagram (or standalone if < 4) */}
+          {effectiveRelatedEntries.length > 0 && (
             <div className="space-y-0.5">
-              {item.relatedEntries!.map((entry) => (
+              {effectiveRelatedEntries.slice(0, 8).map((entry) => (
                 <button key={entry.id} onClick={() => navigate(`/item/${entry.id}`)}
                   className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors group">
                   <span className="flex-1 text-sm text-slate-700 font-medium group-hover:text-brand-700 truncate">{entry.term}</span>
@@ -879,7 +934,15 @@ export function ItemDetailPage() {
             </div>
           )}
 
-          {/* Pending / failed graph generation */}
+          {/* Synonyms & antonyms — editing or when data exists */}
+          {(editing || current.synonyms.length > 0) && (
+            <ListField label="Synonyms" items={current.synonyms} editing={editing} onChange={(v) => patch('synonyms', v)} />
+          )}
+          {(editing || current.antonyms.length > 0) && (
+            <ListField label="Antonyms" items={current.antonyms} editing={editing} onChange={(v) => patch('antonyms', v)} />
+          )}
+
+          {/* Pending / failed for user-initiated generation */}
           {item.relatedEntriesStatus === 'pending' && (
             <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
               <Loader2 size={12} className="text-indigo-400 animate-spin shrink-0" />
@@ -899,8 +962,8 @@ export function ItemDetailPage() {
             </div>
           )}
 
-          {/* No data yet — "Build" button triggers user-initiated graph generation */}
-          {!item.relatedEntriesStatus && (item.relatedEntries?.length ?? 0) === 0 && !editing && (
+          {/* Build prompt — only when genuinely no data (neither user nor static) */}
+          {!item.relatedEntriesStatus && !hasAnyRelationshipData && !editing && (
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-slate-400 leading-relaxed">Discover how this word connects to others in your library.</p>
               <button onClick={() => generateRelatedEntries(item.id)}
@@ -911,39 +974,8 @@ export function ItemDetailPage() {
             </div>
           )}
 
-          {/* Network diagram — collapsed behind toggle; only when ≥4 entries */}
-          {(item.relatedEntries?.length ?? 0) >= 4 && (
-            <div>
-              <button onClick={() => setShowGraph((v) => !v)}
-                className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors py-0.5">
-                <Network size={12} />
-                {showGraph ? 'Hide visual map' : 'Explore related words visually'}
-                <ChevronDown size={11} className={`transition-transform duration-200 ${showGraph ? 'rotate-180' : ''}`} />
-              </button>
-              {showGraph && (
-                <div className="mt-3 -mx-4 border-t border-slate-100">
-                  <WordRelationGraph
-                    inline
-                    entries={item.relatedEntries ?? []}
-                    suggestions={item.relatedSuggestions ?? []}
-                    status={item.relatedEntriesStatus}
-                    currentTerm={item.term}
-                    onGenerate={() => generateRelatedEntries(item.id)}
-                    onAdd={async (suggestion: RelatedSuggestion) => {
-                      await addItem({ term: suggestion.term, type: suggestion.type })
-                      setAddedTerm(suggestion.term)
-                      await updateItem(item.id, {
-                        relatedSuggestions: (item.relatedSuggestions ?? []).filter((s) => s.term !== suggestion.term),
-                      })
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Suggestions when entries exist but below graph threshold */}
-          {(item.relatedEntries?.length ?? 0) > 0 && (item.relatedEntries?.length ?? 0) < 4 &&
+          {/* Suggestions — only for user-generated data below threshold */}
+          {userRelatedEntries.length > 0 && userRelatedEntries.length < 4 &&
             (item.relatedSuggestions?.length ?? 0) > 0 && !editing && (
             <div>
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Words to discover</p>
