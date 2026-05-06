@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   ArrowLeft, Star, StarOff, Plus, Check, Pencil, Save, X,
-  BookText, Lightbulb, Network, GitBranch, Trash2,
+  BookText, Network, GitBranch, Trash2, BarChart2, Sparkles, ArrowRight,
   Loader2, AlertCircle, RefreshCw, Target, Layers, ChevronDown,
   TrendingUp, Info, Zap, GraduationCap, MessageSquarePlus,
 } from 'lucide-react'
@@ -14,7 +14,7 @@ import { TypeBadge } from '@/components/TypeBadge'
 import { WordRelationGraph } from '@/components/WordRelationGraph'
 import { LogUsageModal } from '@/components/LogUsageModal'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
-import { UsageProfileCard } from '@/components/UsageProfileCard'
+import { getUsageProfileLines } from '@/components/UsageProfileCard'
 import { USAGE_PROFILES } from '@/data/usageProfiles'
 import { progressTowardMastery, deriveStatus } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType, RelatedSuggestion, UsageContext } from '@/types/vocabulary'
@@ -41,6 +41,30 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
   mastered:   'Mastered',
 }
 
+
+// ── Inline badge helpers for Nuance & Register section ───────────────────────
+// Duplicates minimal logic from UsageProfileCard without re-exporting internals.
+
+function inlineFormalityBadge(f: string): { label: string; cls: string } | null {
+  switch (f) {
+    case 'informal':     return { label: 'Informal',     cls: 'bg-slate-100 text-slate-600' }
+    case 'formal':       return { label: 'Formal',       cls: 'bg-blue-50 text-blue-700 border border-blue-200' }
+    case 'academic':     return { label: 'Academic',     cls: 'bg-purple-50 text-purple-700 border border-purple-200' }
+    case 'professional': return { label: 'Professional', cls: 'bg-indigo-50 text-indigo-700 border border-indigo-200' }
+    default:             return null
+  }
+}
+
+function inlineFrequencyBadge(f: string): { label: string; cls: string } | null {
+  switch (f) {
+    case 'very-common':     return { label: 'Very common',      cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' }
+    case 'advanced-common': return { label: 'Advanced, common', cls: 'bg-violet-50 text-violet-700 border border-violet-200' }
+    case 'rare':            return { label: 'Rare',             cls: 'bg-rose-50 text-rose-600 border border-rose-200' }
+    default:                return null
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 function Section({
   title,
@@ -269,6 +293,7 @@ export function ItemDetailPage() {
   const [retrying, setRetrying] = useState(false)
   const [showUsageModal, setShowUsageModal] = useState(false)
   const [loggedSuccessfully, setLoggedSuccessfully] = useState(false)
+  const [showGraph, setShowGraph] = useState(false)
 
   // Detect an in-progress Daily Challenge so we can show a "Return" banner.
   // loadTodaySession() is synchronous — capture once on mount.
@@ -556,7 +581,7 @@ export function ItemDetailPage() {
         )}
       </div>
 
-      {/* Meaning */}
+      {/* ── 1. Meaning ───────────────────────────────────────────────────────── */}
       <Section title="Meaning" icon={<BookText size={14} />}>
         <Field
           label="Part of speech"
@@ -574,267 +599,180 @@ export function ItemDetailPage() {
           multiline
         />
         {(editing || current.translations?.uk) && (
-          <Field
-            label="Ukrainian"
-            value={current.translations?.uk}
-            placeholder="Переклад…"
-            editing={editing}
-            onChange={(v) => patch('translations', { ...current.translations, uk: v })}
-          />
+          <Field label="Ukrainian" value={current.translations?.uk} placeholder="Переклад…"
+            editing={editing} onChange={(v) => patch('translations', { ...current.translations, uk: v })} />
         )}
         {(editing || current.translations?.pl) && (
-          <Field
-            label="Polish"
-            value={current.translations?.pl}
-            placeholder="Tłumaczenie…"
-            editing={editing}
-            onChange={(v) => patch('translations', { ...current.translations, pl: v })}
-          />
+          <Field label="Polish" value={current.translations?.pl} placeholder="Tłumaczenie…"
+            editing={editing} onChange={(v) => patch('translations', { ...current.translations, pl: v })} />
         )}
         {(editing || current.translations?.ru) && (
-          <Field
-            label="Russian"
-            value={current.translations?.ru}
-            placeholder="Перевод…"
-            editing={editing}
-            onChange={(v) => patch('translations', { ...current.translations, ru: v })}
-          />
+          <Field label="Russian" value={current.translations?.ru} placeholder="Перевод…"
+            editing={editing} onChange={(v) => patch('translations', { ...current.translations, ru: v })} />
         )}
       </Section>
 
       <div className="my-3" />
 
-      {/* ── Usage Profile ─────────────────────────────────────────────────────── */}
-      {/* Shown between Meaning and Etymology per priority hierarchy (spec §4).   */}
-      {/* Reads static data only — no runtime AI generation.                      */}
+      {/* ── 2. Examples ──────────────────────────────────────────────────────── */}
+      <Section title="Examples" icon={<GitBranch size={14} />}>
+        <Field label="Natural example" value={current.exampleSentence}
+          placeholder="Natural example sentence…" editing={editing}
+          onChange={(v) => patch('exampleSentence', v)} multiline />
+        <Field label="Work context" value={current.workSentence}
+          placeholder="Work / professional example…" editing={editing}
+          onChange={(v) => patch('workSentence', v)} multiline />
+        <Field label="My sentence" value={current.mySentence}
+          placeholder="Your own example sentence…" editing={editing}
+          onChange={(v) => patch('mySentence', v)} multiline />
+        {current.sourceText && (
+          <Field label="Source sentence" value={current.sourceText}
+            placeholder="Where you found it…" editing={editing}
+            onChange={(v) => patch('sourceText', v)} multiline />
+        )}
+      </Section>
+
+      <div className="my-3" />
+
+      {/* ── 3. Nuance & Register ─────────────────────────────────────────────── */}
+      {/* Combines compact visual signals (UsageProfile) with the nuance text.   */}
+      {/* Visual-only is too shallow for B2–C1 learning; text-only is harder to  */}
+      {/* scan. Static data only — no runtime AI generation.                     */}
       {(() => {
         const profile = item.usageProfile ?? USAGE_PROFILES[item.term]
-        return profile ? (
-          <>
-            <UsageProfileCard profile={profile} />
-            <div className="my-3" />
-          </>
-        ) : null
+        const fBadge = profile?.formality ? inlineFormalityBadge(profile.formality) : null
+        const qBadge = profile?.frequency ? inlineFrequencyBadge(profile.frequency) : null
+        const pills = [fBadge, qBadge].filter(Boolean) as { label: string; cls: string }[]
+        const signalLines = profile ? getUsageProfileLines(profile).slice(0, 3) : []
+        const domains = (profile?.domains ?? []).slice(0, 2)
+        const textExplanation = current.nuance || profile?.naturalnessHint
+        const hasSignals = pills.length > 0 || signalLines.length > 0 || domains.length > 0
+        const hasContent = hasSignals || !!textExplanation || !!current.register || !!current.commonMistakes
+
+        if (!editing && !hasContent) return null
+
+        return (
+          <Section title="Nuance & register" icon={<BarChart2 size={14} />}>
+
+            {/* Register selector — edit mode only */}
+            {editing && (
+              <div className="mb-3">
+                <label className="text-xs font-medium text-slate-500 block mb-1">Register</label>
+                <div className="flex gap-2">
+                  {registerOptions.map((r) => (
+                    <button key={r} onClick={() => patch('register', r)}
+                      className={`px-3 py-1 text-xs rounded-full border font-medium transition-colors capitalize ${
+                        current.register === r
+                          ? 'bg-brand-600 text-white border-brand-600'
+                          : 'bg-white text-slate-600 border-slate-200'
+                      }`}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Visual signals — formality/frequency pills + signal lines + domains */}
+            {hasSignals && (
+              <div className="mb-3 space-y-2">
+                {pills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {pills.map((p, i) => (
+                      <span key={i} className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${p.cls}`}>
+                        {p.label}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {signalLines.length > 0 && (
+                  <ul className="space-y-0.5">
+                    {signalLines.map((line, i) => (
+                      <li key={i} className="flex items-start gap-1.5 text-xs text-slate-600">
+                        <span className="mt-1.5 w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {domains.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {domains.map((d) => (
+                      <span key={d} className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-full capitalize">
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Text explanation — nuance field preferred, naturalnessHint as fallback */}
+            {editing ? (
+              <Field label="Nuance note" value={current.nuance}
+                placeholder="How it sounds, when it's natural, how it differs from close alternatives…"
+                editing onChange={(v) => patch('nuance', v)} multiline />
+            ) : textExplanation ? (
+              <p className="text-sm text-slate-700 leading-relaxed mb-2">{textExplanation}</p>
+            ) : null}
+
+            {/* Common mistakes */}
+            {editing ? (
+              <Field label="Common mistakes" value={current.commonMistakes}
+                placeholder="What learners often get wrong…"
+                editing onChange={(v) => patch('commonMistakes', v)} multiline />
+            ) : current.commonMistakes ? (
+              <div className="mt-2 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
+                <p className="text-[10px] font-semibold text-rose-500 uppercase tracking-wide mb-0.5">Common mistake</p>
+                <p className="text-xs text-rose-700 leading-relaxed">{current.commonMistakes}</p>
+              </div>
+            ) : null}
+
+          </Section>
+        )
       })()}
 
-      {/* Etymology — always shown */}
-      <Section title="Etymology" icon={<BookText size={14} />}>
-        {(current.etymology || editing) ? (
-          <Field
-            label="Origin"
-            value={current.etymology}
-            placeholder="Root language, base word, historical origin…"
-            editing={editing}
-            onChange={(v) => patch('etymology', v)}
-            multiline
-          />
-        ) : (
-          <p className="text-sm text-slate-400 italic">Not recorded for this word.</p>
-        )}
-      </Section>
-
       <div className="my-3" />
 
-      {/* ── Relationships — graph + synonym/antonym/collocation lists ── */}
-      <div className="border border-slate-200 rounded-xl overflow-hidden">
-        {/* Header */}
-        <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
-          <Network size={14} className="text-slate-500 shrink-0" />
-          <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex-1">Relationships</h3>
-          {((item.relatedEntries?.length ?? 0) + (item.relatedSuggestions?.length ?? 0)) > 0 && (
-            <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
-              {(item.relatedEntries?.length ?? 0) + (item.relatedSuggestions?.length ?? 0)}
-            </span>
-          )}
-        </div>
-
-        {/* "Word added" confirmation — shown inside the section */}
-        {addedTerm && (
-          <div className="mx-4 mt-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
-            <Check size={13} className="text-emerald-600 shrink-0" />
-            <p className="text-sm text-emerald-700 font-medium flex-1">
-              &ldquo;{addedTerm}&rdquo; added to your library
-            </p>
-            <button onClick={() => setAddedTerm(null)} className="text-emerald-400 hover:text-emerald-600">
-              <X size={13} />
-            </button>
-          </div>
-        )}
-
-        {/* Word relationship graph — inline (no nested Shell) */}
-        <WordRelationGraph
-          inline
-          entries={item.relatedEntries ?? []}
-          suggestions={item.relatedSuggestions ?? []}
-          status={item.relatedEntriesStatus}
-          currentTerm={item.term}
-          onGenerate={() => generateRelatedEntries(item.id)}
-          onAdd={async (suggestion: RelatedSuggestion) => {
-            await addItem({ term: suggestion.term, type: suggestion.type })
-            setAddedTerm(suggestion.term)
-            await updateItem(item.id, {
-              relatedSuggestions: (item.relatedSuggestions ?? []).filter(
-                (s) => s.term !== suggestion.term,
-              ),
-            })
-          }}
-        />
-
-        {/* Synonym / antonym / collocation lists */}
-        {(editing ||
-          current.synonyms.length > 0 ||
-          current.antonyms.length > 0 ||
-          current.collocations.length > 0 ||
-          current.sentenceFrames.length > 0 ||
-          current.relatedPhrases.length > 0) && (
-          <>
-            <div className="border-t border-slate-100 mx-0" />
-            <div className="px-4 py-3">
-              <ListField label="Synonyms"       items={current.synonyms}      editing={editing} onChange={(v) => patch('synonyms', v)} />
-              <ListField label="Antonyms"       items={current.antonyms}      editing={editing} onChange={(v) => patch('antonyms', v)} />
-              <ListField label="Collocations"   items={current.collocations}  editing={editing} onChange={(v) => patch('collocations', v)} />
-              <ListField label="Sentence frames" items={current.sentenceFrames} editing={editing} onChange={(v) => patch('sentenceFrames', v)} />
-              <ListField label="Related phrases" items={current.relatedPhrases} editing={editing} onChange={(v) => patch('relatedPhrases', v)} />
-            </div>
-          </>
-        )}
-      </div>
-
-      <div className="my-3" />
-
-      {/* Usage examples */}
-      <Section title="Usage examples" icon={<GitBranch size={14} />} defaultOpen={false}>
-        <Field
-          label="Natural example"
-          value={current.exampleSentence}
-          placeholder="Natural example sentence…"
-          editing={editing}
-          onChange={(v) => patch('exampleSentence', v)}
-          multiline
-        />
-        <Field
-          label="Work context"
-          value={current.workSentence}
-          placeholder="Work / professional example…"
-          editing={editing}
-          onChange={(v) => patch('workSentence', v)}
-          multiline
-        />
-        <Field
-          label="My sentence"
-          value={current.mySentence}
-          placeholder="Your own example sentence…"
-          editing={editing}
-          onChange={(v) => patch('mySentence', v)}
-          multiline
-        />
-        {current.sourceText && (
-          <Field
-            label="Source sentence"
-            value={current.sourceText}
-            placeholder="Where you found it…"
-            editing={editing}
-            onChange={(v) => patch('sourceText', v)}
-            multiline
-          />
-        )}
-      </Section>
-
-      <div className="my-3" />
-
-      {/* Nuance */}
-      <Section title="Nuance & register" defaultOpen={false}>
-        {editing && (
-          <div className="mb-3">
-            <label className="text-xs font-medium text-slate-500 block mb-1">Register</label>
-            <div className="flex gap-2">
-              {registerOptions.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => patch('register', r)}
-                  className={`px-3 py-1 text-xs rounded-full border font-medium transition-colors capitalize ${
-                    current.register === r
-                      ? 'bg-brand-600 text-white border-brand-600'
-                      : 'bg-white text-slate-600 border-slate-200'
-                  }`}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-        {!editing && current.register && (
-          <div className="mb-2">
-            <span className="text-xs font-medium text-slate-500">Register: </span>
-            <span className="text-sm text-slate-700 capitalize">{current.register}</span>
-          </div>
-        )}
-        <Field
-          label="Nuance note"
-          value={current.nuance}
-          placeholder="Subtle meaning distinctions…"
-          editing={editing}
-          onChange={(v) => patch('nuance', v)}
-          multiline
-        />
-        <Field
-          label="Common mistakes"
-          value={current.commonMistakes}
-          placeholder="What learners often get wrong…"
-          editing={editing}
-          onChange={(v) => patch('commonMistakes', v)}
-          multiline
-        />
-      </Section>
-
-      <div className="my-3" />
-
-      {/* Real-life challenge */}
-      {(current.realLifeTask || editing) && (
+      {/* ── 4. Collocations & Phrase Patterns ────────────────────────────────── */}
+      {(editing || current.collocations.length > 0 || current.sentenceFrames.length > 0 || current.relatedPhrases.length > 0) && (
         <>
-          <div className="my-3" />
-          <Section title="Real-life challenge" icon={<Target size={14} />}>
-            <Field
-              label="Your task"
-              value={current.realLifeTask}
-              placeholder="e.g. Use this in your next standup when describing a blocker…"
-              editing={editing}
-              onChange={(v) => patch('realLifeTask', v)}
-              multiline
-            />
+          <Section title="Collocations & phrase patterns" icon={<GitBranch size={14} />}>
+            <ListField label="Collocations"    items={current.collocations}   editing={editing} onChange={(v) => patch('collocations', v)} />
+            <ListField label="Sentence frames" items={current.sentenceFrames} editing={editing} onChange={(v) => patch('sentenceFrames', v)} />
+            <ListField label="Related phrases" items={current.relatedPhrases} editing={editing} onChange={(v) => patch('relatedPhrases', v)} />
           </Section>
+          <div className="my-3" />
         </>
       )}
 
-      {/* ── Real-life usage section ──────────────────────────────────────────── */}
+      {/* ── 5. Practice / Real-life use ──────────────────────────────────────── */}
+      {(current.realLifeTask || editing) && (
+        <>
+          <Section title="Real-life challenge" icon={<Target size={14} />}>
+            <Field label="Your task" value={current.realLifeTask}
+              placeholder="e.g. Use this in your next standup when describing a blocker…"
+              editing={editing} onChange={(v) => patch('realLifeTask', v)} multiline />
+          </Section>
+          <div className="my-3" />
+        </>
+      )}
+
       {!editing && (
         <>
-          <div className="my-3" />
           <Section title="Real-life usage" icon={<MessageSquarePlus size={14} />}>
             {(() => {
               const logs = item.activation.usageLogs
               const confidenceLevel = (item.activation?.confidenceLevel ?? 0) as 0 | 1 | 2 | 3
-
               return (
                 <div className="space-y-4">
-                  {/* ── Confidence dots — primary signal ── */}
                   <div>
-                    <p className="text-xs text-slate-500 mb-2">
-                      How comfortable are you using this word in real life?
-                    </p>
-                    <ConfidenceDots
-                      item={item}
-                      onChange={(level) => setConfidenceLevel(item.id, level)}
-                    />
+                    <p className="text-xs text-slate-500 mb-2">How comfortable are you using this word in real life?</p>
+                    <ConfidenceDots item={item} onChange={(level) => setConfidenceLevel(item.id, level)} />
                   </div>
-
-                  {/* ── Log a note — secondary, optional ── */}
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-slate-400">
-                      {logs.length > 0
-                        ? `${logs.length} usage note${logs.length !== 1 ? 's' : ''} logged`
-                        : 'No usage notes yet'}
+                      {logs.length > 0 ? `${logs.length} usage note${logs.length !== 1 ? 's' : ''} logged` : 'No usage notes yet'}
                     </span>
                     <button
                       onClick={() => { setLoggedSuccessfully(false); setShowUsageModal(true) }}
@@ -844,72 +782,205 @@ export function ItemDetailPage() {
                       Add note
                     </button>
                   </div>
-
-                  {/* Recent logs */}
                   {logs.length > 0 && (
                     <div className="space-y-1.5">
                       {[...logs].reverse().slice(0, 5).map((log) => (
                         <div key={log.id} className="flex items-start gap-2 text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
-                          <span className="shrink-0 text-slate-400 tabular-nums">
-                            {format(new Date(log.usedAt), 'MMM d')}
-                          </span>
+                          <span className="shrink-0 text-slate-400 tabular-nums">{format(new Date(log.usedAt), 'MMM d')}</span>
                           <span className="text-slate-500 shrink-0">
                             {log.context ? CONTEXT_LABEL[log.context] : log.channel === 'speaking' ? 'Speaking' : log.channel === 'writing' ? 'Writing' : ''}
                           </span>
-                          {log.confidence && (
-                            <span className="text-amber-500 shrink-0">{'★'.repeat(log.confidence)}</span>
-                          )}
-                          {log.sentence && (
-                            <span className="italic text-slate-500 line-clamp-1 flex-1">"{log.sentence}"</span>
-                          )}
-                          {log.note && !log.sentence && (
-                            <span className="text-slate-400 flex-1 line-clamp-1">{log.note}</span>
-                          )}
+                          {log.confidence && <span className="text-amber-500 shrink-0">{'★'.repeat(log.confidence)}</span>}
+                          {log.sentence && <span className="italic text-slate-500 line-clamp-1 flex-1">"{log.sentence}"</span>}
+                          {log.note && !log.sentence && <span className="text-slate-400 flex-1 line-clamp-1">{log.note}</span>}
                         </div>
                       ))}
                     </div>
                   )}
-
-                  {/* Confidence context hint */}
                   {confidenceLevel === 0 && (
                     <p className="text-xs text-slate-400 italic">
                       Mark how comfortable you are using this word — it helps the system track your progress.
                     </p>
                   )}
-
-                  {/* Success flash */}
-                  {loggedSuccessfully && (
-                    <p className="text-xs text-green-600 font-medium">✓ Note logged!</p>
-                  )}
+                  {loggedSuccessfully && <p className="text-xs text-green-600 font-medium">✓ Note logged!</p>}
                 </div>
               )
             })()}
           </Section>
+          <div className="my-3" />
         </>
       )}
 
-      {/* Memory */}
-      <Section title="Memory support" icon={<Lightbulb size={14} />} defaultOpen={false}>
-        <Field
-          label="Memory cue / mnemonic"
-          value={current.memoryCue}
-          placeholder="Visual image, rhyme, or mental cue…"
-          editing={editing}
-          onChange={(v) => patch('memoryCue', v)}
-          multiline
-        />
+      {/* ── 6. Etymology ─────────────────────────────────────────────────────── */}
+      <Section title="Etymology" icon={<BookText size={14} />}>
+        {(current.etymology || editing) ? (
+          <Field label="Origin" value={current.etymology}
+            placeholder="Root language, base word, historical origin…"
+            editing={editing} onChange={(v) => patch('etymology', v)} multiline />
+        ) : (
+          <p className="text-sm text-slate-400 italic">Not recorded for this word.</p>
+        )}
+        {(current.memoryCue || editing) && (
+          <Field label="Memory cue / mnemonic" value={current.memoryCue}
+            placeholder="Visual image, rhyme, or mental cue…"
+            editing={editing} onChange={(v) => patch('memoryCue', v)} multiline />
+        )}
       </Section>
 
       <div className="my-3" />
 
-      {/* Themes */}
+      {/* ── 7. Related Words ─────────────────────────────────────────────────── */}
+      {/* Default: flat list of synonyms, antonyms, related entries.             */}
+      {/* Network diagram: optional, collapsed by default, only ≥4 entries.      */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-slate-50 px-4 py-2.5 flex items-center gap-2 border-b border-slate-200">
+          <Network size={14} className="text-slate-500 shrink-0" />
+          <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wide flex-1">Related words</h3>
+          {(item.relatedEntries?.length ?? 0) > 0 && (
+            <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+              {item.relatedEntries!.length}
+            </span>
+          )}
+        </div>
+
+        {/* "Word added" confirmation */}
+        {addedTerm && (
+          <div className="mx-4 mt-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5">
+            <Check size={13} className="text-emerald-600 shrink-0" />
+            <p className="text-sm text-emerald-700 font-medium flex-1">&ldquo;{addedTerm}&rdquo; added to your library</p>
+            <button onClick={() => setAddedTerm(null)} className="text-emerald-400 hover:text-emerald-600"><X size={13} /></button>
+          </div>
+        )}
+
+        <div className="px-4 py-3 space-y-3">
+          {/* Synonyms & antonyms */}
+          {(editing || current.synonyms.length > 0) && (
+            <ListField label="Synonyms" items={current.synonyms} editing={editing} onChange={(v) => patch('synonyms', v)} />
+          )}
+          {(editing || current.antonyms.length > 0) && (
+            <ListField label="Antonyms" items={current.antonyms} editing={editing} onChange={(v) => patch('antonyms', v)} />
+          )}
+
+          {/* Related entries — flat navigable list */}
+          {(item.relatedEntries?.length ?? 0) > 0 && (
+            <div className="space-y-0.5">
+              {item.relatedEntries!.map((entry) => (
+                <button key={entry.id} onClick={() => navigate(`/item/${entry.id}`)}
+                  className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors group">
+                  <span className="flex-1 text-sm text-slate-700 font-medium group-hover:text-brand-700 truncate">{entry.term}</span>
+                  {entry.direction && (
+                    <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full capitalize shrink-0">
+                      {entry.direction.replace('_', ' ')}
+                    </span>
+                  )}
+                  <ArrowRight size={11} className="text-slate-300 group-hover:text-brand-400 shrink-0" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Pending / failed graph generation */}
+          {item.relatedEntriesStatus === 'pending' && (
+            <div className="flex items-center gap-2 text-xs text-slate-500 py-1">
+              <Loader2 size={12} className="text-indigo-400 animate-spin shrink-0" />
+              Mapping word connections…
+            </div>
+          )}
+          {item.relatedEntriesStatus === 'failed' && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-red-500">
+                <AlertCircle size={12} />
+                Couldn't build the graph.
+              </div>
+              <button onClick={() => generateRelatedEntries(item.id)}
+                className="flex items-center gap-1 text-xs text-indigo-500 font-medium hover:underline">
+                <RefreshCw size={11} /> Retry
+              </button>
+            </div>
+          )}
+
+          {/* No data yet — "Build" button triggers user-initiated graph generation */}
+          {!item.relatedEntriesStatus && (item.relatedEntries?.length ?? 0) === 0 && !editing && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-400 leading-relaxed">Discover how this word connects to others in your library.</p>
+              <button onClick={() => generateRelatedEntries(item.id)}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-indigo-500 rounded-lg hover:bg-indigo-600 active:scale-95 transition-all">
+                <Sparkles size={12} />
+                Build
+              </button>
+            </div>
+          )}
+
+          {/* Network diagram — collapsed behind toggle; only when ≥4 entries */}
+          {(item.relatedEntries?.length ?? 0) >= 4 && (
+            <div>
+              <button onClick={() => setShowGraph((v) => !v)}
+                className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors py-0.5">
+                <Network size={12} />
+                {showGraph ? 'Hide visual map' : 'Explore related words visually'}
+                <ChevronDown size={11} className={`transition-transform duration-200 ${showGraph ? 'rotate-180' : ''}`} />
+              </button>
+              {showGraph && (
+                <div className="mt-3 -mx-4 border-t border-slate-100">
+                  <WordRelationGraph
+                    inline
+                    entries={item.relatedEntries ?? []}
+                    suggestions={item.relatedSuggestions ?? []}
+                    status={item.relatedEntriesStatus}
+                    currentTerm={item.term}
+                    onGenerate={() => generateRelatedEntries(item.id)}
+                    onAdd={async (suggestion: RelatedSuggestion) => {
+                      await addItem({ term: suggestion.term, type: suggestion.type })
+                      setAddedTerm(suggestion.term)
+                      await updateItem(item.id, {
+                        relatedSuggestions: (item.relatedSuggestions ?? []).filter((s) => s.term !== suggestion.term),
+                      })
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Suggestions when entries exist but below graph threshold */}
+          {(item.relatedEntries?.length ?? 0) > 0 && (item.relatedEntries?.length ?? 0) < 4 &&
+            (item.relatedSuggestions?.length ?? 0) > 0 && !editing && (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Words to discover</p>
+              {(item.relatedSuggestions ?? []).slice(0, 3).map((s) => (
+                <div key={s.term} className="flex items-center justify-between gap-2 py-1.5">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-slate-600 font-medium">{s.term}</span>
+                    {s.definitionHint && <span className="text-xs text-slate-400 ml-2 italic">{s.definitionHint}</span>}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await addItem({ term: s.term, type: s.type })
+                      setAddedTerm(s.term)
+                      await updateItem(item.id, {
+                        relatedSuggestions: (item.relatedSuggestions ?? []).filter((x) => x.term !== s.term),
+                      })
+                    }}
+                    className="shrink-0 flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                    <Plus size={11} /> Add
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="my-3" />
+
+      {/* ── 8. Themes ────────────────────────────────────────────────────────── */}
       <Section title="Themes" icon={<Layers size={14} />}>
         <ThemeAssignment itemId={item.id} assigned={item.themes ?? []} />
       </Section>
 
       <div className="my-3" />
 
-      {/* Unified mastery + memory system */}
+      {/* ── 9. Mastery ───────────────────────────────────────────────────────── */}
       <MasteryMemorySection item={item} />
 
       {/* Mastered state */}
@@ -950,19 +1021,13 @@ export function ItemDetailPage() {
             <div className="p-3 bg-red-50 rounded-xl border border-red-200 flex items-center justify-between">
               <p className="text-sm text-red-700">Delete "{item.term}"?</p>
               <div className="flex gap-2">
-                <button onClick={() => setShowDeleteConfirm(false)} className="text-xs px-3 py-1.5 text-slate-600 bg-white border border-slate-200 rounded-lg">
-                  Cancel
-                </button>
-                <button onClick={handleDelete} className="text-xs px-3 py-1.5 text-white bg-red-600 rounded-lg font-semibold">
-                  Delete
-                </button>
+                <button onClick={() => setShowDeleteConfirm(false)} className="text-xs px-3 py-1.5 text-slate-600 bg-white border border-slate-200 rounded-lg">Cancel</button>
+                <button onClick={handleDelete} className="text-xs px-3 py-1.5 text-white bg-red-600 rounded-lg font-semibold">Delete</button>
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors"
-            >
+            <button onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-600 transition-colors">
               <Trash2 size={13} />
               Delete item
             </button>

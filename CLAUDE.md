@@ -271,6 +271,34 @@ Claude must never:
 
 ---
 
+## Word Detail Content Layout
+
+Word detail pages follow this content hierarchy:
+
+1. **Meaning** — part of speech, definition, translations
+2. **Examples** — natural example, work example, learner's own sentence
+3. **Nuance & Register** — compact visual usage signals + short text explanation
+4. **Collocations & Phrase Patterns** — collocations, sentence frames, related phrases
+5. **Practice / Real-life use** — real-life challenge prompt + usage logs
+6. **Etymology** — origin note + memory cue
+7. **Related words** — flat list (synonyms, antonyms, related entries) + optional graph
+
+**Nuance & Register** must combine both:
+- Compact visual signals from `UsageProfile` (formality, frequency, medium, phrase tendency)
+- Short text explanation from `item.nuance` (preferred) or `profile.naturalnessHint` (fallback)
+
+Visual-only is too shallow for B2–C1 learning; text-only is harder to scan. Both together is the standard.
+
+**Network diagrams** must be:
+- Selective — only shown when `relatedEntries.length >= 4`
+- Collapsed by default behind "Explore related words visually" toggle
+- Never shown for every word automatically
+
+Display component: `src/pages/ItemDetailPage.tsx`.
+Badge helpers: `inlineFormalityBadge` / `inlineFrequencyBadge` (defined inline in ItemDetailPage).
+
+---
+
 ## Development Behaviour
 
 Before large UX or architecture changes:
