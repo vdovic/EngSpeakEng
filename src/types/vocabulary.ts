@@ -131,6 +131,13 @@ export interface VocabItem {
   etymology?: string
   memoryCue?: string
 
+  /**
+   * Compact usage intelligence — when it sounds natural, who uses it, and where.
+   * Populated from static data for known words; can be set by AI enrichment later.
+   * Never generated automatically at runtime.
+   */
+  usageProfile?: UsageProfile
+
   review: ReviewData
   activation: ActivationData
 
@@ -284,6 +291,73 @@ export interface ExerciseResult {
   correct: boolean    // false for partial-credit sentence-production
   /** The correct answer to show in the feedback overlay when the user was wrong. */
   correctAnswer?: string
+}
+
+// ── Usage Profile ─────────────────────────────────────────────────────────────
+//
+// Compact "usage intelligence" for a word or phrase.
+// Helps learners understand when the word sounds natural, where it is used,
+// and how native speakers typically reach for it.
+//
+// All fields are optional — only fill what is meaningful for the word.
+// Do NOT generate this automatically at runtime; data must be static or
+// explicitly user-triggered.
+
+export interface UsageProfile {
+  /**
+   * Regional tendency.
+   * Only set when there is a genuine bias — omit for truly neutral words.
+   *   'british'       — more natural in British English
+   *   'american'      — more natural in American English
+   *   'international' — neutral; common in both (rarely needs to be set)
+   *   'mixed'         — genuinely common in both varieties
+   */
+  region?: 'british' | 'american' | 'international' | 'mixed'
+
+  /**
+   * Formality register.
+   *   'informal'     — casual speech and writing
+   *   'neutral'      — works in most contexts
+   *   'formal'       — formal writing and polished speech
+   *   'academic'     — academic or scholarly writing
+   *   'professional' — business and professional contexts
+   */
+  formality?: 'informal' | 'neutral' | 'formal' | 'academic' | 'professional'
+
+  /**
+   * Primary medium.
+   *   'spoken'  — more natural in speech
+   *   'written' — more natural in writing
+   *   'both'    — equally at home in speech and writing
+   */
+  medium?: 'spoken' | 'written' | 'both'
+
+  /**
+   * How the word is typically deployed syntactically.
+   *   'standalone'        — flexible; works on its own
+   *   'phrase-heavy'      — almost always part of a fixed phrase
+   *   'collocation-heavy' — strongly prefers particular partner words
+   */
+  phraseUsage?: 'standalone' | 'phrase-heavy' | 'collocation-heavy'
+
+  /**
+   * Approximate frequency in real-world English.
+   *   'very-common'     — learners encounter it constantly
+   *   'common'          — frequent but not universal
+   *   'advanced-common' — common in educated/professional use
+   *   'rare'            — infrequent; literary or technical
+   */
+  frequency?: 'very-common' | 'common' | 'advanced-common' | 'rare'
+
+  /** Broad topic areas where the word naturally appears. */
+  domains?: string[]
+
+  /**
+   * One-sentence naturalness hint for the learner.
+   * Should complete the thought "It sounds most natural when…"
+   * Keep it concise and actionable, not academic.
+   */
+  naturalnessHint?: string
 }
 
 // ── AI Enrichment profile ─────────────────────────────────────────────────────

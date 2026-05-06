@@ -219,6 +219,29 @@ Claude must not:
 
 ---
 
+## Usage Profile
+
+Words may include compact "usage intelligence" signals:
+
+* region (British / American / international)
+* formality (informal / neutral / formal / academic / professional)
+* spoken vs written tendency
+* phrase or collocation dependence
+* frequency (very common / advanced-common / rare)
+* naturalness hints — short, actionable tips for sounding natural
+
+Usage Profile exists to help learners sound more natural and context-aware, not to overload them with linguistic terminology.
+
+Static data lives in `src/data/usageProfiles.ts`.
+The type lives on `VocabItem.usageProfile?: UsageProfile`.
+Static fallback: `item.usageProfile ?? USAGE_PROFILES[item.term]`.
+Display component: `src/components/UsageProfileCard.tsx`.
+
+Usage Profile must NEVER be generated automatically at runtime.
+Extend `src/data/usageProfiles.ts` manually or via offline tooling only.
+
+---
+
 ## AI Safety Rules
 
 AI must never run silently.

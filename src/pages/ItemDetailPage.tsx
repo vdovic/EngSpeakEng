@@ -14,6 +14,8 @@ import { TypeBadge } from '@/components/TypeBadge'
 import { WordRelationGraph } from '@/components/WordRelationGraph'
 import { LogUsageModal } from '@/components/LogUsageModal'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
+import { UsageProfileCard } from '@/components/UsageProfileCard'
+import { USAGE_PROFILES } from '@/data/usageProfiles'
 import { progressTowardMastery, deriveStatus } from '@/lib/mastery'
 import { VocabItem, ItemStatus, ItemType, RelatedSuggestion, UsageContext } from '@/types/vocabulary'
 import { format } from 'date-fns'
@@ -601,6 +603,19 @@ export function ItemDetailPage() {
       </Section>
 
       <div className="my-3" />
+
+      {/* ── Usage Profile ─────────────────────────────────────────────────────── */}
+      {/* Shown between Meaning and Etymology per priority hierarchy (spec §4).   */}
+      {/* Reads static data only — no runtime AI generation.                      */}
+      {(() => {
+        const profile = item.usageProfile ?? USAGE_PROFILES[item.term]
+        return profile ? (
+          <>
+            <UsageProfileCard profile={profile} />
+            <div className="my-3" />
+          </>
+        ) : null
+      })()}
 
       {/* Etymology — always shown */}
       <Section title="Etymology" icon={<BookText size={14} />}>
