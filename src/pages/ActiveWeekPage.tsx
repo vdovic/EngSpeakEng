@@ -95,9 +95,14 @@ function ExposureBar({ count }: { count: number }) {
 
 // ─── Active Focus row ─────────────────────────────────────────────────────────
 //
-// [⋮⋮]  term · TypeBadge · LevelBadge            [+ log] [×]
-//        short definition      usage dots 0/3 · ExposureBar
+// [⋮⋮]  term · TypeBadge · LevelBadge · ConfidenceDots      [✓] [×]
+//        short definition                         ExposureBar
 //        💡 usage prompt (always visible)
+//
+// ConfidenceDots are placed inline with the term (Line 1) so the interaction
+// reads "my confidence in THIS word", not "some status on the right side".
+// ExposureBar stays on Line 2 to keep confidence (subjective) and
+// system progress (objective) visually separate.
 //
 // dragHandleProps is spread onto the grip button so @dnd-kit can bind its
 // pointer/touch listeners there rather than on the whole card.
@@ -129,8 +134,9 @@ function ActiveFocusRow({
       done       ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'
     } ${isDragging ? 'shadow-lg ring-2 ring-brand-300 opacity-90' : ''}`}>
 
-      {/* ── Line 1: drag handle + term + badges + remove ── */}
+      {/* ── Outer: drag handle + content column ── */}
       <div className="flex items-start gap-1.5">
+
         {/* Drag handle — only drag trigger, doesn't navigate */}
         <button
           {...dragHandleProps}
@@ -142,48 +148,67 @@ function ActiveFocusRow({
           <GripVertical size={14} />
         </button>
 
-        <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
-          <div className="flex items-center gap-1.5 flex-wrap leading-snug">
-            <span className={`text-sm font-semibold ${done ? 'text-slate-400' : 'text-slate-900'}`}>
-              {item.term}
-            </span>
-            <TypeBadge type={item.type} />
-            <LevelBadge item={item} compact />
+        {/* Content column */}
+        <div className="flex-1 min-w-0">
+
+          {/* ── Line 1: term · badges · confidence dots · actions ── */}
+          {/*                                                          */}
+          {/* ConfidenceDots sit directly next to the word so the     */}
+          {/* interaction reads "my confidence in THIS word", not       */}
+          {/* "some status on the right side of the row".              */}
+          <div className="flex items-center gap-1.5">
+            {/* Navigate area covers term + type + level */}
+            <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
+              <div className="flex items-center gap-1.5 flex-wrap leading-snug">
+                <span className={`text-sm font-semibold ${done ? 'text-slate-400' : 'text-slate-900'}`}>
+                  {item.term}
+                </span>
+                <TypeBadge type={item.type} />
+                <LevelBadge item={item} compact />
+              </div>
+            </button>
+
+            {/* Confidence dots — outside navigate, inline with term */}
+            <ConfidenceDots
+              item={item}
+              onChange={onConfidenceChange}
+              compact
+              className="shrink-0"
+            />
+
+            {/* Done indicator + remove */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              {done && <CheckCircle2 size={16} className="text-emerald-400 mx-0.5" />}
+              <button
+                onClick={onRemove}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
+                title="Remove from Active Focus"
+              >
+                <X size={13} />
+              </button>
+            </div>
           </div>
-        </button>
 
-        <div className="flex items-center gap-0.5 shrink-0">
-          {done && <CheckCircle2 size={16} className="text-emerald-400 mx-0.5" />}
-          <button
-            onClick={onRemove}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-400 hover:bg-red-50 transition-colors"
-            title="Remove from Active Focus"
-          >
-            <X size={13} />
-          </button>
+          {/* ── Line 2: definition · exposure bar ── */}
+          {/*                                         */}
+          {/* ExposureBar stays right-aligned here:   */}
+          {/* exposure = system-tracked progress       */}
+          {/* confidence = personal, subjective signal */}
+          <div className="mt-1 flex items-center gap-2">
+            <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
+              <p className="text-[11px] text-slate-400 truncate">{shortDef}</p>
+            </button>
+            <ExposureBar count={item.exposureCount ?? 0} />
+          </div>
+
+          {/* ── Line 3: usage prompt ── */}
+          <p className="mt-2 text-[11px] text-slate-500 italic leading-snug flex items-start gap-1.5">
+            <Lightbulb size={10} className="shrink-0 mt-[2px] text-amber-400" />
+            <span>{usagePrompt}</span>
+          </p>
+
         </div>
       </div>
-
-      {/* ── Line 2: definition · confidence dots · exposure bar ── */}
-      <div className="mt-1 pl-5 flex items-center gap-2">
-        <button onClick={onNavigate} className="flex-1 min-w-0 text-left">
-          <p className="text-[11px] text-slate-400 truncate">{shortDef}</p>
-        </button>
-        <div className="flex items-center gap-2 shrink-0">
-          <ConfidenceDots
-            item={item}
-            onChange={onConfidenceChange}
-            compact
-          />
-          <ExposureBar count={item.exposureCount ?? 0} />
-        </div>
-      </div>
-
-      {/* ── Line 3: usage prompt ── */}
-      <p className="mt-2 pl-5 text-[11px] text-slate-500 italic leading-snug flex items-start gap-1.5">
-        <Lightbulb size={10} className="shrink-0 mt-[2px] text-amber-400" />
-        <span>{usagePrompt}</span>
-      </p>
     </div>
   )
 }
