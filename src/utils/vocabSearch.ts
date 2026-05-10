@@ -276,6 +276,65 @@ export function buildSnippet(text: string, query: string, maxLength = 80): strin
   return (start > 0 ? '…' : '') + snippet + (end < text.length ? '…' : '')
 }
 
+// ── Fuzzy spell suggestions ("Did you mean…") ────────────────────────────────
+
+/**
+ * Classic Levenshtein edit-distance (character-level insertion/deletion/substitution).
+ * Used to surface "Did you mean?" corrections for misspelled input.
+ * O(m × n) time and space.
+ */
+export function levenshteinDistance(a: string, b: string): number {
+  const m = a.length
+  const n = b.length
+  // Use two rows to save memory
+  let prev = Array.from({ length: n + 1 }, (_, j) => j)
+  let curr = new Array<number>(n + 1)
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i
+    for (let j = 1; j <= n; j++) {
+      curr[j] =
+        a[i - 1] === b[j - 1]
+          ? prev[j - 1]
+          : 1 + Math.min(prev[j], curr[j - 1], prev[j - 1])
+    }
+    ;[prev, curr] = [curr, prev]
+  }
+  return prev[n]
+}
+
+/**
+ * Returns up to `limit` Library items whose term is within `maxDist` edit
+ * distance of `input`.  Suitable for "Did you mean…?" spell corrections.
+ *
+ * - Only considers the term field (not synonyms or definitions).
+ * - Excludes exact matches (distance 0).
+ * - Input must be at least 3 characters (below that, distance < 2 is too noisy).
+ * - Results are sorted by distance ascending.
+ */
+export function fuzzySpellingSuggestions(
+  items: VocabItem[],
+  input: string,
+  maxDist = 2,
+  limit = 5,
+): VocabItem[] {
+  const norm = input.toLowerCase().trim()
+  if (norm.length < 3) return []
+
+  const scored: { item: VocabItem; dist: number }[] = []
+  for (const item of items) {
+    const termNorm = item.term.toLowerCase()
+    if (termNorm === norm) continue // exact match — not a spelling error
+    const dist = levenshteinDistance(norm, termNorm)
+    if (dist > 0 && dist <= maxDist) {
+      scored.push({ item, dist })
+    }
+  }
+  return scored
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, limit)
+    .map((s) => s.item)
+}
+
 // ── Internal ──────────────────────────────────────────────────────────────────
 
 /** Sørensen–Dice coefficient for character-bigram similarity (0..1). */

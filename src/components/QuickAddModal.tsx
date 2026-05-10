@@ -1,53 +1,56 @@
 /**
- * QuickAddModal — 2-step add flow with type picker + optional context / tags
+ * QuickAddModal — streamlined 4-phase add flow
  *
- * Step 1 (add):
+ * Phase 1 (add):
  *   • Large term input (Enter to add)
- *   • Type selector (word / phrase / idiom / phrasal verb / collocation)
- *   • "More options" toggle — context note, initial tags
+ *   • "Did you mean…" fuzzy spell-correction suggestions (Levenshtein ≤ 2)
+ *     Clicking a suggestion replaces the input — does NOT save.
+ *     The user must explicitly press [Add + another] or [Add →] to persist.
+ *   • "Similar entries" near-duplicate detection (Dice coefficient)
  *   • [Add + another] [Add →]
  *
- * Step 2 (assign):
+ * Phase 2a (enriching):
+ *   • Spinner while AI enriches the saved term
+ *
+ * Phase 2b (review):
+ *   • Full enriched content — definition, examples, collocations, usage profile
+ *   • 3-level Familiarity selector (defaults to level 1 = New)
+ *   • Error + retry option when enrichment fails
+ *   • [Add another] [Done →]
+ *
+ * Phase 3 (assign):
  *   • "Where should this go?" — theme cards + new theme inline
  *
- * Design goals:
- *   • Default fast path: type a word, press Enter
- *   • Advanced options hidden until needed
- *   • Item appears in Library immediately (optimistic)
- *   • AI enrichment runs in background
+ * Design rules:
+ *   • No type selector — type is auto-detected silently
+ *   • No context / tags fields — removed to reduce friction
+ *   • AI enrichment always runs; user sees the result before closing
+ *   • Confidence level is set in the review phase (before confirming)
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   X, AlertCircle, AlertTriangle, ArrowRight,
-  Check, Plus, Sparkles, ChevronRight, ChevronDown, Tag,
+  Check, Plus, Sparkles, ChevronRight, RefreshCw,
+  Loader2, BookOpen,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { VocabItem, ItemType } from '@/types/vocabulary'
-import { findExactDuplicate, findNearDuplicates } from '@/utils/vocabSearch'
+import {
+  findExactDuplicate,
+  findNearDuplicates,
+  fuzzySpellingSuggestions,
+} from '@/utils/vocabSearch'
 import { suggestThemes } from '@/lib/themeSuggestion'
-
-// ── Item type options ─────────────────────────────────────────────────────────
-
-interface TypeOption {
-  value: ItemType
-  label: string
-  description: string
-}
-
-const TYPE_OPTIONS: TypeOption[] = [
-  { value: 'word',          label: 'Word',         description: 'Single vocabulary word' },
-  { value: 'phrase',        label: 'Phrase',        description: 'Multi-word expression' },
-  { value: 'idiom',         label: 'Idiom',         description: 'Fixed figurative expression' },
-  { value: 'phrasal-verb',  label: 'Phrasal verb',  description: 'Verb + particle (e.g. give up)' },
-  { value: 'collocation',   label: 'Collocation',   description: 'Words that naturally go together' },
-]
+import { ConfidenceDots } from '@/components/ConfidenceDots'
+import { UsageProfileCard } from '@/components/UsageProfileCard'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Phase = 'add' | 'assign'
+type Phase = 'add' | 'enriching' | 'review' | 'assign'
+type ConfidenceLevel = 0 | 1 | 2 | 3
 
 interface Props {
   onClose: () => void
@@ -55,115 +58,158 @@ interface Props {
 
 const DEBOUNCE_MS = 280
 
+// Particles that mark a multi-word term as a phrasal verb
+const PV_PARTICLES = new Set([
+  'up', 'down', 'out', 'off', 'on', 'away', 'back', 'over', 'through', 'into',
+])
+
+// ── Familiarity option descriptors ────────────────────────────────────────────
+
+const FAMILIARITY_OPTIONS = [
+  {
+    level: 1 as ConfidenceLevel,
+    label: 'New to me',
+    desc:  "I haven't used it yet",
+    activeClass: 'border-rose-400 bg-rose-50',
+    labelClass:  'text-rose-700',
+    checkClass:  'text-rose-500',
+  },
+  {
+    level: 2 as ConfidenceLevel,
+    label: 'Getting comfortable',
+    desc:  'I recognise it but need practice',
+    activeClass: 'border-amber-400 bg-amber-50',
+    labelClass:  'text-amber-700',
+    checkClass:  'text-amber-500',
+  },
+  {
+    level: 3 as ConfidenceLevel,
+    label: 'Comfortable',
+    desc:  'I can use it naturally',
+    activeClass: 'border-emerald-400 bg-emerald-50',
+    labelClass:  'text-emerald-700',
+    checkClass:  'text-emerald-500',
+  },
+] as const
+
 // ── QuickAddModal ─────────────────────────────────────────────────────────────
 
 export function QuickAddModal({ onClose }: Props) {
-  const navigate     = useNavigate()
-  const addItem      = useVocabStore((s) => s.addItem)
-  const items        = useVocabStore((s) => s.items)
-  const assignThemes = useVocabStore((s) => s.assignThemes)
+  const navigate           = useNavigate()
+  const addItem            = useVocabStore((s) => s.addItem)
+  const enrichItem         = useVocabStore((s) => s.enrichItem)
+  const setConfidenceLevel = useVocabStore((s) => s.setConfidenceLevel)
+  const items              = useVocabStore((s) => s.items)
+  const assignThemes       = useVocabStore((s) => s.assignThemes)
   const { themes, addTheme } = useThemesStore()
-  const termRef      = useRef<HTMLInputElement>(null)
-  const newThemeRef  = useRef<HTMLInputElement>(null)
+  const termRef     = useRef<HTMLInputElement>(null)
+  const newThemeRef = useRef<HTMLInputElement>(null)
 
-  // ── Step 1 state ─────────────────────────────────────────────────────────
-  const [phase, setPhase]         = useState<Phase>('add')
-  const [term, setTerm]           = useState('')
-  const [itemType, setItemType]   = useState<ItemType>('word')
-  const [context, setContext]     = useState('')
-  const [tagInput, setTagInput]   = useState('')
-  const [initTags, setInitTags]   = useState<string[]>([])
-  const [moreOpen, setMoreOpen]   = useState(false)
-  const [debouncedTerm, setDebouncedTerm] = useState('')
-  const [saving, setSaving]       = useState(false)
-  const [savedCount, setSavedCount] = useState(0)
-  const [error, setError]         = useState<string | null>(null)
+  // ── Phase 1 state ─────────────────────────────────────────────────────────
+  const [phase, setPhase]                   = useState<Phase>('add')
+  const [term, setTerm]                     = useState('')
+  const [debouncedTerm, setDebouncedTerm]   = useState('')
+  const [saving, setSaving]                 = useState(false)
+  const [savedCount, setSavedCount]         = useState(0)
+  const [error, setError]                   = useState<string | null>(null)
 
-  // ── Step 2 state ─────────────────────────────────────────────────────────
+  // ── Phase 2 / 3 state ────────────────────────────────────────────────────
   const [savedWordId, setSavedWordId]   = useState<string | null>(null)
   const [savedTerm, setSavedTerm]       = useState('')
+  const [confidence, setConfidence]     = useState<ConfidenceLevel>(1)
+
+  // ── Phase 3 (assign) state ────────────────────────────────────────────────
   const [selectedThemes, setSelectedThemes] = useState<Set<string>>(new Set())
-  const [newThemeName, setNewThemeName] = useState('')
-  const [assigning, setAssigning]       = useState(false)
+  const [newThemeName, setNewThemeName]     = useState('')
+  const [assigning, setAssigning]           = useState(false)
 
-  // Focus on mount
+  // Reactive saved item — drives enriching → review transition
+  const savedItem = useVocabStore(
+    useCallback(
+      (s) => (savedWordId ? s.items.find((i) => i.id === savedWordId) : undefined),
+      [savedWordId],
+    ),
+  )
+
+  // Focus term input on mount and when returning to add phase
   useEffect(() => { termRef.current?.focus() }, [])
-
-  // Focus term input when returning to 'add' phase
   useEffect(() => {
     if (phase === 'add') setTimeout(() => termRef.current?.focus(), 60)
   }, [phase])
 
-  // Debounce for duplicate detection
+  // Debounce term → duplicate / suggestion detection
   useEffect(() => {
     const id = setTimeout(() => setDebouncedTerm(term), DEBOUNCE_MS)
     return () => clearTimeout(id)
   }, [term])
+
+  // Transition enriching → review when generationStatus resolves
+  useEffect(() => {
+    if (phase !== 'enriching') return
+    const status = savedItem?.generationStatus
+    if (status === 'complete' || status === 'failed') {
+      setPhase('review')
+    }
+  }, [phase, savedItem?.generationStatus])
+
+  // ── Derived: duplicate / suggestion state ─────────────────────────────────
 
   const exactDuplicate = useMemo<VocabItem | null>(
     () => (debouncedTerm.trim() ? findExactDuplicate(items, debouncedTerm) : null),
     [items, debouncedTerm],
   )
 
-  const nearDuplicates = useMemo<VocabItem[]>(
+  /** "Did you mean…" — character-level typo corrections */
+  const spellSuggestions = useMemo<VocabItem[]>(
     () =>
-      debouncedTerm.trim() && !exactDuplicate
-        ? findNearDuplicates(items, debouncedTerm)
+      debouncedTerm.trim().length >= 3 && !exactDuplicate
+        ? fuzzySpellingSuggestions(items, debouncedTerm)
         : [],
     [items, debouncedTerm, exactDuplicate],
   )
+
+  /** "Similar entries" — structural near-duplicates (deduped against spellSuggestions) */
+  const nearDuplicates = useMemo<VocabItem[]>(() => {
+    if (!debouncedTerm.trim() || exactDuplicate) return []
+    const spellIds = new Set(spellSuggestions.map((i) => i.id))
+    return findNearDuplicates(items, debouncedTerm).filter((i) => !spellIds.has(i.id))
+  }, [items, debouncedTerm, exactDuplicate, spellSuggestions])
+
+  /** Auto-detect type (word / phrase / phrasal-verb) — not shown in UI */
+  const detectedType = useMemo<ItemType>(() => {
+    const lower = term.toLowerCase().trim()
+    const words = lower.split(/\s+/)
+    if (words.length >= 2) {
+      return PV_PARTICLES.has(words[words.length - 1]) ? 'phrasal-verb' : 'phrase'
+    }
+    return 'word'
+  }, [term])
 
   const suggestedThemeNames = useMemo(
     () => suggestThemes(savedTerm, themes),
     [savedTerm, themes],
   )
 
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
   function openExisting(id: string) {
     navigate(`/item/${id}`)
     onClose()
   }
 
-  // ── Tag helpers ──────────────────────────────────────────────────────────
-
-  function addInitTag() {
-    const t = tagInput.trim().toLowerCase().replace(/\s+/g, '-')
-    if (t && !initTags.includes(t)) setInitTags((prev) => [...prev, t])
-    setTagInput('')
-  }
-
-  function removeInitTag(t: string) {
-    setInitTags((prev) => prev.filter((x) => x !== t))
-  }
-
-  // ── Auto-detect type from term ────────────────────────────────────────────
-  // When type is still on default ('word') and term looks like a phrasal verb,
-  // suggest upgrading silently.
-  useEffect(() => {
-    if (itemType !== 'word') return
-    const lower = term.toLowerCase().trim()
-    const words  = lower.split(/\s+/)
-    if (words.length >= 2) {
-      const particles = new Set(['up', 'down', 'out', 'off', 'on', 'away', 'back', 'over', 'through', 'into'])
-      if (particles.has(words[words.length - 1])) setItemType('phrasal-verb')
-      else setItemType('phrase')
-    } else {
-      setItemType('word')
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term])
-
-  // ── Save word ────────────────────────────────────────────────────────────
+  // ── Save ──────────────────────────────────────────────────────────────────
 
   /**
-   * andNext = true  → "Add + another": save, reset form, stay on Step 1
-   * andNext = false → "Add →":         save, advance to Step 2 (themes)
+   * andNext = true  → batch mode: save, reset form, stay on Phase 1
+   * andNext = false → single mode: save, advance to Phase 2 (enriching)
    */
   async function save(andNext: boolean) {
     const t = term.trim()
     if (!t) return
 
-    const realTimeExact = findExactDuplicate(items, t)
-    if (realTimeExact) {
+    // Real-time check (debouncedTerm may lag)
+    const dup = findExactDuplicate(items, t)
+    if (dup) {
       setError(`"${t}" is already in your vocabulary.`)
       return
     }
@@ -173,12 +219,7 @@ export function QuickAddModal({ onClose }: Props) {
 
     let newId: string | null = null
     try {
-      newId = await addItem({
-        term:       t,
-        type:       itemType,
-        sourceText: context.trim() || undefined,
-        tags:       initTags.length > 0 ? initTags : undefined,
-      })
+      newId = await addItem({ term: t, type: detectedType })
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not save — please try again.')
       setSaving(false)
@@ -188,25 +229,52 @@ export function QuickAddModal({ onClose }: Props) {
     setSaving(false)
 
     if (andNext) {
-      // Batch mode: stay on Step 1
+      // Batch: stay on Phase 1
       setTerm('')
-      setContext('')
-      setInitTags([])
-      setMoreOpen(false)
       setSavedCount((c) => c + 1)
       setError(null)
     } else {
-      // Single mode: advance to Step 2
+      // Single: advance to enriching
       setSavedWordId(newId)
       setSavedTerm(t)
-      setSelectedThemes(new Set())
-      setPhase('assign')
+      setConfidence(1) // default familiarity = New
+      setPhase('enriching')
     }
   }
 
   const canSave = term.trim().length > 0 && !saving && !exactDuplicate
 
-  // ── Theme toggle ──────────────────────────────────────────────────────────
+  // ── Phase 2 actions ───────────────────────────────────────────────────────
+
+  /** Confirm confidence level, then advance to assign phase */
+  function handleDone() {
+    if (savedWordId && confidence > 0) {
+      setConfidenceLevel(savedWordId, confidence).catch(() => {})
+    }
+    setSelectedThemes(new Set())
+    setPhase('assign')
+  }
+
+  /** Confirm confidence level, then return to add phase for another word */
+  function handleAddAnother() {
+    if (savedWordId && confidence > 0) {
+      setConfidenceLevel(savedWordId, confidence).catch(() => {})
+    }
+    setSavedCount((c) => c + 1)
+    setSavedWordId(null)
+    setTerm('')
+    setError(null)
+    setPhase('add')
+  }
+
+  /** Re-trigger AI enrichment after a failure */
+  async function handleRetryEnrich() {
+    if (!savedWordId) return
+    setPhase('enriching')
+    await enrichItem(savedWordId)
+  }
+
+  // ── Phase 3 actions ───────────────────────────────────────────────────────
 
   function toggleTheme(t: string) {
     setSelectedThemes((prev) => {
@@ -226,262 +294,377 @@ export function QuickAddModal({ onClose }: Props) {
     newThemeRef.current?.focus()
   }
 
-  // ── Assign & close ────────────────────────────────────────────────────────
-
   const handleAssignAndClose = useCallback(async () => {
-    if (!savedWordId || selectedThemes.size === 0) {
-      onClose()
-      return
-    }
+    if (!savedWordId || selectedThemes.size === 0) { onClose(); return }
     setAssigning(true)
     try {
       await assignThemes(savedWordId, Array.from(selectedThemes))
-    } catch {
-      // fail silently — word is already saved
-    }
+    } catch { /* word already saved — fail silently */ }
     setAssigning(false)
     onClose()
   }, [savedWordId, selectedThemes, assignThemes, onClose])
 
-  function handleSkip() { onClose() }
-  function handleGoToVocab() { onClose(); navigate('/library') }
+  // ── Shared overlay wrapper ────────────────────────────────────────────────
 
-  // ── Render: Step 1 — Add ─────────────────────────────────────────────────
-
-  if (phase === 'add') {
+  function Overlay({ children }: { children: React.ReactNode }) {
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
         <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh]">
-
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900">Add word</h2>
-              {savedCount > 0 && (
-                <p className="text-xs text-emerald-600 font-medium mt-0.5">
-                  {savedCount} word{savedCount !== 1 ? 's' : ''} added this session
-                </p>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="px-5 pb-2 space-y-3 overflow-y-auto flex-1">
-            {/* Term input */}
-            <input
-              ref={termRef}
-              type="text"
-              value={term}
-              onChange={(e) => { setTerm(e.target.value); if (error) setError(null) }}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) void save(false) }}
-              placeholder="word or phrase…"
-              autoComplete="off"
-              spellCheck={false}
-              className={`w-full px-4 py-4 text-lg font-medium border-2 rounded-2xl focus:outline-none placeholder:text-slate-300 transition-colors ${
-                exactDuplicate || error
-                  ? 'border-red-400 focus:border-red-500'
-                  : nearDuplicates.length > 0
-                  ? 'border-amber-400 focus:border-amber-500'
-                  : 'border-slate-200 focus:border-brand-500'
-              }`}
-            />
-
-            {/* Type selector */}
-            <div>
-              <p className="text-xs font-semibold text-slate-500 mb-1.5">Type</p>
-              <div className="flex flex-wrap gap-1.5">
-                {TYPE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setItemType(opt.value)}
-                    title={opt.description}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-xl border-2 transition-all ${
-                      itemType === opt.value
-                        ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
-                        : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Exact duplicate */}
-            {exactDuplicate && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
-                <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-red-700">Already in your vocabulary</p>
-                  {exactDuplicate.definitionEn && (
-                    <p className="text-xs text-red-500 mt-0.5 line-clamp-1">{exactDuplicate.definitionEn}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => openExisting(exactDuplicate.id)}
-                  className="shrink-0 flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap"
-                >
-                  Open <ArrowRight size={11} />
-                </button>
-              </div>
-            )}
-
-            {/* Near duplicates */}
-            {nearDuplicates.length > 0 && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <AlertTriangle size={13} className="text-amber-600 shrink-0" />
-                  <p className="text-xs font-semibold text-amber-800">Similar entries found</p>
-                </div>
-                <div className="space-y-1">
-                  {nearDuplicates.map((dup) => (
-                    <button
-                      key={dup.id}
-                      onClick={() => openExisting(dup.id)}
-                      className="w-full flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 hover:border-amber-400 hover:bg-amber-50 transition-colors group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-xs font-semibold text-slate-800 truncate">{dup.term}</span>
-                        <span className="text-[10px] text-slate-400 capitalize shrink-0">{dup.status}</span>
-                      </div>
-                      <span className="text-[10px] font-semibold text-amber-600 group-hover:text-amber-700 shrink-0 flex items-center gap-0.5">
-                        View <ArrowRight size={10} />
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-amber-600 mt-2">You can still save if this is a different word.</p>
-              </div>
-            )}
-
-            {/* Generic error */}
-            {error && !exactDuplicate && (
-              <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium px-1">
-                <AlertCircle size={12} className="shrink-0" />
-                {error}
-              </p>
-            )}
-
-            {/* More options toggle */}
-            <button
-              type="button"
-              onClick={() => setMoreOpen((o) => !o)}
-              className="w-full flex items-center gap-2 text-xs text-slate-500 hover:text-slate-700 font-medium py-1 transition-colors"
-            >
-              <ChevronDown
-                size={13}
-                className={`transition-transform ${moreOpen ? 'rotate-180' : ''}`}
-              />
-              {moreOpen ? 'Fewer options' : 'More options'}
-              {(context.trim() || initTags.length > 0) && (
-                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-brand-500" />
-              )}
-            </button>
-
-            {/* More options panel */}
-            {moreOpen && (
-              <div className="space-y-3 border-t border-slate-100 pt-3">
-                {/* Context / note */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">
-                    Context <span className="font-normal text-slate-400">(optional — helps AI generate better examples)</span>
-                  </label>
-                  <textarea
-                    value={context}
-                    onChange={(e) => setContext(e.target.value)}
-                    placeholder="Where did you encounter this? e.g. 'In a client email: they said the deal had too many caveats'"
-                    rows={2}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-300 resize-none"
-                  />
-                </div>
-
-                {/* Initial tags */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">
-                    Tags <span className="font-normal text-slate-400">(optional)</span>
-                  </label>
-
-                  {/* Tag input */}
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Tag size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                      <input
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addInitTag())}
-                        placeholder="tag name…"
-                        className="w-full pl-7 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-400 placeholder:text-slate-300"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addInitTag}
-                      disabled={!tagInput.trim()}
-                      className="px-3 py-2 bg-slate-700 text-white rounded-xl text-xs font-semibold disabled:opacity-40 hover:bg-slate-800 transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  {/* Tag chips */}
-                  {initTags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {initTags.map((t) => (
-                        <span
-                          key={t}
-                          className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 border border-brand-200 text-xs px-2 py-0.5 rounded-full"
-                        >
-                          #{t}
-                          <button
-                            type="button"
-                            onClick={() => removeInitTag(t)}
-                            className="text-brand-400 hover:text-brand-700"
-                          >
-                            <X size={10} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Helper text */}
-          <p className="px-5 pt-2 pb-2 text-xs text-slate-400">
-            AI generates definition, synonyms, examples and more automatically.
-          </p>
-
-          {/* Actions */}
-          <div className="px-5 pb-5 pt-1 grid grid-cols-2 gap-2.5">
-            <button
-              onClick={() => void save(true)}
-              disabled={!canSave}
-              className="py-3.5 text-sm font-semibold text-slate-700 bg-slate-100 rounded-2xl hover:bg-slate-200 disabled:opacity-40 transition-colors"
-            >
-              Add + another
-            </button>
-            <button
-              onClick={() => void save(false)}
-              disabled={!canSave}
-              className="py-3.5 text-sm font-semibold text-white bg-brand-600 rounded-2xl hover:bg-brand-700 disabled:opacity-40 transition-colors shadow-sm shadow-brand-200"
-            >
-              {saving ? 'Saving…' : 'Add →'}
-            </button>
-          </div>
+          {children}
         </div>
       </div>
     )
   }
 
-  // ── Render: Step 2 — Assign theme ─────────────────────────────────────────
+  // ── Render: Phase 1 — Add ─────────────────────────────────────────────────
+
+  if (phase === 'add') {
+    return (
+      <Overlay>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Add word</h2>
+            {savedCount > 0 && (
+              <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                {savedCount} word{savedCount !== 1 ? 's' : ''} added this session
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 pb-2 space-y-3 overflow-y-auto flex-1">
+
+          {/* Term input */}
+          <input
+            ref={termRef}
+            type="text"
+            value={term}
+            onChange={(e) => { setTerm(e.target.value); if (error) setError(null) }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) void save(false) }}
+            placeholder="word or phrase…"
+            autoComplete="off"
+            spellCheck={false}
+            className={`w-full px-4 py-4 text-lg font-medium border-2 rounded-2xl focus:outline-none placeholder:text-slate-300 transition-colors ${
+              exactDuplicate || error
+                ? 'border-red-400 focus:border-red-500'
+                : nearDuplicates.length > 0
+                ? 'border-amber-400 focus:border-amber-500'
+                : spellSuggestions.length > 0
+                ? 'border-sky-400 focus:border-sky-500'
+                : 'border-slate-200 focus:border-brand-500'
+            }`}
+          />
+
+          {/* "Did you mean…" — fuzzy spell suggestions */}
+          {spellSuggestions.length > 0 && (
+            <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
+              <p className="text-xs font-semibold text-sky-700 mb-1.5">Did you mean…</p>
+              <div className="space-y-1">
+                {spellSuggestions.map((sug) => (
+                  <button
+                    key={sug.id}
+                    onClick={() => {
+                      setTerm(sug.term)
+                      setTimeout(() => termRef.current?.focus(), 0)
+                    }}
+                    className="w-full flex items-center justify-between gap-2 bg-white border border-sky-200 rounded-lg px-2.5 py-1.5 hover:border-sky-400 hover:bg-sky-50 transition-colors group text-left"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-semibold text-slate-800 truncate">{sug.term}</span>
+                      {sug.definitionEn && (
+                        <span className="text-[10px] text-slate-400 truncate hidden sm:inline">
+                          {sug.definitionEn.slice(0, 45)}…
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-semibold text-sky-600 group-hover:text-sky-700 shrink-0 flex items-center gap-0.5">
+                      Use <ArrowRight size={10} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Exact duplicate */}
+          {exactDuplicate && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+              <AlertCircle size={14} className="text-red-500 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-red-700">Already in your vocabulary</p>
+                {exactDuplicate.definitionEn && (
+                  <p className="text-xs text-red-500 mt-0.5 line-clamp-1">{exactDuplicate.definitionEn}</p>
+                )}
+              </div>
+              <button
+                onClick={() => openExisting(exactDuplicate.id)}
+                className="shrink-0 flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-700 bg-white border border-red-200 rounded-lg px-2.5 py-1.5 whitespace-nowrap"
+              >
+                Open <ArrowRight size={11} />
+              </button>
+            </div>
+          )}
+
+          {/* Similar entries — structural near-duplicates */}
+          {nearDuplicates.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <AlertTriangle size={13} className="text-amber-600 shrink-0" />
+                <p className="text-xs font-semibold text-amber-800">Similar entries found</p>
+              </div>
+              <div className="space-y-1">
+                {nearDuplicates.map((dup) => (
+                  <button
+                    key={dup.id}
+                    onClick={() => openExisting(dup.id)}
+                    className="w-full flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 hover:border-amber-400 hover:bg-amber-50 transition-colors group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-semibold text-slate-800 truncate">{dup.term}</span>
+                      <span className="text-[10px] text-slate-400 capitalize shrink-0">{dup.status}</span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-amber-600 group-hover:text-amber-700 shrink-0 flex items-center gap-0.5">
+                      View <ArrowRight size={10} />
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-amber-600 mt-2">You can still save if this is a different word.</p>
+            </div>
+          )}
+
+          {/* Generic error */}
+          {error && !exactDuplicate && (
+            <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium px-1">
+              <AlertCircle size={12} className="shrink-0" />
+              {error}
+            </p>
+          )}
+        </div>
+
+        {/* Helper text */}
+        <p className="px-5 pt-2 pb-2 text-xs text-slate-400">
+          AI generates definition, synonyms, examples and more automatically.
+        </p>
+
+        {/* Actions */}
+        <div className="px-5 pb-5 pt-1 grid grid-cols-2 gap-2.5">
+          <button
+            onClick={() => void save(true)}
+            disabled={!canSave}
+            className="py-3.5 text-sm font-semibold text-slate-700 bg-slate-100 rounded-2xl hover:bg-slate-200 disabled:opacity-40 transition-colors"
+          >
+            Add + another
+          </button>
+          <button
+            onClick={() => void save(false)}
+            disabled={!canSave}
+            className="py-3.5 text-sm font-semibold text-white bg-brand-600 rounded-2xl hover:bg-brand-700 disabled:opacity-40 transition-colors shadow-sm shadow-brand-200"
+          >
+            {saving ? 'Saving…' : 'Add →'}
+          </button>
+        </div>
+      </Overlay>
+    )
+  }
+
+  // ── Render: Phase 2a — Enriching ──────────────────────────────────────────
+
+  if (phase === 'enriching') {
+    return (
+      <Overlay>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div className="flex items-center gap-2">
+            <Loader2 size={16} className="text-brand-500 animate-spin shrink-0" />
+            <h2 className="text-base font-bold text-slate-900 truncate">"{savedTerm}"</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex flex-col items-center justify-center flex-1 px-5 pb-8 gap-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-brand-50 flex items-center justify-center">
+            <Sparkles size={24} className="text-brand-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-700">Getting definition, examples and more…</p>
+            <p className="text-xs text-slate-400 mt-1">This takes a few seconds</p>
+          </div>
+        </div>
+      </Overlay>
+    )
+  }
+
+  // ── Render: Phase 2b — Review ─────────────────────────────────────────────
+
+  if (phase === 'review') {
+    const genFailed = savedItem?.generationStatus === 'failed'
+
+    return (
+      <Overlay>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div className="flex items-center gap-2 min-w-0">
+            {genFailed
+              ? <AlertCircle size={15} className="text-amber-500 shrink-0" />
+              : <Check size={15} className="text-emerald-500 shrink-0" />
+            }
+            <h2 className="text-base font-bold text-slate-900 truncate">"{savedTerm}"</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 pb-4 overflow-y-auto flex-1 space-y-4">
+
+          {genFailed ? (
+            /* ── Enrichment failed ── */
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 space-y-2">
+              <p className="text-sm font-semibold text-amber-800">Enrichment didn't complete</p>
+              <p className="text-xs text-amber-700">
+                The word was saved, but we couldn't generate its definition automatically.
+              </p>
+              <button
+                onClick={() => void handleRetryEnrich()}
+                className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 hover:text-amber-900 bg-white border border-amber-300 rounded-lg px-3 py-1.5 transition-colors"
+              >
+                <RefreshCw size={12} />
+                Try again
+              </button>
+            </div>
+          ) : (
+            /* ── Enrichment succeeded: show content ── */
+            <div className="space-y-3">
+
+              {/* Part of speech + register */}
+              {(savedItem?.partOfSpeech || savedItem?.register) && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {savedItem?.partOfSpeech && (
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                      {savedItem.partOfSpeech}
+                    </span>
+                  )}
+                  {savedItem?.register && (
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      savedItem.register === 'formal'        ? 'bg-blue-50 text-blue-700'
+                      : savedItem.register === 'conversational' ? 'bg-green-50 text-green-700'
+                      : 'bg-slate-100 text-slate-600'
+                    }`}>
+                      {savedItem.register}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Definition */}
+              {(savedItem?.shortDefinition || savedItem?.definitionEn) && (
+                <p className="text-sm text-slate-800 leading-snug">
+                  {savedItem?.shortDefinition ?? savedItem?.definitionEn}
+                </p>
+              )}
+
+              {/* Usage Profile */}
+              {savedItem?.usageProfile && (
+                <UsageProfileCard profile={savedItem.usageProfile} />
+              )}
+
+              {/* Example sentence */}
+              {savedItem?.exampleSentence && (
+                <p className="text-xs text-slate-500 italic border-l-2 border-slate-200 pl-2.5 leading-relaxed">
+                  "{savedItem.exampleSentence}"
+                </p>
+              )}
+
+              {/* Collocations */}
+              {savedItem?.collocations && savedItem.collocations.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {savedItem.collocations.slice(0, 5).map((c) => (
+                    <span key={c} className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Real-life task */}
+              {savedItem?.realLifeTask && (
+                <div className="bg-brand-50 border border-brand-100 rounded-xl px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <BookOpen size={11} className="text-brand-500" />
+                    <p className="text-[10px] font-bold text-brand-600 uppercase tracking-wider">Try in real life</p>
+                  </div>
+                  <p className="text-xs text-brand-700">{savedItem.realLifeTask}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Familiarity selector ── */}
+          <div className="border-t border-slate-100 pt-4">
+            <p className="text-xs font-semibold text-slate-500 mb-3">How familiar is this word?</p>
+            <div className="space-y-2">
+              {FAMILIARITY_OPTIONS.map(({ level, label, desc, activeClass, labelClass, checkClass }) => (
+                <button
+                  key={level}
+                  type="button"
+                  onClick={() => setConfidence(level)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 text-left transition-all ${
+                    confidence === level ? activeClass : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <ConfidenceDots value={level} compact />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-semibold ${confidence === level ? labelClass : 'text-slate-700'}`}>
+                      {label}
+                    </p>
+                    <p className="text-[10px] text-slate-400">{desc}</p>
+                  </div>
+                  {confidence === level && (
+                    <Check size={14} className={`ml-auto shrink-0 ${checkClass}`} />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 pt-2 grid grid-cols-2 gap-2.5 border-t border-slate-100">
+          <button
+            onClick={handleAddAnother}
+            className="py-3.5 text-sm font-semibold text-slate-700 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors"
+          >
+            Add another
+          </button>
+          <button
+            onClick={handleDone}
+            className="py-3.5 text-sm font-bold text-white bg-brand-600 rounded-2xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-200"
+          >
+            Done →
+          </button>
+        </div>
+      </Overlay>
+    )
+  }
+
+  // ── Render: Phase 3 — Assign theme ────────────────────────────────────────
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
@@ -498,7 +681,7 @@ export function QuickAddModal({ onClose }: Props) {
             <p className="text-xs text-slate-500 mt-0.5">Assign to a theme for faster learning</p>
           </div>
           <button
-            onClick={handleSkip}
+            onClick={onClose}
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0 mt-0.5"
           >
             <X size={18} />
@@ -567,7 +750,7 @@ export function QuickAddModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* No themes at all */}
+          {/* No themes yet */}
           {themes.length === 0 && (
             <p className="text-sm text-slate-400 text-center py-2">
               No themes yet — create your first one below.
@@ -596,9 +779,9 @@ export function QuickAddModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* Vocabulary link */}
+          {/* Go to library */}
           <button
-            onClick={handleGoToVocab}
+            onClick={() => { onClose(); navigate('/library') }}
             className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600 hover:bg-slate-100 hover:border-slate-300 transition-colors group"
           >
             <span>Assign more words in Vocabulary</span>
@@ -609,7 +792,7 @@ export function QuickAddModal({ onClose }: Props) {
         {/* Footer */}
         <div className="px-5 pb-5 pt-2 grid grid-cols-2 gap-2.5 border-t border-slate-100">
           <button
-            onClick={handleSkip}
+            onClick={onClose}
             className="py-3.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors"
           >
             Skip
