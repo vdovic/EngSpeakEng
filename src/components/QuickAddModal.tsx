@@ -33,7 +33,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   X, AlertCircle, AlertTriangle, ArrowRight,
   Check, Plus, Sparkles, ChevronRight, RefreshCw,
-  Loader2, BookOpen,
+  Loader2, BookOpen, Star, Zap,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
@@ -49,7 +49,7 @@ import { UsageProfileCard } from '@/components/UsageProfileCard'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Phase = 'add' | 'enriching' | 'review' | 'assign'
+type Phase = 'add' | 'enriching' | 'review' | 'assign' | 'saved'
 type ConfidenceLevel = 0 | 1 | 2 | 3
 
 interface Props {
@@ -123,6 +123,8 @@ export function QuickAddModal({ onClose }: Props) {
   const addItem            = useVocabStore((s) => s.addItem)
   const enrichItem         = useVocabStore((s) => s.enrichItem)
   const setConfidenceLevel = useVocabStore((s) => s.setConfidenceLevel)
+  const moveToLearning     = useVocabStore((s) => s.moveToLearning)
+  const setFocusThisWeek   = useVocabStore((s) => s.setFocusThisWeek)
   const items              = useVocabStore((s) => s.items)
   const assignThemes       = useVocabStore((s) => s.assignThemes)
   const { themes, addTheme } = useThemesStore()
@@ -146,6 +148,9 @@ export function QuickAddModal({ onClose }: Props) {
   const [selectedThemes, setSelectedThemes] = useState<Set<string>>(new Set())
   const [newThemeName, setNewThemeName]     = useState('')
   const [assigning, setAssigning]           = useState(false)
+
+  // ── Phase 4 (saved) state ─────────────────────────────────────────────────
+  const [addedToFocus, setAddedToFocus]     = useState(false)
 
   // Reactive saved item — drives enriching → review transition
   const savedItem = useVocabStore(
@@ -278,8 +283,23 @@ export function QuickAddModal({ onClose }: Props) {
     if (savedWordId && confidence > 0) {
       setConfidenceLevel(savedWordId, confidence).catch(() => {})
     }
+    // Promote inbox → learning when the user signals comfort (≥ 2).
+    // Familiarity 1 ("New to me") intentionally keeps inbox status.
+    if (savedWordId && confidence >= 2) {
+      moveToLearning([savedWordId]).catch(() => {})
+    }
     setSelectedThemes(new Set())
     setPhase('assign')
+  }
+
+  /** Return to add phase from the final "saved" phase */
+  function handleAddAnotherFromSaved() {
+    setSavedWordId(null)
+    setSavedTerm('')
+    setTerm('')
+    setError(null)
+    setAddedToFocus(false)
+    setPhase('add')
   }
 
   /** Confirm confidence level, then return to add phase for another word */
@@ -322,14 +342,21 @@ export function QuickAddModal({ onClose }: Props) {
   }
 
   const handleAssignAndClose = useCallback(async () => {
-    if (!savedWordId || selectedThemes.size === 0) { onClose(); return }
+    if (!savedWordId || selectedThemes.size === 0) {
+      setSavedCount((c) => c + 1)
+      setAddedToFocus(false)
+      setPhase('saved')
+      return
+    }
     setAssigning(true)
     try {
       await assignThemes(savedWordId, Array.from(selectedThemes))
     } catch { /* word already saved — fail silently */ }
     setAssigning(false)
-    onClose()
-  }, [savedWordId, selectedThemes, assignThemes, onClose])
+    setSavedCount((c) => c + 1)
+    setAddedToFocus(false)
+    setPhase('saved')
+  }, [savedWordId, selectedThemes, assignThemes])
 
   // ── Render: Phase 1 — Add ─────────────────────────────────────────────────
 
@@ -657,6 +684,9 @@ export function QuickAddModal({ onClose }: Props) {
                 </button>
               ))}
             </div>
+            <p className="text-[10px] text-slate-400 text-center mt-3 leading-relaxed">
+              Familiarity is your self-assessment. The level badge grows through challenges.
+            </p>
           </div>
         </div>
 
@@ -673,6 +703,105 @@ export function QuickAddModal({ onClose }: Props) {
             className="py-3.5 text-sm font-bold text-white bg-brand-600 rounded-2xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-200"
           >
             Done →
+          </button>
+        </div>
+      </Overlay>
+    )
+  }
+
+  // ── Render: Phase 4 — Saved (next actions) ───────────────────────────────
+
+  if (phase === 'saved') {
+    const familiarityOpt = FAMILIARITY_OPTIONS.find((o) => o.level === confidence)
+
+    return (
+      <Overlay>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <Check size={14} className="text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">"{savedTerm}" saved</h2>
+              {savedCount > 1 && (
+                <p className="text-xs text-slate-400">{savedCount} words this session</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 pb-2 overflow-y-auto flex-1 space-y-2">
+
+          {/* Familiarity echo */}
+          {familiarityOpt && (
+            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 ${familiarityOpt.activeClass}`}>
+              <ConfidenceDots value={confidence} compact />
+              <p className={`text-xs font-semibold ${familiarityOpt.labelClass}`}>{familiarityOpt.label}</p>
+            </div>
+          )}
+
+          {/* Next-action list */}
+          <div className="space-y-2 pt-1">
+            <button
+              onClick={() => { navigate(`/item/${savedWordId}`); onClose() }}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-slate-100 hover:border-slate-300 transition-colors group"
+            >
+              <span>View word</span>
+              <ArrowRight size={15} className="text-slate-400 group-hover:text-slate-600 transition-colors shrink-0" />
+            </button>
+
+            <button
+              onClick={() => {
+                if (!addedToFocus && savedWordId) {
+                  void setFocusThisWeek(savedWordId, true)
+                  setAddedToFocus(true)
+                }
+              }}
+              disabled={addedToFocus}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm font-semibold transition-colors group ${
+                addedToFocus
+                  ? 'bg-orange-50 border-orange-200 text-orange-700 cursor-default'
+                  : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-700'
+              }`}
+            >
+              <span>{addedToFocus ? 'Added to My Current Focus' : 'Add to My Current Focus'}</span>
+              {addedToFocus
+                ? <Check size={15} className="text-orange-500 shrink-0" />
+                : <Star size={15} className="text-slate-400 group-hover:text-orange-400 transition-colors shrink-0" />
+              }
+            </button>
+
+            <button
+              onClick={() => { navigate('/challenge'); onClose() }}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700 hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700 transition-colors group"
+            >
+              <span>Start Challenge</span>
+              <Zap size={15} className="text-slate-400 group-hover:text-amber-500 transition-colors shrink-0" />
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pb-5 pt-3 grid grid-cols-2 gap-2.5 border-t border-slate-100">
+          <button
+            onClick={handleAddAnotherFromSaved}
+            className="py-3.5 text-sm font-semibold text-slate-700 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors"
+          >
+            Add another
+          </button>
+          <button
+            onClick={onClose}
+            className="py-3.5 text-sm font-bold text-white bg-brand-600 rounded-2xl hover:bg-brand-700 transition-colors shadow-sm shadow-brand-200"
+          >
+            Done
           </button>
         </div>
       </Overlay>
@@ -807,7 +936,7 @@ export function QuickAddModal({ onClose }: Props) {
         {/* Footer */}
         <div className="px-5 pb-5 pt-2 grid grid-cols-2 gap-2.5 border-t border-slate-100">
           <button
-            onClick={onClose}
+            onClick={() => { setSavedCount((c) => c + 1); setAddedToFocus(false); setPhase('saved') }}
             className="py-3.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-2xl hover:bg-slate-200 transition-colors"
           >
             Skip

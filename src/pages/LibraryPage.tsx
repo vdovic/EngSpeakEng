@@ -29,6 +29,7 @@ import { QuickAddModal } from '@/components/QuickAddModal'
 import { TypeBadge } from '@/components/TypeBadge'
 import { LevelBadge } from '@/components/LevelBadge'
 import { ExposureProgress } from '@/components/ExposureProgress'
+import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { VocabItem } from '@/types/vocabulary'
 import {
   LevelFilter, FocusFilter, ExposureBandFilter, LibrarySortKey,
@@ -304,6 +305,10 @@ function InboxCard({
             <span className="font-semibold text-slate-900 text-sm leading-tight">{item.term}</span>
             <TypeBadge type={item.type} />
             <LevelBadge item={item} />
+            {/* Show self-assessed familiarity set during Quick Add (read-only) */}
+            {(item.activation?.confidenceLevel ?? 0) > 0 && (
+              <ConfidenceDots item={item} compact />
+            )}
           </div>
           {item.definitionEn ? (
             <p className="text-xs text-slate-500 line-clamp-2 leading-snug">{item.definitionEn}</p>
