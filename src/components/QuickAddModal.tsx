@@ -138,6 +138,12 @@ export function QuickAddModal({ onClose }: Props) {
   const [saving, setSaving]                 = useState(false)
   const [savedCount, setSavedCount]         = useState(0)
   const [error, setError]                   = useState<string | null>(null)
+  /**
+   * Separate from `error`:  infrastructure failures (storage full, network down)
+   * that have nothing to do with the value the user typed.
+   * These must NOT trigger the red input border — the input is valid.
+   */
+  const [systemError, setSystemError]       = useState<string | null>(null)
 
   // ── Phase 2 / 3 state ────────────────────────────────────────────────────
   const [savedWordId, setSavedWordId]   = useState<string | null>(null)
@@ -248,13 +254,34 @@ export function QuickAddModal({ onClose }: Props) {
 
     setSaving(true)
     setError(null)
+    setSystemError(null)
 
     let newId: string | null = null
     try {
       newId = await addItem({ term: t, type: detectedType })
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Could not save — please try again.')
       setSaving(false)
+
+      // ── Distinguish infrastructure errors from validation errors ─────────────
+      // QuotaExceededError is thrown by the browser when IndexedDB storage is
+      // full (common in private/incognito windows).  It has nothing to do with
+      // the input value, so it must NOT trigger the red input border.
+      // Dexie may expose the name on err.name OR as the err.message string.
+      const errName = (err as { name?: string }).name ?? ''
+      const errMsg  = err instanceof Error ? err.message : String(err)
+      const isQuota =
+        errName === 'QuotaExceededError' ||
+        errMsg   === 'QuotaExceededError' ||
+        errMsg.toLowerCase().includes('quota exceeded')
+
+      if (isQuota) {
+        setSystemError(
+          'Your browser storage is full — the word could not be saved. ' +
+          'Try using a non-private (non-incognito) window, or clear some browsing data.'
+        )
+      } else {
+        setError(errMsg || 'Could not save — please try again.')
+      }
       return
     }
 
@@ -389,7 +416,7 @@ export function QuickAddModal({ onClose }: Props) {
             ref={termRef}
             type="text"
             value={term}
-            onChange={(e) => { setTerm(e.target.value); if (error) setError(null) }}
+            onChange={(e) => { setTerm(e.target.value); if (error) setError(null); if (systemError) setSystemError(null) }}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) void save(false) }}
             placeholder="word or phrase…"
             autoComplete="off"
@@ -483,12 +510,24 @@ export function QuickAddModal({ onClose }: Props) {
             </div>
           )}
 
-          {/* Generic error */}
+          {/* Generic validation error (red, affects border) */}
           {error && !exactDuplicate && (
             <p className="flex items-center gap-1.5 text-xs text-red-600 font-medium px-1">
               <AlertCircle size={12} className="shrink-0" />
               {error}
             </p>
+          )}
+
+          {/* System / storage error — amber banner, does NOT affect input border.
+              The input value is valid; this is an infrastructure failure. */}
+          {systemError && (
+            <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+              <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-amber-800">Couldn't save</p>
+                <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">{systemError}</p>
+              </div>
+            </div>
           )}
         </div>
 
