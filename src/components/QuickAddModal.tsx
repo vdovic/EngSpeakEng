@@ -56,7 +56,10 @@ interface Props {
   onClose: () => void
 }
 
-const DEBOUNCE_MS = 280
+// PERFORMANCE NOTE — suggestion calculation runs on every debounce tick.
+// Do NOT reduce this value: shorter debounces cause expensive Levenshtein and
+// Dice coefficient scans to fire more frequently, blocking the JS thread.
+const DEBOUNCE_MS = 400
 
 // Particles that mark a multi-word term as a phrasal verb
 const PV_PARTICLES = new Set([
@@ -91,6 +94,27 @@ const FAMILIARITY_OPTIONS = [
     checkClass:  'text-emerald-500',
   },
 ] as const
+
+// ── Overlay ───────────────────────────────────────────────────────────────────
+//
+// MUST be defined at module level, NOT inside QuickAddModal.
+//
+// If a component is defined inside a parent function, JavaScript creates a new
+// function reference on every render.  React uses reference equality to decide
+// whether the component type has changed.  A new reference = React unmounts the
+// old subtree and mounts a fresh one — destroying the <input> DOM node, losing
+// focus, and forcing the user to click back into the field after every keystroke.
+// That is exactly the "1 character then nothing" bug.
+
+function Overlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
+      <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh]">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 // ── QuickAddModal ─────────────────────────────────────────────────────────────
 
@@ -159,20 +183,23 @@ export function QuickAddModal({ onClose }: Props) {
     [items, debouncedTerm],
   )
 
-  /** "Did you mean…" — character-level typo corrections */
+  /** "Did you mean…" — character-level typo corrections (min 4 chars to avoid noise) */
   const spellSuggestions = useMemo<VocabItem[]>(
     () =>
-      debouncedTerm.trim().length >= 3 && !exactDuplicate
+      debouncedTerm.trim().length >= 4 && !exactDuplicate
         ? fuzzySpellingSuggestions(items, debouncedTerm)
         : [],
     [items, debouncedTerm, exactDuplicate],
   )
 
-  /** "Similar entries" — structural near-duplicates (deduped against spellSuggestions) */
+  /**
+   * "Similar entries" — structural near-duplicates via Dice coefficient.
+   * Only runs when spell suggestions found nothing — avoids a full Dice scan
+   * (O(n) bigram map per item) on top of an already-expensive Levenshtein pass.
+   */
   const nearDuplicates = useMemo<VocabItem[]>(() => {
-    if (!debouncedTerm.trim() || exactDuplicate) return []
-    const spellIds = new Set(spellSuggestions.map((i) => i.id))
-    return findNearDuplicates(items, debouncedTerm).filter((i) => !spellIds.has(i.id))
+    if (!debouncedTerm.trim() || exactDuplicate || spellSuggestions.length > 0) return []
+    return findNearDuplicates(items, debouncedTerm, 0.62, 3)
   }, [items, debouncedTerm, exactDuplicate, spellSuggestions])
 
   /** Auto-detect type (word / phrase / phrasal-verb) — not shown in UI */
@@ -304,18 +331,6 @@ export function QuickAddModal({ onClose }: Props) {
     onClose()
   }, [savedWordId, selectedThemes, assignThemes, onClose])
 
-  // ── Shared overlay wrapper ────────────────────────────────────────────────
-
-  function Overlay({ children }: { children: React.ReactNode }) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm">
-        <div className="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[92dvh]">
-          {children}
-        </div>
-      </div>
-    )
-  }
-
   // ── Render: Phase 1 — Add ─────────────────────────────────────────────────
 
   if (phase === 'add') {
@@ -368,7 +383,7 @@ export function QuickAddModal({ onClose }: Props) {
             <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
               <p className="text-xs font-semibold text-sky-700 mb-1.5">Did you mean…</p>
               <div className="space-y-1">
-                {spellSuggestions.map((sug) => (
+                {spellSuggestions.slice(0, 3).map((sug) => (
                   <button
                     key={sug.id}
                     onClick={() => {
@@ -421,7 +436,7 @@ export function QuickAddModal({ onClose }: Props) {
                 <p className="text-xs font-semibold text-amber-800">Similar entries found</p>
               </div>
               <div className="space-y-1">
-                {nearDuplicates.map((dup) => (
+                {nearDuplicates.slice(0, 3).map((dup) => (
                   <button
                     key={dup.id}
                     onClick={() => openExisting(dup.id)}
