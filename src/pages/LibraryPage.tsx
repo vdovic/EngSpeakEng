@@ -32,7 +32,7 @@ import { ExposureProgress } from '@/components/ExposureProgress'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { VocabItem } from '@/types/vocabulary'
 import {
-  LevelFilter, FocusFilter, ExposureBandFilter, LibrarySortKey,
+  LevelFilter, FocusFilter, ExposureBandFilter, ConfidenceFilter, LibrarySortKey,
   LibraryFilters, DEFAULT_FILTERS,
   filterLibraryItems, sortLibraryItems,
   activeFilterCount, hasActiveFilter, isInFocus,
@@ -61,6 +61,14 @@ const BAND_OPTIONS: { value: ExposureBandFilter; label: string }[] = [
   { value: '1-2', label: 'Early (1–2)' },
   { value: '3-7', label: 'Building (3–7)' },
   { value: '8',   label: 'Complete (8)' },
+]
+
+const CONFIDENCE_OPTIONS: { value: ConfidenceFilter; label: string; dot?: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: '1',   label: 'Red',    dot: 'bg-rose-500'   },
+  { value: '2',   label: 'Yellow', dot: 'bg-amber-400'  },
+  { value: '3',   label: 'Green',  dot: 'bg-emerald-500'},
+  { value: '0',   label: 'Not assessed', dot: 'bg-slate-300' },
 ]
 
 const TAG_LABELS: Record<string, string> = {
@@ -581,6 +589,39 @@ function PillGroup<T extends string | number>({
   )
 }
 
+/** Variant of PillGroup for confidence filter — renders a small color dot. */
+function ConfidencePillGroup({
+  options, value, onChange,
+}: {
+  options: { value: ConfidenceFilter; label: string; dot?: string }[]
+  value: ConfidenceFilter
+  onChange: (v: ConfidenceFilter) => void
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => {
+        const active = value === o.value
+        return (
+          <button
+            key={o.value}
+            onClick={() => onChange(o.value)}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs rounded-full border font-medium transition-colors whitespace-nowrap ${
+              active
+                ? 'bg-brand-600 text-white border-brand-600'
+                : 'bg-white text-slate-600 border-slate-200 hover:border-brand-300'
+            }`}
+          >
+            {o.dot && !active && (
+              <span className={`w-2 h-2 rounded-full shrink-0 ${o.dot}`} />
+            )}
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Main page component ────────────────────────────────────────────────────────
 
 export function LibraryPage() {
@@ -597,9 +638,10 @@ export function LibraryPage() {
   // ── Filter state ──────────────────────────────────────────────────────────────
   const [search,       setSearch]       = useState(() => searchParams.get('q') ?? '')
   const [levelFilter,  setLevelFilter]  = useState<LevelFilter>('all')
-  const [focusFilter,  setFocusFilter]  = useState<FocusFilter>('all')
-  const [bandFilter,   setBandFilter]   = useState<ExposureBandFilter>('all')
-  const [tag,          setTag]          = useState<string>('all')
+  const [focusFilter,      setFocusFilter]      = useState<FocusFilter>('all')
+  const [bandFilter,       setBandFilter]       = useState<ExposureBandFilter>('all')
+  const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceFilter>('all')
+  const [tag,              setTag]              = useState<string>('all')
   const [theme,        setTheme]        = useState<string>(() => searchParams.get('theme') ?? 'all')
   const [sort,         setSort]         = useState<LibrarySortKey>('newest')
   const [moreOpen,     setMoreOpen]     = useState(false)
@@ -642,7 +684,7 @@ export function LibraryPage() {
 
   const filters: LibraryFilters = {
     search, level: levelFilter, focus: focusFilter,
-    exposureBand: bandFilter, tag, theme,
+    exposureBand: bandFilter, confidence: confidenceFilter, tag, theme,
   }
 
   const filterCount = activeFilterCount(filters)
@@ -653,7 +695,7 @@ export function LibraryPage() {
     // When there is a search string, results are already ranked by relevance — don't re-sort
     return search.trim() ? base : sortLibraryItems(base, sort)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, search, levelFilter, focusFilter, bandFilter, tag, theme, sort])
+  }, [items, search, levelFilter, focusFilter, bandFilter, confidenceFilter, tag, theme, sort])
 
   // selectedIds = ALL selected IDs that are currently visible (not only inbox)
   const selectedIds = useMemo(
@@ -698,6 +740,7 @@ export function LibraryPage() {
     setLevelFilter(DEFAULT_FILTERS.level)
     setFocusFilter(DEFAULT_FILTERS.focus)
     setBandFilter(DEFAULT_FILTERS.exposureBand)
+    setConfidenceFilter(DEFAULT_FILTERS.confidence)
     setTag(DEFAULT_FILTERS.tag)
     setTheme(DEFAULT_FILTERS.theme)
   }
@@ -976,6 +1019,12 @@ export function LibraryPage() {
             <div className="px-3 py-2.5 space-y-1.5">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Daily Challenge progress</p>
               <PillGroup<ExposureBandFilter> options={BAND_OPTIONS} value={bandFilter} onChange={setBandFilter} />
+            </div>
+
+            {/* Confidence */}
+            <div className="px-3 py-2.5 space-y-1.5">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Self-assessed confidence</p>
+              <ConfidencePillGroup options={CONFIDENCE_OPTIONS} value={confidenceFilter} onChange={setConfidenceFilter} />
             </div>
 
             {/* Theme */}
