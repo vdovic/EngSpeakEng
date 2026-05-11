@@ -432,7 +432,10 @@ export function QuickAddModal({ onClose }: Props) {
             }`}
           />
 
-          {/* "Did you mean…" — fuzzy spell suggestions */}
+          {/* "Did you mean…" — fuzzy spell suggestions (Levenshtein ≤ 2).
+              These are always EXISTING library items — clicking opens the word
+              directly so the user sees its enriched data immediately, without
+              needing to press Add → only to get a duplicate error. */}
           {spellSuggestions.length > 0 && (
             <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
               <p className="text-xs font-semibold text-sky-700 mb-1.5">Did you mean…</p>
@@ -440,10 +443,7 @@ export function QuickAddModal({ onClose }: Props) {
                 {spellSuggestions.slice(0, 3).map((sug) => (
                   <button
                     key={sug.id}
-                    onClick={() => {
-                      setTerm(sug.term)
-                      setTimeout(() => termRef.current?.focus(), 0)
-                    }}
+                    onClick={() => openExisting(sug.id)}
                     className="w-full flex items-center justify-between gap-2 bg-white border border-sky-200 rounded-lg px-2.5 py-1.5 hover:border-sky-400 hover:bg-sky-50 transition-colors group text-left"
                   >
                     <div className="flex items-center gap-2 min-w-0">
@@ -455,7 +455,7 @@ export function QuickAddModal({ onClose }: Props) {
                       )}
                     </div>
                     <span className="text-[10px] font-semibold text-sky-600 group-hover:text-sky-700 shrink-0 flex items-center gap-0.5">
-                      Use <ArrowRight size={10} />
+                      View <ArrowRight size={10} />
                     </span>
                   </button>
                 ))}
