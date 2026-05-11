@@ -2,36 +2,44 @@
  * DashboardPage — ESE Today
  *
  * Sections (top→bottom):
- *  1. HomeHero           — large headline + PersonalizationVisual
- *  2. LearningCtaCard    — primary Challenge / Review CTA (dominant)
- *  3. TodayCompactRow    — 2-card strip: Goal Progress + Focus Health
- *  4. FocusThisWeekPreview — real-life use prompt (My Current Focus)
- *  5. FocusAreasPreview  — real theme cards, or suggested starter cards
- *  6. HowItWorks         — collapsible pipeline explainer
- *  7. StarterPacksSection
- *  8. AIInsightCard      — contextual AI-powered insight
- *  9. LearningProfileCard
+ *  1. TodayHeader         — compact greeting + date
+ *  2. TodaySessionCard    — confidence-aware challenge CTA
+ *  3. TodayHealthStrip    — 4 KPI pills (due · confidence · almost-mastered · goal)
+ *  4. TodayNudgeCard      — contextual nudge (no "AI" label, white card)
+ *  5. AlmostMasteredStrip — well-drilled words needing real-life use (conditional)
+ *  6. TodayFocusPreview   — My Current Focus list (red-first, ConfidenceDots)
+ *  7. FocusAreasPreview   — real theme cards
+ *  8. HowItWorks          — collapsible pipeline explainer (collapsed for experienced users)
+ *  9. LearningProfileCard — profile summary + adjust link
  */
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Flame, Zap, Trophy,
-  ChevronRight, Sparkles, GraduationCap, Layers, Loader2, ChevronDown, SlidersHorizontal, Target, CheckCircle2,
+  Plus, Zap, Trophy,
+  ChevronRight, Layers, Loader2, ChevronDown,
+  SlidersHorizontal, Target, CheckCircle2, Clock, TrendingUp,
 } from 'lucide-react'
 import { getCanonicalLevel } from '@/lib/progressionLogic'
-import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
+import { useVocabStore, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
-import { isDueChallengeNow } from '@/lib/challengeSchedule'
 import { CHALLENGE_SESSION_CAP } from '@/lib/constants'
-import { todayDateKey } from '@/lib/dateUtils'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { StarterPacksSection } from '@/components/StarterPacksSection'
-import { subDays, startOfDay, isWithinInterval } from 'date-fns'
+import { ConfidenceDots } from '@/components/ConfidenceDots'
+import { usagePoints } from '@/lib/mastery'
+import {
+  getTodaySessionState,
+  getAlmostMasteredItems,
+  getFocusConfidenceSummary,
+  getTodayNudge,
+  getGoalMomentum,
+} from '@/lib/todayLogic'
 import { GOAL_LABELS, INTENSITY_CONFIG } from '@/types/profile'
+import type { VocabItem } from '@/types/vocabulary'
 
 // ── Module-level constants ─────────────────────────────────────────────────────
 
@@ -40,16 +48,6 @@ const THEME_EMOJI: Record<string, string> = Object.fromEntries(
   SUGGESTED_THEMES.map((s) => [s.name, s.emoji]),
 )
 
-/** Default topics shown in the hero visual before the user creates any themes */
-const VISUAL_DEFAULT_TOPICS = [
-  { name: 'Business Analysis',  emoji: '📊' },
-  { name: 'Presentations',      emoji: '🎤' },
-  { name: 'Casual Talk',        emoji: '☕' },
-  { name: 'Email Writing',      emoji: '✉️' },
-  { name: 'Product Management', emoji: '🗺️' },
-  { name: 'Interviews',         emoji: '🤝' },
-]
-
 /** Three suggested starter focus areas (always non-empty — names match SUGGESTED_THEMES) */
 const STARTER_SUGGESTIONS = SUGGESTED_THEMES.filter((s) =>
   ['Business & Professional', 'Everyday Conversation', 'Written Communication'].includes(s.name),
@@ -57,10 +55,7 @@ const STARTER_SUGGESTIONS = SUGGESTED_THEMES.filter((s) =>
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type VocabItems = ReturnType<typeof useVocabStore.getState>['items']
-
 interface ThemeStat { name: string; total: number; mastered: number }
-interface Insight    { text: string; action: string | null; actionLabel: string }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -71,279 +66,392 @@ function getGreeting(): string {
   return 'Good evening'
 }
 
-function calcStreak(items: VocabItems): number {
-  const logs = items.flatMap((i) => i.activation.usageLogs)
-  const today = startOfDay(new Date())
-  let streak = 0
-  for (let d = 0; d < 30; d++) {
-    const day  = subDays(today, d)
-    const next = subDays(today, d - 1)
-    const active = logs.some((l) =>
-      isWithinInterval(new Date(l.usedAt), { start: day, end: next }),
-    )
-    if (active) streak++
-    else if (d > 0) break
-  }
-  return streak
+function getTodayLabel(): string {
+  return new Date().toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
 }
 
-// ── PersonalizationVisual ─────────────────────────────────────────────────────
-// Dark-panel "system diagram" that communicates configurability
+// ── TodayHeader ───────────────────────────────────────────────────────────────
 
-function PersonalizationVisual({ themes }: { themes: string[] }) {
-  const topics =
-    themes.length > 0
-      ? themes.slice(0, 6).map((n) => ({ name: n, emoji: THEME_EMOJI[n] ?? '📌' }))
-      : VISUAL_DEFAULT_TOPICS
-
+function TodayHeader({ greeting, dateLabel }: { greeting: string; dateLabel: string }) {
   return (
-    <div
-      className="relative rounded-3xl overflow-hidden bg-slate-900 flex flex-col gap-3 p-6"
-      style={{ minHeight: '250px' }}
-    >
-      {/* Dot-grid texture */}
-      <div
-        className="absolute inset-0 opacity-[0.07]"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px)',
-          backgroundSize: '18px 18px',
-        }}
-      />
-
-      {/* Glow blobs */}
-      <div className="absolute top-6 right-6  w-32 h-32 rounded-full bg-brand-600/30  blur-3xl pointer-events-none" />
-      <div className="absolute bottom-4 left-6 w-24 h-24 rounded-full bg-violet-600/20 blur-3xl pointer-events-none" />
-
-      {/* Header badge — "Your English System" */}
-      <div className="relative z-10 flex items-start">
-        <div className="inline-flex items-center gap-2.5 bg-white/10 border border-white/20 rounded-2xl px-4 py-2.5 backdrop-blur-sm">
-          <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-brand-500 to-violet-500 flex items-center justify-center shrink-0">
-            <GraduationCap size={13} className="text-white" />
-          </div>
-          <div>
-            <p className="text-white text-[11px] font-bold leading-none">Your English System</p>
-            <p className="text-white/50 text-[9px] mt-0.5">Personalized for you</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Connector dots */}
-      <div className="relative z-10 flex items-center gap-1.5">
-        <div className="flex-1 h-px bg-white/10" />
-        <div className="flex gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-brand-400" />
-          <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-          <div className="w-1.5 h-1.5 rounded-full bg-indigo-300" />
-        </div>
-        <div className="flex-1 h-px bg-white/10" />
-      </div>
-
-      {/* Topic chips */}
-      <div className="relative z-10 flex flex-wrap gap-1.5 flex-1">
-        {topics.map((t) => (
-          <span
-            key={t.name}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white/10 border border-white/[0.12] rounded-xl text-[11px] font-medium text-white/80"
-          >
-            <span>{t.emoji}</span>
-            {t.name}
-          </span>
-        ))}
-      </div>
-
-      {/* Footer label */}
-      <p className="relative z-10 text-[10px] text-white/25 leading-tight">
-        You choose what matters — ESE adapts the rest
-      </p>
+    <div className="flex items-baseline justify-between mb-5">
+      <h1 className="text-xl font-bold text-slate-900">{greeting}</h1>
+      <span className="text-xs text-slate-400">{dateLabel}</span>
     </div>
   )
 }
 
-// ── HomeHero ──────────────────────────────────────────────────────────────────
+// ── TodaySessionCard ──────────────────────────────────────────────────────────
+// Confidence-aware challenge CTA with soft post-session language.
 
-function HomeHero({
-  greeting,
-  themes,
-  onAdd,
-  onManageFocus,
-}: {
-  greeting: string
-  themes: string[]
-  onAdd: () => void
-  onManageFocus: () => void
-}) {
-  return (
-    <section className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-10 mb-8 items-center">
-
-      {/* ── Left: text ── */}
-      <div className="lg:col-span-3">
-        {/* Greeting + product badge */}
-        <p className="text-sm font-semibold text-brand-600 mb-2">{greeting}</p>
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-brand-50 border border-brand-100 rounded-full mb-4">
-          <Sparkles size={11} className="text-brand-600" />
-          <span className="text-xs font-semibold text-brand-700 tracking-wide">Personalized English · ESE</span>
-        </div>
-
-        {/* Headline */}
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 leading-tight tracking-tight mb-3">
-          Move your vocabulary forward
-        </h1>
-
-        {/* Core message */}
-        <p className="text-base text-slate-600 leading-relaxed mb-2">
-          ESE is a personalized vocabulary system for mastering advanced English —
-          from intermediate to near-native.
-        </p>
-        <p className="text-sm text-slate-500 leading-relaxed mb-6">
-          Choose what matters by role, context, or goal. ESE adapts your learning
-          so you retain and use new language effectively.
-        </p>
-
-        {/* CTAs */}
-        <div className="flex flex-wrap gap-2.5">
-          <button
-            onClick={onAdd}
-            className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 transition-colors shadow-sm"
-          >
-            <Plus size={15} />
-            Add word
-          </button>
-          <button
-            onClick={onManageFocus}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors"
-          >
-            <Layers size={15} />
-            Focus areas
-          </button>
-        </div>
-      </div>
-
-      {/* ── Right: personalization visual ── */}
-      <div className="lg:col-span-2">
-        <PersonalizationVisual themes={themes} />
-      </div>
-    </section>
-  )
-}
-
-// ── LearningCtaCard ───────────────────────────────────────────────────────────
-
-function LearningCtaCard({
+function TodaySessionCard({
   dueCount,
-  challengeCount,
-  challengeDoneToday,
-  inboxCount,
-  onReview,
+  sessionDoneToday,
+  redCount,
   onChallenge,
-  onInbox,
+  onFocus,
 }: {
   dueCount: number
-  challengeCount: number
-  challengeDoneToday: boolean
-  inboxCount: number
-  onReview: () => void
+  sessionDoneToday: boolean
+  redCount: number
   onChallenge: () => void
-  onInbox: () => void
+  onFocus: () => void
 }) {
-  const sessionsDone = challengeDoneToday && dueCount === 0
-
-  // Sessions done but words still sitting in Inbox → redirect to activate more
-  if (sessionsDone && inboxCount > 0) {
+  // Post-session: soft card — not dominant gradient
+  if (sessionDoneToday && dueCount === 0) {
     return (
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-violet-600 to-indigo-700 p-6 mb-6 shadow-md">
-        <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full pointer-events-none" />
-        <div className="absolute -bottom-6 -left-6 w-28 h-28 bg-white/5 rounded-full pointer-events-none" />
-        <p className="text-violet-200 text-xs font-bold uppercase tracking-widest mb-1">
-          Today's sessions done ✓
-        </p>
-        <h2 className="text-2xl font-bold text-white mb-1.5">
-          {inboxCount.toLocaleString()} word{inboxCount !== 1 ? 's' : ''} ready to learn
-        </h2>
-        <p className="text-violet-200 text-sm mb-4">
-          You've finished today's Review and Challenge. Activate more words to keep growing.
-        </p>
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">
+              Done for today ✓
+            </p>
+            <p className="text-base font-bold text-slate-900 mb-1">You've practised today</p>
+            <p className="text-sm text-slate-500">
+              Try using a focus word in a real conversation.
+            </p>
+          </div>
+        </div>
         <button
-          onClick={onInbox}
-          className="px-5 py-2.5 bg-white text-violet-700 rounded-xl font-bold text-sm hover:bg-violet-50 transition-colors shadow-sm"
+          onClick={onFocus}
+          className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
         >
-          Start learning new words →
+          <Zap size={14} />
+          Practice focus words
+          <ChevronRight size={13} />
         </button>
       </div>
     )
   }
 
-  // Truly all done — no inbox backlog either
-  if (sessionsDone) {
-    return (
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-emerald-600 to-teal-600 p-6 mb-6 shadow-md">
-        <div className="absolute -top-8 -right-8 w-36 h-36 bg-white/10 rounded-full pointer-events-none" />
-        <p className="text-emerald-200 text-xs font-bold uppercase tracking-widest mb-1">
-          🎉 All done today
-        </p>
-        <h2 className="text-2xl font-bold text-white mb-1">You're all caught up!</h2>
-        <p className="text-sm text-emerald-100">
-          Great consistency. Come back tomorrow to keep your streak alive.
-        </p>
-      </div>
-    )
-  }
+  // Determine confidence-aware heading
+  const heading =
+    redCount > 3
+      ? `${redCount} words need your attention`
+      : dueCount > 0
+      ? `${Math.min(dueCount, CHALLENGE_SESSION_CAP)} word${Math.min(dueCount, CHALLENGE_SESSION_CAP) !== 1 ? 's' : ''} ready to practise`
+      : 'Keep your momentum going'
+
+  const subtext =
+    redCount > 3
+      ? 'Challenge sessions build the recall needed for real-life use.'
+      : sessionDoneToday
+      ? 'Session done — another round keeps it fresh.'
+      : 'Daily Challenge · spaced repetition'
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-brand-600 via-brand-700 to-violet-700 p-6 mb-6 shadow-md">
-      {/* Decorative circles */}
-      <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full pointer-events-none" />
-      <div className="absolute -bottom-8  -left-8  w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
+    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-brand-600 via-brand-700 to-violet-700 p-5 mb-5 shadow-sm">
+      <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
+      <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-white/5 rounded-full pointer-events-none" />
 
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8">
-        {/* Text */}
-        <div className="flex-1">
-          <p className="text-brand-200 text-xs font-bold uppercase tracking-widest mb-1">
-            Ready to learn?
-          </p>
-          <h2 className="text-2xl font-bold text-white mb-1.5">
-            {dueCount > 0
-              ? `${dueCount} word${dueCount !== 1 ? 's' : ''} ready for review`
-              : 'Keep your momentum going'}
-          </h2>
-          <p className="text-brand-200 text-sm">
-            {challengeCount > 0
-              ? `+ ${challengeCount} word${challengeCount !== 1 ? 's' : ''} in today's challenge`
-              : challengeDoneToday
-              ? 'Challenge complete for today ✓'
-              : 'Daily Challenge available'}
-          </p>
-        </div>
+      <div className="relative z-10">
+        <p className="text-brand-200 text-[10px] font-bold uppercase tracking-widest mb-1">
+          {sessionDoneToday ? 'Session done · more available' : 'Ready to learn?'}
+        </p>
+        <p className="text-lg font-bold text-white mb-0.5">{heading}</p>
+        <p className="text-brand-200 text-xs mb-4">{subtext}</p>
 
-        {/* Buttons */}
-        <div className="flex gap-2.5 shrink-0">
-          {dueCount > 0 && (
-            <button
-              onClick={onReview}
-              className="px-5 py-2.5 bg-white text-brand-700 rounded-xl font-bold text-sm hover:bg-brand-50 transition-colors shadow-sm whitespace-nowrap"
-            >
-              Continue learning
-            </button>
-          )}
+        <div className="flex gap-2">
           <button
             onClick={onChallenge}
-            className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-colors whitespace-nowrap ${
-              dueCount > 0
-                ? 'bg-white/15 text-white hover:bg-white/25 border border-white/25'
-                : 'bg-white text-brand-700 hover:bg-brand-50 shadow-sm'
-            }`}
+            className="px-4 py-2 bg-white text-brand-700 rounded-xl font-bold text-sm hover:bg-brand-50 transition-colors shadow-sm"
           >
-            {challengeDoneToday ? 'Review again' : 'Daily Challenge'}
+            {sessionDoneToday ? 'Review again' : 'Daily Challenge'}
           </button>
+          {sessionDoneToday && (
+            <button
+              onClick={onFocus}
+              className="px-4 py-2 bg-white/15 border border-white/25 text-white rounded-xl font-bold text-sm hover:bg-white/25 transition-colors"
+            >
+              Focus words
+            </button>
+          )}
         </div>
       </div>
     </div>
   )
 }
 
+// ── TodayHealthStrip ──────────────────────────────────────────────────────────
+// 4 compact KPI pills: due · confidence · almost-mastered · goal
+
+function TodayHealthStrip({
+  dueCount,
+  redCount,
+  almostCount,
+  percentComplete,
+  onChallenge,
+  onFocus,
+  onProgress,
+}: {
+  dueCount: number
+  redCount: number
+  almostCount: number
+  percentComplete: number
+  onChallenge: () => void
+  onFocus: () => void
+  onProgress: () => void
+}) {
+  const pills = [
+    {
+      icon: <Clock size={12} className="text-slate-400" />,
+      value: String(dueCount),
+      label: 'due',
+      highlight: dueCount > 10 ? 'text-amber-600 font-bold' : 'text-slate-700',
+      onClick: onChallenge,
+    },
+    {
+      icon: <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />,
+      value: String(redCount),
+      label: 'struggling',
+      highlight: redCount > 5 ? 'text-rose-600 font-bold' : 'text-slate-700',
+      onClick: onChallenge,
+    },
+    {
+      icon: <Zap size={12} className="text-amber-500" />,
+      value: String(almostCount),
+      label: 'almost mastered',
+      highlight: almostCount > 0 ? 'text-amber-600 font-bold' : 'text-slate-700',
+      onClick: onFocus,
+    },
+    {
+      icon: <Trophy size={12} className="text-emerald-500" />,
+      value: `${percentComplete}%`,
+      label: 'of goal',
+      highlight: 'text-slate-700',
+      onClick: onProgress,
+    },
+  ]
+
+  return (
+    <div className="grid grid-cols-4 gap-2 mb-5">
+      {pills.map((pill) => (
+        <button
+          key={pill.label}
+          onClick={pill.onClick}
+          className="bg-white border border-slate-200 rounded-xl px-2 py-2.5 flex flex-col items-center gap-1 hover:border-brand-200 hover:bg-brand-50/30 transition-all"
+        >
+          <div className="flex items-center gap-1">
+            {pill.icon}
+          </div>
+          <span className={`text-base font-extrabold leading-none ${pill.highlight}`}>
+            {pill.value}
+          </span>
+          <span className="text-[9px] text-slate-400 font-medium leading-none text-center">
+            {pill.label}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── TodayNudgeCard ────────────────────────────────────────────────────────────
+// White card — contextual nudge, no "AI" label
+
+function TodayNudgeCard({
+  text,
+  action,
+  actionLabel,
+}: {
+  text: string
+  action: string | null
+  actionLabel: string
+}) {
+  const navigate = useNavigate()
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-5 flex items-start gap-3">
+      <div className="w-7 h-7 rounded-lg bg-brand-50 border border-brand-100 flex items-center justify-center shrink-0 mt-0.5">
+        <TrendingUp size={13} className="text-brand-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-slate-700 leading-relaxed">{text}</p>
+        {action && (
+          <button
+            onClick={() => navigate(action)}
+            className="mt-2 flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
+          >
+            {actionLabel}
+            <ChevronRight size={11} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── AlmostMasteredStrip ───────────────────────────────────────────────────────
+// Conditional — only shown when almost-mastered items exist.
+// "I used it" calls logUsage only — NO AI.
+
+function AlmostMasteredStrip({
+  items,
+  onNavigate,
+  onLogUsed,
+}: {
+  items: VocabItem[]
+  onNavigate: () => void
+  onLogUsed: (id: string) => void
+}) {
+  if (items.length === 0) return null
+
+  return (
+    <section className="mb-5">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+          Almost mastered
+        </p>
+        <button
+          onClick={onNavigate}
+          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700"
+        >
+          See all <ChevronRight size={12} />
+        </button>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 shadow-sm">
+        {items.map((item) => {
+          const uses = usagePoints(item.activation.usageLogs)
+          return (
+            <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900 truncate">{item.term}</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {uses}/3 real-life uses · exp {item.exposureCount ?? 0}/8
+                </p>
+              </div>
+              <button
+                onClick={() => onLogUsed(item.id)}  // NO AI — direct store write
+                className="shrink-0 flex items-center gap-1 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-lg text-xs font-semibold hover:bg-amber-100 active:scale-95 transition-all"
+              >
+                <Plus size={11} />
+                I used it
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ── TodayFocusPreview ─────────────────────────────────────────────────────────
+// Refactored from FocusThisWeekPreview.
+// Red-first ordering, ConfidenceDots (read-only), usagePoints().
+
+function TodayFocusPreview({ onNavigate }: { onNavigate: () => void }) {
+  const focusItems = useWeeklyFocusItems()
+  const FOCUS_MAX  = 50
+
+  // Sort red-first: confidence 1 → 0 (unset) → 2 → 3
+  const CONFIDENCE_ORDER: Record<number, number> = { 1: 0, 0: 1, 2: 2, 3: 3 }
+  const sorted = [...focusItems].sort((a, b) => {
+    const ca = a.activation?.confidenceLevel ?? 0
+    const cb = b.activation?.confidenceLevel ?? 0
+    return (CONFIDENCE_ORDER[ca] ?? 1) - (CONFIDENCE_ORDER[cb] ?? 1)
+  })
+
+  const preview   = sorted.slice(0, 5)
+  const usedCount = focusItems.filter((i) => usagePoints(i.activation.usageLogs) >= 3).length
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
+            <Target size={14} className="text-amber-500" />
+            My Current Focus
+          </h2>
+          {focusItems.length > 0 ? (
+            <p className="text-xs text-slate-500 mt-0.5">
+              {focusItems.length} / {FOCUS_MAX} words · {usedCount} used 3×
+            </p>
+          ) : (
+            <p className="text-xs text-slate-500 mt-0.5">
+              Words selected for real-life practice
+            </p>
+          )}
+        </div>
+        <button
+          onClick={onNavigate}
+          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0 mt-1"
+        >
+          {focusItems.length > 0 ? 'See all' : 'Set up'} <ChevronRight size={12} />
+        </button>
+      </div>
+
+      {focusItems.length === 0 ? (
+        <button
+          onClick={onNavigate}
+          className="w-full bg-amber-50 border border-amber-200 border-dashed rounded-2xl p-5 text-center hover:bg-amber-100 transition-colors"
+        >
+          <Target size={24} className="mx-auto mb-2 text-amber-400" />
+          <p className="text-sm font-semibold text-amber-800 mb-1">No focus words yet</p>
+          <p className="text-xs text-amber-600">
+            Complete Daily Challenges and the system will auto-select words for real-life practice.
+          </p>
+        </button>
+      ) : (
+        <>
+          <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 shadow-sm mb-3">
+            {preview.map((item) => {
+              const uses = usagePoints(item.activation.usageLogs)
+              const done = uses >= 3
+              return (
+                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                  {done
+                    ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
+                    : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-200 shrink-0" />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-semibold truncate ${done ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                      {item.term}
+                    </p>
+                  </div>
+                  {/* Confidence dots — read-only (no onChange) */}
+                  <ConfidenceDots item={item} compact />
+                  {/* Usage dots */}
+                  <div className="flex gap-1 shrink-0">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className={`w-2 h-2 rounded-full transition-colors ${
+                          i < uses ? (done ? 'bg-emerald-400' : 'bg-amber-400') : 'bg-slate-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+            {focusItems.length > 5 && (
+              <button
+                onClick={onNavigate}
+                className="w-full py-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors text-center"
+              >
+                +{focusItems.length - 5} more →
+              </button>
+            )}
+          </div>
+          <button
+            onClick={onNavigate}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 active:scale-[0.98] transition-all"
+          >
+            <Zap size={13} /> Practice Focus Words
+          </button>
+        </>
+      )}
+    </section>
+  )
+}
+
 // ── Focus Areas ───────────────────────────────────────────────────────────────
 
-/** Shown when the user has no focus areas yet */
 function SuggestedFocusAreaCard({
   name,
   emoji,
@@ -382,7 +490,6 @@ function SuggestedFocusAreaCard({
   )
 }
 
-/** Shown when real focus area (theme) exists */
 function FocusAreaCard({
   name,
   total,
@@ -416,7 +523,6 @@ function FocusAreaCard({
       <p className="text-xs text-slate-400 mb-4">{total} word{total !== 1 ? 's' : ''}</p>
 
       {empty ? (
-        /* No words yet — offer AI assignment */
         <div className="mt-auto flex flex-col gap-2">
           <button
             onClick={onAssign}
@@ -440,7 +546,6 @@ function FocusAreaCard({
           </button>
         </div>
       ) : (
-        /* Has words — show progress bar and open link */
         <div className="mt-auto w-full">
           <div className="flex items-center justify-between text-[10px] mb-1.5">
             <span className="text-slate-400">{pct}% mastered</span>
@@ -482,7 +587,7 @@ function FocusAreasPreview({
     <section className="mb-8">
       <div className="flex items-end justify-between mb-4">
         <div>
-          <h2 className="text-lg font-bold text-slate-900">Focus Areas</h2>
+          <h2 className="text-base font-bold text-slate-900">Focus Areas</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             {isEmpty
               ? 'Get started with a suggested focus area below'
@@ -499,7 +604,6 @@ function FocusAreasPreview({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {isEmpty ? (
-          /* Suggested starter cards */
           STARTER_SUGGESTIONS.map((s) => (
             <SuggestedFocusAreaCard
               key={s.name}
@@ -523,7 +627,6 @@ function FocusAreasPreview({
                 isAssigning={processingTheme === name}
               />
             ))}
-            {/* Add area card — shown when fewer than 3 themes */}
             {themeStats.length < 3 && (
               <button
                 onClick={onManageThemes}
@@ -555,235 +658,8 @@ function FocusAreasPreview({
   )
 }
 
-// ── AIInsightCard ─────────────────────────────────────────────────────────────
-
-function AIInsightCard({ insight }: { insight: Insight }) {
-  const navigate = useNavigate()
-
-  return (
-    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-violet-700 via-brand-700 to-indigo-800 p-6 shadow-md">
-      {/* Decorative shapes */}
-      <div className="absolute -top-6   -right-6  w-28 h-28 bg-white/5 rounded-full pointer-events-none" />
-      <div className="absolute -bottom-4 -left-4  w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
-
-      <div className="relative z-10">
-        {/* Header */}
-        <div className="flex items-center gap-2.5 mb-3">
-          <div className="w-8 h-8 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center shrink-0">
-            <Sparkles size={15} className="text-white" />
-          </div>
-          <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-            AI Insight
-          </p>
-        </div>
-
-        {/* Insight text */}
-        <p className="text-white text-sm leading-relaxed mb-4">{insight.text}</p>
-
-        {/* CTA or fallback note */}
-        {insight.action ? (
-          <button
-            onClick={() => navigate(insight.action!)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 border border-white/20 text-white text-xs font-bold rounded-xl hover:bg-white/25 transition-colors"
-          >
-            {insight.actionLabel}
-            <ChevronRight size={13} />
-          </button>
-        ) : (
-          <p className="text-white/40 text-xs leading-relaxed">
-            ESE will surface more personalized insights as you build your vocabulary system.
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── FocusThisWeekPreview ──────────────────────────────────────────────────────
-
-// navigate prop updated to use /focus (canonical route)
-function FocusThisWeekPreview({ onNavigate }: { onNavigate: () => void }) {
-  const focusItems = useWeeklyFocusItems()
-  const FOCUS_MAX = 50
-
-  // Always show — if empty, show an enticing CTA
-  const preview = focusItems.slice(0, 5)
-  const usedCount = focusItems.filter((i) => i.activation.usageLogs.length >= 3).length
-
-  return (
-    <section className="mb-8">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Target size={16} className="text-amber-500" />
-            My Current Focus
-          </h2>
-          {focusItems.length > 0 ? (
-            <p className="text-xs text-slate-500 mt-0.5">
-              {focusItems.length} / {FOCUS_MAX} words · {usedCount} used 3× this week
-            </p>
-          ) : (
-            <p className="text-xs text-slate-500 mt-0.5">
-              Words the system selected for you to use this week
-            </p>
-          )}
-        </div>
-        <button
-          onClick={onNavigate}
-          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0 mt-1"
-        >
-          {focusItems.length > 0 ? 'See all' : 'Set up'} <ChevronRight size={12} />
-        </button>
-      </div>
-
-      {focusItems.length === 0 ? (
-        /* Empty state — still shows the section, invites action */
-        <button
-          onClick={onNavigate}
-          className="w-full bg-amber-50 border border-amber-200 border-dashed rounded-2xl p-5 text-center hover:bg-amber-100 transition-colors"
-        >
-          <Target size={24} className="mx-auto mb-2 text-amber-400" />
-          <p className="text-sm font-semibold text-amber-800 mb-1">No focus words yet</p>
-          <p className="text-xs text-amber-600">
-            Complete Daily Challenges and the system will auto-select words for real-life practice.
-          </p>
-        </button>
-      ) : (
-        <>
-          <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 shadow-sm mb-3">
-            {preview.map((item) => {
-              const uses = item.activation.usageLogs.length
-              const done = uses >= 3
-              return (
-                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                  {done
-                    ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                    : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-200 shrink-0" />
-                  }
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold truncate ${done ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                      {item.term}
-                    </p>
-                  </div>
-                  {/* Usage dots */}
-                  <div className="flex gap-1 shrink-0">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className={`w-2 h-2 rounded-full transition-colors ${
-                          i < uses ? (done ? 'bg-emerald-400' : 'bg-amber-400') : 'bg-slate-200'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-            {focusItems.length > 5 && (
-              <button
-                onClick={onNavigate}
-                className="w-full py-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors text-center"
-              >
-                +{focusItems.length - 5} more →
-              </button>
-            )}
-          </div>
-          <button
-            onClick={onNavigate}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 active:scale-[0.98] transition-all"
-          >
-            <Zap size={13} /> Practice Focus Words
-          </button>
-        </>
-      )}
-    </section>
-  )
-}
-
-// ── TodayCompactRow ───────────────────────────────────────────────────────────
-//
-// Two side-by-side mini-cards: Goal Progress (streak + mastered) and
-// Focus Health (focus-word usage progress). Acts as the quick-glance
-// "dashboard within the dashboard" between the main CTA and the Focus list.
-
-function TodayCompactRow({
-  streak,
-  masteredCount,
-  focusItems,
-  onViewProgress,
-  onViewFocus,
-}: {
-  streak: number
-  masteredCount: number
-  focusItems: VocabItems
-  onViewProgress: () => void
-  onViewFocus: () => void
-}) {
-  const focusTotal = focusItems.length
-  const usedCount  = focusItems.filter((i) => i.activation.usageLogs.length >= 3).length
-
-  return (
-    <div className="grid grid-cols-2 gap-3 mb-6">
-      {/* Goal Progress mini-card */}
-      <button
-        onClick={onViewProgress}
-        className="bg-white border border-slate-200 rounded-2xl p-4 text-left hover:border-brand-200 hover:bg-brand-50/30 transition-all"
-      >
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Progress</p>
-        <div className="flex items-center gap-2 mb-2.5">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${streak > 0 ? 'bg-amber-100' : 'bg-slate-100'}`}>
-            <Flame size={15} className={streak > 0 ? 'text-amber-500' : 'text-slate-300'} />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-slate-900 leading-none">{streak}</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">day streak</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-            <Trophy size={15} className="text-emerald-600" />
-          </div>
-          <div>
-            <div className="text-xl font-extrabold text-slate-900 leading-none">{masteredCount}</div>
-            <div className="text-[10px] text-slate-400 mt-0.5">mastered</div>
-          </div>
-        </div>
-      </button>
-
-      {/* Focus Health mini-card */}
-      <button
-        onClick={onViewFocus}
-        className="bg-white border border-slate-200 rounded-2xl p-4 text-left hover:border-amber-200 hover:bg-amber-50/30 transition-all"
-      >
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Focus</p>
-        {focusTotal === 0 ? (
-          <div className="flex flex-col justify-center h-14">
-            <Target size={22} className="text-amber-300 mb-1.5" />
-            <p className="text-xs text-slate-400 leading-snug">No focus words yet — start a Challenge</p>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-baseline gap-1 mb-1">
-              <span className="text-2xl font-extrabold text-slate-900 leading-none">{usedCount}</span>
-              <span className="text-sm text-slate-400">/ {focusTotal}</span>
-            </div>
-            <p className="text-[10px] text-slate-500 mb-2.5">words used 3×</p>
-            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  focusTotal > 0 && usedCount === focusTotal ? 'bg-emerald-500' : 'bg-amber-400'
-                }`}
-                style={{ width: `${focusTotal > 0 ? Math.max((usedCount / focusTotal) * 100, 3) : 0}%` }}
-              />
-            </div>
-          </>
-        )}
-      </button>
-    </div>
-  )
-}
-
 // ── HowItWorks ────────────────────────────────────────────────────────────────
+// Collapsed by default for experienced users (challengeCompletions >= 3).
 
 const HOW_IT_WORKS_STEPS = [
   {
@@ -832,75 +708,50 @@ const HOW_IT_WORKS_STEPS = [
   },
 ] as const
 
-function HowItWorks() {
+function HowItWorks({ defaultExpanded }: { defaultExpanded: boolean }) {
   const navigate = useNavigate()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
-    <section className="mb-8">
-      <div className="flex items-end justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">How learning works</h2>
+    <section className="mb-6">
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="w-full flex items-center justify-between mb-3 group"
+      >
+        <div className="text-left">
+          <h2 className="text-base font-bold text-slate-900">How learning works</h2>
           <p className="text-xs text-slate-500 mt-0.5">Your path from new word to fluent use</p>
         </div>
-        <button
-          onClick={() => setExpanded((e) => !e)}
-          className="flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"
-        >
-          {expanded ? 'Less' : 'More detail'}
-          <ChevronDown size={12} className={`transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`} />
-        </button>
-      </div>
+        <ChevronDown
+          size={16}
+          className={`text-slate-400 transition-transform duration-200 shrink-0 ${expanded ? 'rotate-180' : ''}`}
+        />
+      </button>
 
-      {/* 4-step pipeline grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {HOW_IT_WORKS_STEPS.map((step, i) => (
-          <button
-            key={step.label}
-            onClick={() => navigate(step.href)}
-            className={`text-left border rounded-2xl p-4 bg-white transition-all hover:shadow-sm flex flex-col gap-2 ${step.cardBorder}`}
-          >
-            {/* Emoji + step number */}
-            <div className="flex items-start justify-between">
-              <span className="text-2xl leading-none">{step.emoji}</span>
-              <span className="text-[10px] font-extrabold text-slate-200 tabular-nums">0{i + 1}</span>
-            </div>
-
-            {/* Label + stage badge */}
-            <div>
-              <p className="font-bold text-sm text-slate-900 mb-1.5">{step.label}</p>
-              <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${step.badgeCls}`}>
-                {step.badge}
-              </span>
-            </div>
-
-            {/* Description */}
-            <p className="text-[11px] text-slate-500 leading-relaxed flex-1">{step.description}</p>
-
-            {/* How-to line */}
-            <p className={`text-[10px] font-semibold leading-none ${step.actionCls}`}>
-              → {step.howTo}
-            </p>
-          </button>
-        ))}
-      </div>
-
-      {/* Expanded: connecting flow explanation */}
       {expanded && (
-        <div className="mt-3 bg-slate-50 border border-slate-200 rounded-2xl p-4">
-          <p className="text-xs font-semibold text-slate-600 mb-3">How stages connect</p>
-          <div className="space-y-2.5">
-            {[
-              { from: '📥 Library', to: '📖 Learn', how: 'Tap "Learning", "Challenge", or "My Focus" on any new word.' },
-              { from: '📖 Learn', to: '💬 Use it', how: 'Complete reviews until recalled 3 times. Then tap "+ I used it" when you speak or write the word.' },
-              { from: '💬 Use it', to: '🏆 Mastered', how: 'Log 3 real-life uses and write a sentence. ESE advances status automatically.' },
-            ].map(({ from, to, how }) => (
-              <div key={from} className="flex gap-3 text-xs">
-                <span className="shrink-0 font-semibold text-slate-500 w-28 leading-relaxed">{from} → {to}</span>
-                <span className="text-slate-500 leading-relaxed">{how}</span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {HOW_IT_WORKS_STEPS.map((step, i) => (
+            <button
+              key={step.label}
+              onClick={() => navigate(step.href)}
+              className={`text-left border rounded-2xl p-4 bg-white transition-all hover:shadow-sm flex flex-col gap-2 ${step.cardBorder}`}
+            >
+              <div className="flex items-start justify-between">
+                <span className="text-2xl leading-none">{step.emoji}</span>
+                <span className="text-[10px] font-extrabold text-slate-200 tabular-nums">0{i + 1}</span>
               </div>
-            ))}
-          </div>
+              <div>
+                <p className="font-bold text-sm text-slate-900 mb-1.5">{step.label}</p>
+                <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${step.badgeCls}`}>
+                  {step.badge}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed flex-1">{step.description}</p>
+              <p className={`text-[10px] font-semibold leading-none ${step.actionCls}`}>
+                → {step.howTo}
+              </p>
+            </button>
+          ))}
         </div>
       )}
     </section>
@@ -914,7 +765,6 @@ function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
   const focusCount = useVocabStore((s) => s.items.filter((i) => i.inFocus).length)
 
   if (!profile) {
-    // No profile yet — show a prompt button
     return (
       <div className="mb-5">
         <button
@@ -987,11 +837,14 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
 
-  const items         = useVocabStore((s) => s.items)
-  const dueItems      = useDueItems()
-  const focusItems    = useWeeklyFocusItems()
-  const { themes, addTheme } = useThemesStore()
-  const { lastChallengeDate } = useGamificationStore()
+  const items      = useVocabStore((s) => s.items)
+  const logUsage   = useVocabStore((s) => s.logUsage)
+  const focusItems = useWeeklyFocusItems()
+
+  const { themes, addTheme }                   = useThemesStore()
+  const { lastChallengeDate, challengeCompletions, streakDays } = useGamificationStore()
+
+  // useThemeAutoAssign must remain at component level — React hook, not conditional
   const { trigger, processingTheme } = useThemeAutoAssign()
 
   /** Create theme then immediately run AI word assignment */
@@ -1002,17 +855,21 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
 
   // ── Derived values ──
 
-  const masteredCount = items.filter((i) => getCanonicalLevel(i) >= 3).length
-  const inboxCount   = useMemo(() => items.filter((i) => i.status === 'inbox').length, [items])
-
-  const challengeDueCount = useMemo(
-    () => items.filter((i) => isDueChallengeNow(i.exposureCount, i.nextChallengeDate)).length,
-    [items],
+  const { dueForChallenge, sessionDoneToday } = useMemo(
+    () => getTodaySessionState(items, lastChallengeDate),
+    [items, lastChallengeDate],
   )
 
-  const streak = useMemo(() => calcStreak(items), [items])
+  const almostMasteredItems = useMemo(() => getAlmostMasteredItems(items, 4), [items])
 
-  const challengeDoneToday = lastChallengeDate === todayDateKey()
+  const focusConf = useMemo(() => getFocusConfidenceSummary(focusItems), [focusItems])
+
+  const nudge = useMemo(
+    () => getTodayNudge(items, focusItems, sessionDoneToday, dueForChallenge),
+    [items, focusItems, sessionDoneToday, dueForChallenge],
+  )
+
+  const { percentComplete } = useMemo(() => getGoalMomentum(items), [items])
 
   const themeStats = useMemo<ThemeStat[]>(
     () =>
@@ -1027,90 +884,90 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
     [themes, items],
   )
 
-  // ── AI Insight logic ──
+  const isEmpty = items.length === 0
 
-  const insight = useMemo<Insight>(() => {
-    if (items.length === 0) {
-      return {
-        text: 'Start by adding your first words to build your personal vocabulary system. ESE will adapt to your focus areas as you grow.',
-        action: '/library',
-        actionLabel: 'Add first words',
-      }
-    }
-    if (dueItems.length >= 8) {
-      return {
-        text: `You have ${dueItems.length} words waiting for review. A focused 10-minute session will significantly strengthen your long-term retention.`,
-        action: '/review',
-        actionLabel: 'Start review now',
-      }
-    }
-    const lowMastery = themeStats.find((t) => t.total >= 5 && t.mastered / t.total < 0.3)
-    if (lowMastery) {
-      return {
-        text: `You're focusing on "${lowMastery.name}" — ${lowMastery.total - lowMastery.mastered} words from this area are still in progress. Regular practice builds lasting recall.`,
-        action: `/library?theme=${encodeURIComponent(lowMastery.name)}`,
-        actionLabel: `Review ${lowMastery.name}`,
-      }
-    }
-    if (challengeDueCount >= 5 && !challengeDoneToday) {
-      const capped = Math.min(challengeDueCount, CHALLENGE_SESSION_CAP)
-      return {
-        text: `${capped} word${capped !== 1 ? 's' : ''} are ready for your Daily Challenge. Completing today's session keeps your learning streak strong.`,
-        action: '/challenge',
-        actionLabel: 'Start Challenge',
-      }
-    }
-    if (masteredCount > 0) {
-      return {
-        text: `You've mastered ${masteredCount} word${masteredCount !== 1 ? 's' : ''} so far. Consistent daily review is the most proven path to fluency — keep going.`,
-        action: null,
-        actionLabel: '',
-      }
-    }
-    return {
-      text: 'ESE will surface personalized insights about your vocabulary patterns as you build your learning system.',
-      action: null,
-      actionLabel: '',
-    }
-  }, [items, dueItems, themeStats, challengeDueCount, challengeDoneToday, masteredCount])
+  // ── Handlers ──
+
+  function handleLogUsed(id: string) {
+    // NO AI — direct store write
+    void logUsage(id, {
+      usedAt:  new Date().toISOString(),
+      context: 'conversation',
+      note:    'Logged from Today page',
+    })
+  }
 
   // ── Render ──
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 md:pb-10">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-10">
 
-      {/* 1. Hero */}
-      <HomeHero
+      {/* 1. Compact header */}
+      <TodayHeader
         greeting={getGreeting()}
-        themes={themes}
-        onAdd={() => setShowAdd(true)}
-        onManageFocus={() => navigate('/themes')}
+        dateLabel={getTodayLabel()}
       />
 
-      {/* 2. Primary Challenge CTA — dominant */}
-      <LearningCtaCard
-        dueCount={dueItems.length}
-        challengeCount={Math.min(challengeDueCount, CHALLENGE_SESSION_CAP)}
-        challengeDoneToday={challengeDoneToday}
-        inboxCount={inboxCount}
-        onReview={() => navigate('/review')}
+      {/* Quick-add shortcut row */}
+      <div className="flex items-center gap-2 mb-5">
+        <button
+          onClick={() => setShowAdd(true)}
+          className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white rounded-xl font-bold text-sm hover:bg-brand-700 transition-colors shadow-sm"
+        >
+          <Plus size={14} />
+          Add word
+        </button>
+        <button
+          onClick={() => navigate('/themes')}
+          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors"
+        >
+          <Layers size={14} />
+          Focus areas
+        </button>
+        <div className="flex items-center gap-1.5 ml-auto text-xs text-slate-400">
+          <Trophy size={12} className="text-emerald-500" />
+          {streakDays}d streak
+        </div>
+      </div>
+
+      {/* 2. Challenge CTA */}
+      <TodaySessionCard
+        dueCount={Math.min(dueForChallenge, CHALLENGE_SESSION_CAP)}
+        sessionDoneToday={sessionDoneToday}
+        redCount={focusConf.red}
         onChallenge={() => navigate('/challenge')}
-        onInbox={() => navigate('/library')}
+        onFocus={() => navigate('/focus')}
       />
 
-      {/* 3. Compact stats row — Goal Progress + Focus Health */}
-      <TodayCompactRow
-        streak={streak}
-        masteredCount={masteredCount}
-        focusItems={focusItems}
-        onViewProgress={() => navigate('/progress')}
-        onViewFocus={() => navigate('/focus')}
+      {/* 3. Health strip */}
+      <TodayHealthStrip
+        dueCount={Math.min(dueForChallenge, CHALLENGE_SESSION_CAP)}
+        redCount={focusConf.red}
+        almostCount={almostMasteredItems.length}
+        percentComplete={percentComplete}
+        onChallenge={() => navigate('/challenge')}
+        onFocus={() => navigate('/focus')}
+        onProgress={() => navigate('/progress')}
       />
 
-      {/* 4. Real-life Use — My Current Focus preview */}
-      <FocusThisWeekPreview onNavigate={() => navigate('/focus')} />
+      {/* 4. Nudge card */}
+      <TodayNudgeCard
+        text={nudge.text}
+        action={nudge.action}
+        actionLabel={nudge.actionLabel}
+      />
 
-      {/* 5. Focus Areas */}
+      {/* 5. Almost-mastered strip (conditional) */}
+      <AlmostMasteredStrip
+        items={almostMasteredItems}
+        onNavigate={() => navigate('/focus')}
+        onLogUsed={handleLogUsed}
+      />
+
+      {/* 6. My Current Focus preview */}
+      <TodayFocusPreview onNavigate={() => navigate('/focus')} />
+
+      {/* 7. Focus Areas (themes) */}
       <FocusAreasPreview
         themeStats={themeStats}
         onNavigateToTheme={(theme) => navigate(`/library?theme=${encodeURIComponent(theme)}`)}
@@ -1119,16 +976,13 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         processingTheme={processingTheme}
       />
 
-      {/* 6. How learning works */}
-      <HowItWorks />
+      {/* 8. Starter packs — only in empty / onboarding state */}
+      {isEmpty && <StarterPacksSection showAll={false} />}
 
-      {/* 7. Starter Packs */}
-      <StarterPacksSection showAll={false} />
+      {/* 9. How learning works — collapsed for experienced users */}
+      <HowItWorks defaultExpanded={challengeCompletions < 3} />
 
-      {/* 8. AI Insight */}
-      <AIInsightCard insight={insight} />
-
-      {/* 9. Learning profile summary card */}
+      {/* 10. Learning profile summary */}
       {onOpenOnboarding && (
         <LearningProfileCard onAdjust={onOpenOnboarding} />
       )}
