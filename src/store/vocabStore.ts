@@ -164,37 +164,65 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
     // missing from an earlier deployment (e.g., the file previously had only
     // 529 items and now has 1 156). On a completely fresh DB we seed normally;
     // on an existing DB we silently add only the items not yet present.
+    //
+    // 15-second abort prevents an unresponsive CDN from stalling the whole app.
     let migrationSeed: VocabItem[] = []
+    const fetchAbort  = new AbortController()
+    const fetchTimeout = setTimeout(() => fetchAbort.abort(), 15_000)
     try {
-      const res = await fetch('/data/migration-vocab.json')
+      const res = await fetch('/data/migration-vocab.json', { signal: fetchAbort.signal })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       migrationSeed = (await res.json()) as VocabItem[]
     } catch {
-      // Migration file unavailable — fall back to built-in seed for empty DB only
+      // Migration file unavailable, timed out, or network error — continue without it
+    } finally {
+      clearTimeout(fetchTimeout)
     }
 
     if (all.length === 0) {
-      // Fresh install
+      // Fresh install — DB is empty so bulkAdd will not hit uniqueness conflicts.
+      // If bulkAdd still fails (e.g. storage quota), fall back to bulkPut which
+      // is more tolerant and avoids the old O(n) sequential-await loop.
       const seed = migrationSeed.length > 0 ? migrationSeed : createSeedData()
       try {
         await db.items.bulkAdd(seed)
       } catch {
-        for (const item of seed) {
-          await db.items.add(item).catch(() => { /* skip duplicates */ })
-        }
+        await db.items.bulkPut(seed).catch(() => { /* storage full — give up */ })
       }
       all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
         ...i,
         themes: i.themes ?? [],
       }))
     } else if (migrationSeed.length > all.length) {
-      // Top-up: add any migration items not yet in the DB (identified by id).
-      // This handles the case where an earlier deployment had fewer items.
-      const existingIds = new Set(all.map((i) => i.id))
-      const missing = migrationSeed.filter((i) => !existingIds.has(i.id))
+      // Top-up: add migration items not yet in the DB.
+      //
+      // WHY THIS USED TO HANG: the original code did a sequential for-await loop
+      // (one IndexedDB transaction per item).  For 627 missing items that means
+      // 627 round-trips — easily 30 seconds+ and the root cause of the "Loading
+      // your vocabulary…" freeze seen in production.
+      //
+      // FIX: pre-filter by BOTH id and normalised term so bulkAdd can run in a
+      // single transaction with zero ConstraintErrors.  Filtering by term is
+      // necessary because the DB has a unique index on &term; without it, any
+      // word the user already added manually would abort the whole bulkAdd.
+      const existingIds   = new Set(all.map((i) => i.id))
+      const existingTerms = new Set(all.map((i) => i.term.toLowerCase().trim()))
+      const missing = migrationSeed.filter(
+        (i) =>
+          !existingIds.has(i.id) &&
+          !existingTerms.has(i.term.toLowerCase().trim()),
+      )
       if (missing.length > 0) {
-        for (const item of missing) {
-          await db.items.add(item).catch(() => { /* skip term collisions */ })
+        try {
+          // Single transaction — orders of magnitude faster than a sequential loop.
+          await db.items.bulkAdd(missing)
+        } catch {
+          // Unexpected error (e.g. storage quota exceeded) — add what we can.
+          // This sequential fallback only runs when bulkAdd itself fails, not
+          // for individual item conflicts (those are pre-filtered above).
+          for (const item of missing) {
+            await db.items.add(item).catch(() => { /* skip on conflict */ })
+          }
         }
         all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
           ...i,
@@ -214,15 +242,17 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       const { removedIds } = computeFocusReset(focusItems, activeThemes)
       if (removedIds.length > 0) {
         const now = new Date().toISOString()
-        for (const id of removedIds) {
-          await db.items.update(id, {
-            weeklyFocus: false,
-            inFocus: false,
+        // Single-transaction batch update — replaces the old sequential for-await loop.
+        await db.items
+          .where('id').anyOf(removedIds)
+          .modify({
+            weeklyFocus:  false,
+            inFocus:      false,
             focusAddedAt: undefined,
             focusPriority: undefined,
-            updatedAt: now,
+            updatedAt:    now,
           })
-        }
+          .catch(() => { /* non-fatal if reset fails */ })
         // Refresh all after reset
         all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
           ...i,
