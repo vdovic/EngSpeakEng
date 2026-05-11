@@ -56,6 +56,30 @@ export function getTodaySessionState(
 // ── Almost-mastered items ─────────────────────────────────────────────────────
 
 /**
+ * Predicate for "almost mastered" status.
+ * Shared by getAlmostMasteredItems and getAlmostMasteredCount so the
+ * criteria stay in one place.
+ */
+function isAlmostMastered(i: VocabItem): boolean {
+  return (
+    !i.archived &&
+    (i.exposureCount ?? 0) >= 6 &&
+    usagePoints(i.activation.usageLogs) < 3 &&
+    getCanonicalLevel(i) < 3
+  )
+}
+
+/**
+ * True total count of almost-mastered items — no display cap.
+ *
+ * Use this for KPI pills and nudge copy where the real number matters.
+ * Use getAlmostMasteredItems (with limit) for the strip row display only.
+ */
+export function getAlmostMasteredCount(items: VocabItem[]): number {
+  return items.filter(isAlmostMastered).length
+}
+
+/**
  * Items that are well-drilled but not yet activated in real life.
  *
  * Criteria:
@@ -65,17 +89,12 @@ export function getTodaySessionState(
  *   • canonical level < 3   (not already mastered)
  *
  * Sorted by exposureCount descending (highest-drilled first), then alphabetically.
- * Limited to `limit` items for the strip preview (default 4).
+ * Limited to `limit` items for the strip row display (default 4).
+ * For the true total count use getAlmostMasteredCount().
  */
 export function getAlmostMasteredItems(items: VocabItem[], limit = 4): VocabItem[] {
   return items
-    .filter(
-      (i) =>
-        !i.archived &&
-        (i.exposureCount ?? 0) >= 6 &&
-        usagePoints(i.activation.usageLogs) < 3 &&
-        getCanonicalLevel(i) < 3,
-    )
+    .filter(isAlmostMastered)
     .sort((a, b) => {
       const expDiff = (b.exposureCount ?? 0) - (a.exposureCount ?? 0)
       return expDiff !== 0 ? expDiff : a.term.localeCompare(b.term)
@@ -117,6 +136,10 @@ export interface TodayNudge {
 /**
  * Returns the single highest-priority nudge for the Today page.
  *
+ * `almostMasteredCount` must be the true total (from getAlmostMasteredCount),
+ * not the display-capped count from getAlmostMasteredItems.
+ * `dueCount` must be the visible/capped count already passed to the session card.
+ *
  * Priority order:
  *   1. No focus words → prompt to set up focus
  *   2. Red confidence > 35% of focus → challenge encouragement
@@ -126,10 +149,10 @@ export interface TodayNudge {
  *   6. Default → general encouragement
  */
 export function getTodayNudge(
-  items: VocabItem[],
   focusItems: VocabItem[],
   sessionDoneToday: boolean,
   dueCount: number,
+  almostMasteredCount: number,
 ): TodayNudge {
   // 1. No focus words yet
   if (focusItems.length === 0) {
@@ -151,17 +174,16 @@ export function getTodayNudge(
     }
   }
 
-  // 3. Almost-mastered items ready for real-life activation
-  const totalAlmost = getAlmostMasteredItems(items).length
-  if (totalAlmost > 0) {
+  // 3. Almost-mastered items ready for real-life activation (true total, no display cap)
+  if (almostMasteredCount > 0) {
     return {
-      text: `${totalAlmost} word${totalAlmost !== 1 ? 's are' : ' is'} well-drilled and ready for real-life use.`,
+      text: `${almostMasteredCount} word${almostMasteredCount !== 1 ? 's are' : ' is'} well-drilled and ready for real-life use.`,
       action: '/focus',
       actionLabel: 'See focus words',
     }
   }
 
-  // 4. High due count
+  // 4. High due count (uses the same visible/capped count as the CTA card)
   if (dueCount > 10) {
     return {
       text: `${dueCount} words are ready to practise. A session now keeps your learning on track.`,

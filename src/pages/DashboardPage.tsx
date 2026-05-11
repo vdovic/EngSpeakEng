@@ -3,25 +3,26 @@
  *
  * Sections (top→bottom):
  *  1. TodayHeader         — compact greeting + date
- *  2. TodaySessionCard    — confidence-aware challenge CTA
- *  3. TodayHealthStrip    — 4 KPI pills (due · confidence · almost-mastered · goal)
- *  4. TodayNudgeCard      — contextual nudge (no "AI" label, white card)
- *  5. AlmostMasteredStrip — well-drilled words needing real-life use (conditional)
- *  6. TodayFocusPreview   — My Current Focus list (red-first, ConfidenceDots)
- *  7. FocusAreasPreview   — real theme cards
- *  8. HowItWorks          — collapsible pipeline explainer (collapsed for experienced users)
- *  9. LearningProfileCard — profile summary + adjust link
+ *  2. TodaySessionCard    — confidence-aware challenge CTA (with session size hint)
+ *  3. SRS review chip     — subtle "X due for review" when review items exist
+ *  4. TodayHealthStrip    — 4 KPI pills (due · confidence · close · goal)
+ *  5. TodayNudgeCard      — contextual nudge (no "AI" label, white card)
+ *  6. AlmostMasteredStrip — well-drilled words needing real-life use (conditional)
+ *  7. TodayFocusPreview   — My Current Focus list (red-first, ConfidenceDots)
+ *  8. FocusAreasPreview   — real theme cards
+ *  9. HowItWorks          — collapsible pipeline explainer (collapsed for experienced users)
+ * 10. LearningProfileCard — profile summary + adjust link
  */
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Plus, Zap, Trophy,
+  Plus, Zap, Trophy, Flame,
   ChevronRight, Layers, Loader2, ChevronDown,
   SlidersHorizontal, Target, CheckCircle2, Clock, TrendingUp,
 } from 'lucide-react'
 import { getCanonicalLevel } from '@/lib/progressionLogic'
-import { useVocabStore, useWeeklyFocusItems } from '@/store/vocabStore'
+import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
@@ -33,10 +34,12 @@ import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { usagePoints } from '@/lib/mastery'
 import {
   getTodaySessionState,
+  getAlmostMasteredCount,
   getAlmostMasteredItems,
   getFocusConfidenceSummary,
   getTodayNudge,
   getGoalMomentum,
+  type SessionSize,
 } from '@/lib/todayLogic'
 import { GOAL_LABELS, INTENSITY_CONFIG } from '@/types/profile'
 import type { VocabItem } from '@/types/vocabulary'
@@ -52,6 +55,12 @@ const THEME_EMOJI: Record<string, string> = Object.fromEntries(
 const STARTER_SUGGESTIONS = SUGGESTED_THEMES.filter((s) =>
   ['Business & Professional', 'Everyday Conversation', 'Written Communication'].includes(s.name),
 )
+
+/**
+ * Sort weight for red-first ordering in TodayFocusPreview.
+ * Red (1) first, then unset (0), yellow (2), green (3).
+ */
+const CONFIDENCE_ORDER: Record<number, number> = { 1: 0, 0: 1, 2: 2, 3: 3 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +83,12 @@ function getTodayLabel(): string {
   })
 }
 
+const SESSION_SIZE_LABEL: Record<SessionSize, string> = {
+  quick:  'Quick session',
+  normal: 'Full session',
+  deep:   'Large queue',
+}
+
 // ── TodayHeader ───────────────────────────────────────────────────────────────
 
 function TodayHeader({ greeting, dateLabel }: { greeting: string; dateLabel: string }) {
@@ -86,39 +101,37 @@ function TodayHeader({ greeting, dateLabel }: { greeting: string; dateLabel: str
 }
 
 // ── TodaySessionCard ──────────────────────────────────────────────────────────
-// Confidence-aware challenge CTA with soft post-session language.
+// Confidence-aware challenge CTA with session-size hint and soft post-session state.
 
 function TodaySessionCard({
   dueCount,
   sessionDoneToday,
   redCount,
+  suggestedSize,
   onChallenge,
   onFocus,
 }: {
   dueCount: number
   sessionDoneToday: boolean
   redCount: number
+  suggestedSize: SessionSize
   onChallenge: () => void
   onFocus: () => void
 }) {
-  // Post-session: soft card — not dominant gradient
+  // Post-session + nothing left due: soft card
   if (sessionDoneToday && dueCount === 0) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">
-              Done for today ✓
-            </p>
-            <p className="text-base font-bold text-slate-900 mb-1">You've practised today</p>
-            <p className="text-sm text-slate-500">
-              Try using a focus word in a real conversation.
-            </p>
-          </div>
-        </div>
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-3">
+        <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">
+          Done for today ✓
+        </p>
+        <p className="text-base font-bold text-slate-900 mb-1">You've practised today</p>
+        <p className="text-sm text-slate-500 mb-4">
+          Try using a focus word in a real conversation.
+        </p>
         <button
           onClick={onFocus}
-          className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
+          className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
         >
           <Zap size={14} />
           Practice focus words
@@ -128,12 +141,12 @@ function TodaySessionCard({
     )
   }
 
-  // Determine confidence-aware heading
+  // Confidence-aware heading
   const heading =
     redCount > 3
       ? `${redCount} words need your attention`
       : dueCount > 0
-      ? `${Math.min(dueCount, CHALLENGE_SESSION_CAP)} word${Math.min(dueCount, CHALLENGE_SESSION_CAP) !== 1 ? 's' : ''} ready to practise`
+      ? `${dueCount} word${dueCount !== 1 ? 's' : ''} ready to practise`
       : 'Keep your momentum going'
 
   const subtext =
@@ -143,15 +156,26 @@ function TodaySessionCard({
       ? 'Session done — another round keeps it fresh.'
       : 'Daily Challenge · spaced repetition'
 
+  // Session size hint (only when there's something to do)
+  const sizeLabel = dueCount > 0 ? SESSION_SIZE_LABEL[suggestedSize] : null
+
   return (
-    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-brand-600 via-brand-700 to-violet-700 p-5 mb-5 shadow-sm">
+    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-brand-600 via-brand-700 to-violet-700 p-5 mb-3 shadow-sm">
       <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
       <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-white/5 rounded-full pointer-events-none" />
 
       <div className="relative z-10">
-        <p className="text-brand-200 text-[10px] font-bold uppercase tracking-widest mb-1">
-          {sessionDoneToday ? 'Session done · more available' : 'Ready to learn?'}
-        </p>
+        <div className="flex items-center gap-2 mb-1">
+          <p className="text-brand-200 text-[10px] font-bold uppercase tracking-widest">
+            {sessionDoneToday ? 'Session done · more available' : 'Ready to learn?'}
+          </p>
+          {sizeLabel && (
+            <span className="text-[9px] font-semibold text-brand-300 bg-white/10 px-1.5 py-0.5 rounded-full">
+              {sizeLabel}
+            </span>
+          )}
+        </div>
+
         <p className="text-lg font-bold text-white mb-0.5">{heading}</p>
         <p className="text-brand-200 text-xs mb-4">{subtext}</p>
 
@@ -176,8 +200,35 @@ function TodaySessionCard({
   )
 }
 
+// ── SRS Review chip ───────────────────────────────────────────────────────────
+// Subtle secondary signal shown when SRS review items exist.
+// Does not compete with the Challenge CTA.
+
+function ReviewChip({
+  reviewCount,
+  onNavigate,
+}: {
+  reviewCount: number
+  onNavigate: () => void
+}) {
+  if (reviewCount === 0) return null
+  return (
+    <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl mb-5">
+      <span className="text-xs text-slate-500">
+        {reviewCount} word{reviewCount !== 1 ? 's' : ''} due for review
+      </span>
+      <button
+        onClick={onNavigate}
+        className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+      >
+        Review <ChevronRight size={11} />
+      </button>
+    </div>
+  )
+}
+
 // ── TodayHealthStrip ──────────────────────────────────────────────────────────
-// 4 compact KPI pills: due · confidence · almost-mastered · goal
+// 4 compact KPI pills: due · struggling · close (to mastery) · goal
 
 function TodayHealthStrip({
   dueCount,
@@ -214,7 +265,7 @@ function TodayHealthStrip({
     {
       icon: <Zap size={12} className="text-amber-500" />,
       value: String(almostCount),
-      label: 'almost mastered',
+      label: 'close',        // Fix 4: was "almost mastered" — too long for 4-col pill
       highlight: almostCount > 0 ? 'text-amber-600 font-bold' : 'text-slate-700',
       onClick: onFocus,
     },
@@ -241,7 +292,7 @@ function TodayHealthStrip({
           <span className={`text-base font-extrabold leading-none ${pill.highlight}`}>
             {pill.value}
           </span>
-          <span className="text-[9px] text-slate-400 font-medium leading-none text-center">
+          <span className="text-[9px] text-slate-400 font-medium leading-none text-center whitespace-nowrap">
             {pill.label}
           </span>
         </button>
@@ -341,15 +392,13 @@ function AlmostMasteredStrip({
 }
 
 // ── TodayFocusPreview ─────────────────────────────────────────────────────────
-// Refactored from FocusThisWeekPreview.
 // Red-first ordering, ConfidenceDots (read-only), usagePoints().
+// CONFIDENCE_ORDER is module-level (Fix 7).
 
 function TodayFocusPreview({ onNavigate }: { onNavigate: () => void }) {
   const focusItems = useWeeklyFocusItems()
   const FOCUS_MAX  = 50
 
-  // Sort red-first: confidence 1 → 0 (unset) → 2 → 3
-  const CONFIDENCE_ORDER: Record<number, number> = { 1: 0, 0: 1, 2: 2, 3: 3 }
   const sorted = [...focusItems].sort((a, b) => {
     const ca = a.activation?.confidenceLevel ?? 0
     const cb = b.activation?.confidenceLevel ?? 0
@@ -840,9 +889,11 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
   const items      = useVocabStore((s) => s.items)
   const logUsage   = useVocabStore((s) => s.logUsage)
   const focusItems = useWeeklyFocusItems()
+  // SRS review items (review.nextReviewAt, distinct from Challenge nextChallengeDate)
+  const dueItems   = useDueItems()
 
-  const { themes, addTheme }                   = useThemesStore()
-  const { lastChallengeDate, challengeCompletions, streakDays } = useGamificationStore()
+  const { themes, addTheme }                                        = useThemesStore()
+  const { lastChallengeDate, challengeCompletions, streakDays }     = useGamificationStore()
 
   // useThemeAutoAssign must remain at component level — React hook, not conditional
   const { trigger, processingTheme } = useThemeAutoAssign()
@@ -855,18 +906,24 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
 
   // ── Derived values ──
 
-  const { dueForChallenge, sessionDoneToday } = useMemo(
+  const { dueForChallenge, sessionDoneToday, suggestedSize } = useMemo(
     () => getTodaySessionState(items, lastChallengeDate),
     [items, lastChallengeDate],
   )
 
+  // Capped count used consistently in CTA, health strip, and nudge (Fix 3)
+  const visibleDueCount = Math.min(dueForChallenge, CHALLENGE_SESSION_CAP)
+
+  // True total — not capped by display limit (Fix 2)
+  const almostMasteredCount = useMemo(() => getAlmostMasteredCount(items), [items])
+  // Display list — capped at 4 rows for the strip UI
   const almostMasteredItems = useMemo(() => getAlmostMasteredItems(items, 4), [items])
 
   const focusConf = useMemo(() => getFocusConfidenceSummary(focusItems), [focusItems])
 
   const nudge = useMemo(
-    () => getTodayNudge(items, focusItems, sessionDoneToday, dueForChallenge),
-    [items, focusItems, sessionDoneToday, dueForChallenge],
+    () => getTodayNudge(focusItems, sessionDoneToday, visibleDueCount, almostMasteredCount),
+    [focusItems, sessionDoneToday, visibleDueCount, almostMasteredCount],
   )
 
   const { percentComplete } = useMemo(() => getGoalMomentum(items), [items])
@@ -924,50 +981,60 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
           <Layers size={14} />
           Focus areas
         </button>
-        <div className="flex items-center gap-1.5 ml-auto text-xs text-slate-400">
-          <Trophy size={12} className="text-emerald-500" />
-          {streakDays}d streak
-        </div>
+        {/* Streak — Fix 1: Flame icon, hidden when zero */}
+        {streakDays > 0 && (
+          <div className="flex items-center gap-1 ml-auto text-xs text-slate-500">
+            <Flame size={12} className="text-amber-500" />
+            {streakDays}d streak
+          </div>
+        )}
       </div>
 
       {/* 2. Challenge CTA */}
       <TodaySessionCard
-        dueCount={Math.min(dueForChallenge, CHALLENGE_SESSION_CAP)}
+        dueCount={visibleDueCount}
         sessionDoneToday={sessionDoneToday}
         redCount={focusConf.red}
+        suggestedSize={suggestedSize}
         onChallenge={() => navigate('/challenge')}
         onFocus={() => navigate('/focus')}
       />
 
-      {/* 3. Health strip */}
+      {/* 3. Subtle SRS review chip — Fix 5: restores the review path */}
+      <ReviewChip
+        reviewCount={dueItems.length}
+        onNavigate={() => navigate('/review')}
+      />
+
+      {/* 4. Health strip */}
       <TodayHealthStrip
-        dueCount={Math.min(dueForChallenge, CHALLENGE_SESSION_CAP)}
+        dueCount={visibleDueCount}
         redCount={focusConf.red}
-        almostCount={almostMasteredItems.length}
+        almostCount={almostMasteredCount}
         percentComplete={percentComplete}
         onChallenge={() => navigate('/challenge')}
         onFocus={() => navigate('/focus')}
         onProgress={() => navigate('/progress')}
       />
 
-      {/* 4. Nudge card */}
+      {/* 5. Nudge card */}
       <TodayNudgeCard
         text={nudge.text}
         action={nudge.action}
         actionLabel={nudge.actionLabel}
       />
 
-      {/* 5. Almost-mastered strip (conditional) */}
+      {/* 6. Almost-mastered strip (conditional) */}
       <AlmostMasteredStrip
         items={almostMasteredItems}
         onNavigate={() => navigate('/focus')}
         onLogUsed={handleLogUsed}
       />
 
-      {/* 6. My Current Focus preview */}
+      {/* 7. My Current Focus preview */}
       <TodayFocusPreview onNavigate={() => navigate('/focus')} />
 
-      {/* 7. Focus Areas (themes) */}
+      {/* 8. Focus Areas (themes) */}
       <FocusAreasPreview
         themeStats={themeStats}
         onNavigateToTheme={(theme) => navigate(`/library?theme=${encodeURIComponent(theme)}`)}
@@ -976,13 +1043,13 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         processingTheme={processingTheme}
       />
 
-      {/* 8. Starter packs — only in empty / onboarding state */}
+      {/* 9. Starter packs — only in empty / onboarding state */}
       {isEmpty && <StarterPacksSection showAll={false} />}
 
-      {/* 9. How learning works — collapsed for experienced users */}
+      {/* 10. How learning works — collapsed for experienced users */}
       <HowItWorks defaultExpanded={challengeCompletions < 3} />
 
-      {/* 10. Learning profile summary */}
+      {/* 11. Learning profile summary */}
       {onOpenOnboarding && (
         <LearningProfileCard onAdjust={onOpenOnboarding} />
       )}
