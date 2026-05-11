@@ -27,8 +27,13 @@
  *
  * Principles enforced here:
  *   • NO recognition questions — selection belongs in Focus, not Challenge.
- *   • Sentence-production NEVER before exposure 6.
- *   • real-life-use-check NEVER without mastery evidence.
+ *   • Sentence-production is blocked before exposure 6 for unset, red, and
+ *     yellow confidence words.  Green (self-assessed comfortable) may receive
+ *     sentence-production from exposure 2, because the learner has explicitly
+ *     declared they can use the word spontaneously.
+ *   • real-life-use-check NEVER without mastery evidence (exp ≥ 8 AND
+ *     sentenceProduced OR usageCount ≥ 3).  This gate applies to all
+ *     confidence levels, including green.
  *   • All selection is deterministic (no Math.random).
  */
 
@@ -131,8 +136,19 @@ export function getChallengeType(item: VocabItem): ChallengeType {
 
   if (confidence === 3) {
     // Green — learner feels comfortable with spontaneous use.
-    // Sentence-production from exposure 2 onward; fill-gap for very fresh items.
+    //
+    // Mastery gate first: at exp 8 honour the real-life-use-check tier
+    // exactly as the unset path does, so green words are not locked out
+    // of the mastery-check challenge once they reach full exposure.
+    if (exp >= 8) {
+      const usageCount        = item.activation?.usageCount ?? 0
+      const hasMasteryEvidence = item.review.sentenceProduced || usageCount >= 3
+      return hasMasteryEvidence ? 'real-life-use-check' : 'sentence-production'
+    }
+    // Sentence-production from exposure 2 onward (earlier than unset words
+    // because the learner has self-assessed as comfortable).
     if (exp >= 2) return 'sentence-production'
+    // Very fresh item (0–1 exposures) — use fill-gap or fall back.
     const hasSentence = !!(item.exampleSentence || item.workSentence)
     return hasSentence ? 'fill-gap' : 'definition-choice'
   }
