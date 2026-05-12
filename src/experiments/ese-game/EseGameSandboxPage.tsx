@@ -1,171 +1,413 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ESE_GAME_EXPERIMENT_DB_NAME, ESE_GAME_EXPERIMENT_ROUTE } from './constants'
-import { SANDBOX_WORDS } from './sampleData'
+import { ESE_GAME_EXPERIMENT_ROUTE, SENTENCE_REPAIR_PROGRESS_KEY } from './constants'
+import { SENTENCE_REPAIR_PROMPTS, SentenceRepairPrompt } from './sampleData'
+import { loadB2C1SentenceRepairPrompts } from './starterPackVocabulary'
 import {
-  EseGameSandboxState,
-  getSandboxLastOpened,
-  loadSandboxState,
-  markSandboxOpened,
-  saveSandboxState,
+  loadSentenceRepairProgress,
+  saveSentenceRepairProgress,
+  SentenceRepairProgress,
 } from './storage'
 
+const PROMPTS_PER_RUN = 6
+
+type RunStatus = 'idle' | 'playing' | 'feedback' | 'complete'
+
+interface RunAnswer {
+  promptId: string
+  selectedChoice: string
+  isCorrect: boolean
+}
+
+interface RunState {
+  status: RunStatus
+  promptIndex: number
+  prompts: SentenceRepairPrompt[]
+  answers: RunAnswer[]
+  score: number
+  streak: number
+  bestStreak: number
+  selectedChoice: string | null
+}
+
+interface PromptLibraryState {
+  prompts: SentenceRepairPrompt[]
+  status: 'loading' | 'ready' | 'fallback'
+  label: string
+  detail: string
+}
+
+const EMPTY_RUN_STATE: RunState = {
+  status: 'idle',
+  promptIndex: 0,
+  prompts: [],
+  answers: [],
+  score: 0,
+  streak: 0,
+  bestStreak: 0,
+  selectedChoice: null,
+}
+
+function samplePrompts(prompts: SentenceRepairPrompt[]) {
+  return [...prompts]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, PROMPTS_PER_RUN)
+}
+
+function getResultLabel(score: number) {
+  if (score === PROMPTS_PER_RUN) {
+    return 'Clean run'
+  }
+  if (score >= 5) {
+    return 'Natural ear'
+  }
+  if (score >= 3) {
+    return 'Getting sharper'
+  }
+  return 'Warming up'
+}
+
 export function EseGameSandboxPage() {
-  const [state, setState] = useState<EseGameSandboxState | null>(null)
-  const [lastOpened, setLastOpened] = useState<string | null>(null)
-  const [status, setStatus] = useState('Loading sandbox storage...')
+  const [progress, setProgress] = useState<SentenceRepairProgress>(() =>
+    loadSentenceRepairProgress(),
+  )
+  const [run, setRun] = useState<RunState>(EMPTY_RUN_STATE)
+  const [promptLibrary, setPromptLibrary] = useState<PromptLibraryState>({
+    prompts: [],
+    status: 'loading',
+    label: 'Loading B2-C1 starter packs',
+    detail: 'Reading static JSON from /data/starter-packs only.',
+  })
 
   useEffect(() => {
     let cancelled = false
 
-    async function load() {
-      try {
-        markSandboxOpened()
-        const saved = await loadSandboxState()
-        if (!cancelled) {
-          setState(saved)
-          setLastOpened(getSandboxLastOpened())
-          setStatus('Experiment storage ready')
+    loadB2C1SentenceRepairPrompts()
+      .then((source) => {
+        if (cancelled) {
+          return
         }
-      } catch (error) {
-        if (!cancelled) {
-          setStatus(error instanceof Error ? error.message : 'Storage failed')
-        }
-      }
-    }
 
-    load()
+        setPromptLibrary({
+          prompts: source.prompts,
+          status: 'ready',
+          label: 'B2-C1 starter packs',
+          detail: `${source.prompts.length} prompts from ${source.wordCount} words across ${source.packCount} static packs.`,
+        })
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+
+        const message = error instanceof Error ? error.message : 'Static vocabulary fetch failed'
+        setPromptLibrary({
+          prompts: SENTENCE_REPAIR_PROMPTS,
+          status: 'fallback',
+          label: 'Fallback prompt set',
+          detail: `${message}. Using local hardcoded prompts for this run.`,
+        })
+      })
 
     return () => {
       cancelled = true
     }
   }, [])
 
-  const selectedWord = useMemo(
-    () => SANDBOX_WORDS.find((word) => word.id === state?.selectedWordId) ?? SANDBOX_WORDS[0],
-    [state?.selectedWordId],
-  )
+  const currentPrompt = run.prompts[run.promptIndex]
+  const latestAnswer = run.answers[run.answers.length - 1]
 
-  async function updateSelectedWord(selectedWordId: string) {
-    const next = await saveSandboxState({ selectedWordId })
-    setState(next)
-  }
+  const progressPercent = useMemo(() => {
+    if (run.status === 'idle') {
+      return 0
+    }
 
-  async function startSandboxRun() {
-    const next = await saveSandboxState({
-      runCount: (state?.runCount ?? 0) + 1,
+    return Math.round((run.answers.length / PROMPTS_PER_RUN) * 100)
+  }, [run.answers.length, run.status])
+
+  function startRun() {
+    if (promptLibrary.status === 'loading') {
+      return
+    }
+
+    setRun({
+      ...EMPTY_RUN_STATE,
+      status: 'playing',
+      prompts: samplePrompts(promptLibrary.prompts),
     })
-    setState(next)
   }
 
-  async function updateNotes(notes: string) {
-    const next = await saveSandboxState({ notes })
-    setState(next)
+  function selectChoice(choice: string) {
+    if (!currentPrompt || run.status !== 'playing') {
+      return
+    }
+
+    const isCorrect = choice === currentPrompt.correctChoice
+    const nextStreak = isCorrect ? run.streak + 1 : 0
+
+    setRun({
+      ...run,
+      status: 'feedback',
+      selectedChoice: choice,
+      answers: [
+        ...run.answers,
+        {
+          promptId: currentPrompt.id,
+          selectedChoice: choice,
+          isCorrect,
+        },
+      ],
+      score: isCorrect ? run.score + 1 : run.score,
+      streak: nextStreak,
+      bestStreak: Math.max(run.bestStreak, nextStreak),
+    })
+  }
+
+  function continueRun() {
+    const isComplete = run.promptIndex + 1 >= run.prompts.length
+
+    if (isComplete) {
+      const nextProgress = saveSentenceRepairProgress({
+        totalRuns: progress.totalRuns + 1,
+        bestScore: Math.max(progress.bestScore, run.score),
+        bestStreak: Math.max(progress.bestStreak, run.bestStreak),
+      })
+      setProgress(nextProgress)
+      setRun({
+        ...run,
+        status: 'complete',
+        selectedChoice: null,
+      })
+      return
+    }
+
+    setRun({
+      ...run,
+      status: 'playing',
+      promptIndex: run.promptIndex + 1,
+      selectedChoice: null,
+    })
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-zinc-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-5 py-6 sm:px-8">
-        <header className="border-b border-zinc-800 pb-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">
+    <main className="min-h-screen bg-neutral-950 text-neutral-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-5 py-6 sm:px-8">
+        <header className="border-b border-neutral-800 pb-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">
             Local experiment
           </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-normal text-white">
-            ESE Game Sandbox
-          </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-300">
-            A separate development surface for testing game mechanics without loading the
-            production vocabulary store.
-          </p>
+          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-semibold tracking-normal text-white">
+                Sentence Repair
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300">
+                Fix six unnatural sentences. No production stores, APIs, or vocabulary writes.
+              </p>
+            </div>
+            <div className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
+              {ESE_GAME_EXPERIMENT_ROUTE}
+            </div>
+          </div>
         </header>
 
-        <section className="grid flex-1 gap-5 py-6 lg:grid-cols-[1.5fr_1fr]">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-white">{selectedWord.term}</h2>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-300">
-                  {selectedWord.definition}
+        <section className="flex flex-1 flex-col justify-center py-6">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-5 shadow-2xl shadow-black/20 sm:p-6">
+            {run.status === 'idle' && (
+              <div className="mx-auto max-w-2xl py-8 text-center">
+                <p className="text-sm font-medium text-teal-300">B2-C1 starter packs</p>
+                <h2 className="mt-3 text-2xl font-semibold text-white">
+                  Fix 6 sentences before the run ends.
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-neutral-300">
+                  Choose the word or phrase that sounds most natural in context.
                 </p>
+                <div className="mx-auto mt-5 max-w-md rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-left">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Vocabulary source
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-neutral-100">
+                    {promptLibrary.label}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-neutral-400">
+                    {promptLibrary.detail}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={startRun}
+                  disabled={promptLibrary.status === 'loading'}
+                  className="mt-7 rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {promptLibrary.status === 'loading' ? 'Loading prompts...' : 'Start run'}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={startSandboxRun}
-                className="rounded-md bg-emerald-500 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400"
-              >
-                Start run
-              </button>
-            </div>
+            )}
 
-            <div className="mt-6 rounded-md border border-zinc-700 bg-zinc-950 p-4">
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-zinc-500">
-                Prompt
-              </p>
-              <p className="mt-2 text-base leading-7 text-zinc-100">{selectedWord.prompt}</p>
-            </div>
+            {(run.status === 'playing' || run.status === 'feedback') && currentPrompt && (
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                  <div className="font-medium text-neutral-300">
+                    Sentence {run.promptIndex + 1} / {PROMPTS_PER_RUN}
+                  </div>
+                  <div className="flex gap-3 text-neutral-400">
+                    <span>Score {run.score}</span>
+                    <span>Streak {run.streak}</span>
+                    <span>Best {run.bestStreak}</span>
+                  </div>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-800">
+                  <div
+                    className="h-full rounded-full bg-teal-400 transition-all"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
 
-            <label className="mt-6 block text-sm font-medium text-zinc-200" htmlFor="sandbox-notes">
-              Experiment notes
-            </label>
-            <textarea
-              id="sandbox-notes"
-              value={state?.notes ?? ''}
-              onChange={(event) => updateNotes(event.target.value)}
-              className="mt-2 min-h-32 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none transition focus:border-emerald-400"
-              placeholder="Track mechanic ideas, friction, and learning-loop fit."
-            />
+                <div className="mt-8 rounded-md border border-neutral-800 bg-neutral-950 p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Repair the highlighted phrase
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {currentPrompt.difficulty && (
+                      <span className="rounded bg-teal-400/10 px-2 py-1 text-xs font-semibold text-teal-300">
+                        {currentPrompt.difficulty}
+                      </span>
+                    )}
+                    {currentPrompt.register && (
+                      <span className="rounded bg-neutral-800 px-2 py-1 text-xs font-medium text-neutral-300">
+                        {currentPrompt.register}
+                      </span>
+                    )}
+                    {(currentPrompt.tags ?? []).slice(0, 2).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded bg-neutral-800 px-2 py-1 text-xs font-medium text-neutral-300"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-4 text-2xl leading-10 text-white">
+                    {currentPrompt.sentence.split(currentPrompt.target)[0]}
+                    <mark className="rounded bg-amber-300 px-1 text-neutral-950">
+                      {currentPrompt.target}
+                    </mark>
+                    {currentPrompt.sentence.split(currentPrompt.target).slice(1).join(currentPrompt.target)}
+                  </p>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {currentPrompt.choices.map((choice) => {
+                    const isSelected = run.selectedChoice === choice
+                    const isCorrect = currentPrompt.correctChoice === choice
+                    const showCorrect = run.status === 'feedback' && isCorrect
+                    const showIncorrect = run.status === 'feedback' && isSelected && !isCorrect
+
+                    return (
+                      <button
+                        key={choice}
+                        type="button"
+                        onClick={() => selectChoice(choice)}
+                        disabled={run.status === 'feedback'}
+                        className={`min-h-14 rounded-md border px-4 py-3 text-left text-sm font-semibold transition ${
+                          showCorrect
+                            ? 'border-teal-300 bg-teal-300 text-neutral-950'
+                            : showIncorrect
+                              ? 'border-rose-300 bg-rose-300 text-neutral-950'
+                              : 'border-neutral-700 bg-neutral-950 text-neutral-100 hover:border-teal-300 disabled:hover:border-neutral-700'
+                        }`}
+                      >
+                        {choice}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {run.status === 'feedback' && latestAnswer && (
+                  <div className="mt-6 rounded-md border border-neutral-700 bg-neutral-950 p-4">
+                    <p
+                      className={`text-sm font-semibold ${
+                        latestAnswer.isCorrect ? 'text-teal-300' : 'text-rose-300'
+                      }`}
+                    >
+                      {latestAnswer.isCorrect ? 'Correct' : 'Not quite'}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-neutral-300">
+                      {currentPrompt.explanation}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={continueRun}
+                      className="mt-4 rounded-md bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200"
+                    >
+                      {run.promptIndex + 1 >= run.prompts.length ? 'Show result' : 'Continue'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {run.status === 'complete' && (
+              <div className="mx-auto max-w-2xl py-8 text-center">
+                <p className="text-sm font-medium text-teal-300">{getResultLabel(run.score)}</p>
+                <h2 className="mt-3 text-4xl font-semibold text-white">
+                  {run.score} / {PROMPTS_PER_RUN}
+                </h2>
+                <div className="mt-7 grid gap-3 sm:grid-cols-4">
+                  <ResultMetric label="Score" value={`${run.score}/${PROMPTS_PER_RUN}`} />
+                  <ResultMetric label="Streak" value={run.streak.toString()} />
+                  <ResultMetric label="Best streak" value={progress.bestStreak.toString()} />
+                  <ResultMetric label="Runs played" value={progress.totalRuns.toString()} />
+                </div>
+                <div className="mt-7 flex flex-wrap justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={startRun}
+                    className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300"
+                  >
+                    Play again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRun(EMPTY_RUN_STATE)}
+                    className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500"
+                  >
+                    Back to start
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          <aside className="space-y-5">
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-zinc-400">
-                Sandbox words
-              </h2>
-              <div className="mt-4 space-y-2">
-                {SANDBOX_WORDS.map((word) => (
-                  <button
-                    key={word.id}
-                    type="button"
-                    onClick={() => updateSelectedWord(word.id)}
-                    className={`w-full rounded-md border px-3 py-2 text-left text-sm transition ${
-                      word.id === selectedWord.id
-                        ? 'border-emerald-400 bg-emerald-400/10 text-emerald-100'
-                        : 'border-zinc-800 bg-zinc-950 text-zinc-300 hover:border-zinc-600'
-                    }`}
-                  >
-                    {word.term}
-                  </button>
-                ))}
-              </div>
+          <aside className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
+              <p className="text-neutral-500">Best score</p>
+              <p className="mt-1 text-lg font-semibold text-white">
+                {progress.bestScore} / {PROMPTS_PER_RUN}
+              </p>
             </div>
-
-            <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-5 text-sm text-zinc-300">
-              <h2 className="font-semibold text-white">Isolation status</h2>
-              <dl className="mt-4 space-y-3">
-                <div>
-                  <dt className="text-zinc-500">Route</dt>
-                  <dd className="break-all text-zinc-200">{ESE_GAME_EXPERIMENT_ROUTE}</dd>
-                </div>
-                <div>
-                  <dt className="text-zinc-500">IndexedDB</dt>
-                  <dd className="text-zinc-200">{ESE_GAME_EXPERIMENT_DB_NAME}</dd>
-                </div>
-                <div>
-                  <dt className="text-zinc-500">Runs</dt>
-                  <dd className="text-zinc-200">{state?.runCount ?? 0}</dd>
-                </div>
-                <div>
-                  <dt className="text-zinc-500">Status</dt>
-                  <dd className="text-zinc-200">{status}</dd>
-                </div>
-                <div>
-                  <dt className="text-zinc-500">Last opened</dt>
-                  <dd className="break-all text-zinc-200">{lastOpened ?? 'Not recorded'}</dd>
-                </div>
-              </dl>
+            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
+              <p className="text-neutral-500">Best streak</p>
+              <p className="mt-1 text-lg font-semibold text-white">{progress.bestStreak}</p>
+            </div>
+            <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
+              <p className="text-neutral-500">Storage / source</p>
+              <p className="mt-1 break-all text-xs font-medium text-neutral-300">
+                {SENTENCE_REPAIR_PROGRESS_KEY}
+              </p>
+              <p className="mt-2 text-xs text-neutral-500">{promptLibrary.label}</p>
             </div>
           </aside>
         </section>
       </div>
     </main>
+  )
+}
+
+function ResultMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
+      <p className="text-xs text-neutral-500">{label}</p>
+      <p className="mt-1 text-xl font-semibold text-white">{value}</p>
+    </div>
   )
 }
