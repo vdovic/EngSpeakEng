@@ -13,6 +13,21 @@ export interface SentenceRepairPrompt {
   tags?: string[]
 }
 
+export interface PhraseUpgradePrompt {
+  id: string
+  basicSentence: string
+  choices: string[]
+  correctChoice: string
+  upgradedSentence: string
+  whyStronger: string
+  nuance: string
+  skillFocus?: string
+  weakChoiceFeedback?: Record<string, string>
+  difficulty?: 'B2' | 'C1' | 'Mixed'
+  register?: 'formal' | 'neutral' | 'conversational'
+  tags?: string[]
+}
+
 export const SENTENCE_REPAIR_PROMPTS: SentenceRepairPrompt[] = [
   {
     id: 'repair-subject-to',
@@ -217,5 +232,208 @@ export const SENTENCE_REPAIR_PROMPTS: SentenceRepairPrompt[] = [
     difficulty: 'C1',
     register: 'formal',
     tags: ['writing', 'relevance'],
+  },
+]
+
+export const PHRASE_UPGRADE_PROMPTS: PhraseUpgradePrompt[] = [
+  {
+    id: 'upgrade-succinct-update',
+    basicSentence: 'Please make the update short and clear.',
+    choices: [
+      'Please keep the update succinct.',
+      'Please make the update tiny and simple.',
+      'Please make the update with less words.',
+    ],
+    correctChoice: 'Please keep the update succinct.',
+    upgradedSentence: 'Please keep the update succinct.',
+    whyStronger:
+      '"Succinct" combines brevity and clarity, so it is more precise than "short and clear."',
+    nuance:
+      'Professional and neutral. It asks for concise writing without sounding abrupt or informal.',
+    skillFocus: 'concise professional wording',
+    weakChoiceFeedback: {
+      'Please make the update tiny and simple.':
+        '"Tiny" sounds informal and refers more to physical size than communication style.',
+      'Please make the update with less words.':
+        'This is understandable, but "fewer words" would be grammatical and still less natural than "succinct."',
+    },
+    difficulty: 'C1',
+    register: 'formal',
+    tags: ['writing', 'precision'],
+  },
+  {
+    id: 'upgrade-raise-concern',
+    basicSentence: 'I want to say a problem about the timeline.',
+    choices: [
+      'I would like to raise a concern about the timeline.',
+      'I want to tell a concern about the timeline.',
+      'I would like to complain about the timeline.',
+    ],
+    correctChoice: 'I would like to raise a concern about the timeline.',
+    upgradedSentence: 'I would like to raise a concern about the timeline.',
+    whyStronger:
+      '"Raise a concern" is the natural professional collocation for introducing a possible issue.',
+    nuance:
+      'Diplomatic and businesslike. It signals a concern without sounding emotional or accusatory.',
+    skillFocus: 'business collocation',
+    weakChoiceFeedback: {
+      'I want to tell a concern about the timeline.':
+        '"Tell a concern" is not a natural collocation in English.',
+      'I would like to complain about the timeline.':
+        '"Complain" is stronger and more negative than the intended professional tone.',
+    },
+    difficulty: 'B2',
+    register: 'neutral',
+    tags: ['meetings', 'assertiveness'],
+  },
+  {
+    id: 'upgrade-circle-back',
+    basicSentence: 'I want to go back to the budget point before we finish.',
+    choices: [
+      'I would like to circle back to the budget point before we close.',
+      'I want to return back to the budget point before we finish.',
+      'I want to repeat the budget point before we stop.',
+    ],
+    correctChoice: 'I would like to circle back to the budget point before we close.',
+    upgradedSentence: 'I would like to circle back to the budget point before we close.',
+    whyStronger:
+      '"Circle back to" is a natural meeting phrase for returning to an earlier topic.',
+    nuance:
+      'Polished but not overly formal. It sounds collaborative and fits spoken meeting English.',
+    skillFocus: 'meeting phrasing',
+    weakChoiceFeedback: {
+      'I want to return back to the budget point before we finish.':
+        '"Return back" is redundant, and the sentence sounds less idiomatic.',
+      'I want to repeat the budget point before we stop.':
+        '"Repeat" suggests saying the same thing again, not reopening the topic for discussion.',
+    },
+    difficulty: 'C1',
+    register: 'neutral',
+    tags: ['meetings', 'follow-up'],
+  },
+  {
+    id: 'upgrade-close-loop',
+    basicSentence: 'I wanted to finish the supplier issue with one final message.',
+    choices: [
+      'I wanted to close the loop on the supplier issue.',
+      'I wanted to close a circle about the supplier issue.',
+      'I wanted to end the supplier issue totally.',
+    ],
+    correctChoice: 'I wanted to close the loop on the supplier issue.',
+    upgradedSentence: 'I wanted to close the loop on the supplier issue.',
+    whyStronger:
+      '"Close the loop on" means provide final follow-up so an issue is no longer open.',
+    nuance:
+      'Common in professional email and project follow-up. It is efficient and signals completion.',
+    skillFocus: 'follow-up idiom',
+    weakChoiceFeedback: {
+      'I wanted to close a circle about the supplier issue.':
+        'This translates the image literally, but it is not the English business idiom.',
+      'I wanted to end the supplier issue totally.':
+        '"Totally" is too casual and the sentence sounds blunt.',
+    },
+    difficulty: 'C1',
+    register: 'neutral',
+    tags: ['emails', 'follow-up'],
+  },
+  {
+    id: 'upgrade-caveat',
+    basicSentence: 'The recommendation is strong, but there is one warning.',
+    choices: [
+      'The recommendation is strong, but there is one caveat.',
+      'The recommendation is strong, but there is one threat.',
+      'The recommendation is strong, but there is one bad thing.',
+    ],
+    correctChoice: 'The recommendation is strong, but there is one caveat.',
+    upgradedSentence: 'The recommendation is strong, but there is one caveat.',
+    whyStronger:
+      '"Caveat" precisely means a limitation or qualification attached to a recommendation.',
+    nuance:
+      'Analytical and measured. It softens the negative point while keeping the meaning clear.',
+    skillFocus: 'nuanced qualification',
+    weakChoiceFeedback: {
+      'The recommendation is strong, but there is one threat.':
+        '"Threat" suggests danger and is too severe for a limitation in an argument.',
+      'The recommendation is strong, but there is one bad thing.':
+        '"Bad thing" is vague and too informal for a professional recommendation.',
+    },
+    difficulty: 'C1',
+    register: 'neutral',
+    tags: ['risk', 'writing'],
+  },
+  {
+    id: 'upgrade-action-items',
+    basicSentence: 'I will send the next things to do from the meeting.',
+    choices: [
+      'I will send the action items from the meeting.',
+      'I will send the agenda items from the meeting.',
+      'I will send the meeting jobs from the meeting.',
+    ],
+    correctChoice: 'I will send the action items from the meeting.',
+    upgradedSentence: 'I will send the action items from the meeting.',
+    whyStronger:
+      '"Action items" are assigned follow-up tasks from a meeting, often with owners and deadlines.',
+    nuance:
+      'Clear and operational. It sounds specific without becoming overly formal.',
+    skillFocus: 'meeting follow-up vocabulary',
+    weakChoiceFeedback: {
+      'I will send the agenda items from the meeting.':
+        '"Agenda items" are discussion topics, not tasks assigned after the meeting.',
+      'I will send the meeting jobs from the meeting.':
+        '"Meeting jobs" is not a natural professional phrase.',
+    },
+    difficulty: 'B2',
+    register: 'neutral',
+    tags: ['meetings', 'follow-up'],
+  },
+  {
+    id: 'upgrade-pertinent',
+    basicSentence: 'Please include only information that is connected to the issue.',
+    choices: [
+      'Please include only pertinent information.',
+      'Please include only possible information.',
+      'Please include only information about things.',
+    ],
+    correctChoice: 'Please include only pertinent information.',
+    upgradedSentence: 'Please include only pertinent information.',
+    whyStronger:
+      '"Pertinent" means directly relevant to the matter, making the sentence shorter and more exact.',
+    nuance:
+      'Formal and efficient. It is appropriate for reports, policies, and written requests.',
+    skillFocus: 'concise formal adjective',
+    weakChoiceFeedback: {
+      'Please include only possible information.':
+        '"Possible" does not express relevance and leaves the instruction unclear.',
+      'Please include only information about things.':
+        'This is vague and much less professional than the original basic sentence.',
+    },
+    difficulty: 'C1',
+    register: 'formal',
+    tags: ['writing', 'relevance'],
+  },
+  {
+    id: 'upgrade-notwithstanding',
+    basicSentence: 'Even with the delay, the project remains within budget.',
+    choices: [
+      'Notwithstanding the delay, the project remains within budget.',
+      'Because of the delay, the project remains within budget.',
+      'Due to the delay, the project remains within budget.',
+    ],
+    correctChoice: 'Notwithstanding the delay, the project remains within budget.',
+    upgradedSentence: 'Notwithstanding the delay, the project remains within budget.',
+    whyStronger:
+      '"Notwithstanding" introduces a formal contrast: the delay happened, but the budget result still holds.',
+    nuance:
+      'Formal written register. It is stronger for reports than casual phrases like "even with."',
+    skillFocus: 'contrast connector',
+    weakChoiceFeedback: {
+      'Because of the delay, the project remains within budget.':
+        '"Because of" makes the delay sound like the cause of the budget result, which changes the logic.',
+      'Due to the delay, the project remains within budget.':
+        '"Due to" also expresses cause, not contrast.',
+    },
+    difficulty: 'C1',
+    register: 'formal',
+    tags: ['writing', 'contrast'],
   },
 ]

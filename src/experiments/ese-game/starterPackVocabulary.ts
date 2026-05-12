@@ -1,4 +1,4 @@
-import { SentenceRepairPrompt } from './sampleData'
+import { PhraseUpgradePrompt, SentenceRepairPrompt } from './sampleData'
 
 const STARTER_PACK_INDEX_URL = '/data/starter-packs/index.json'
 const STARTER_PACK_BASE_URL = '/data/starter-packs'
@@ -27,6 +27,12 @@ interface StarterPack extends StarterPackMeta {
 
 export interface SentenceRepairPromptSource {
   prompts: SentenceRepairPrompt[]
+  packCount: number
+  wordCount: number
+}
+
+export interface PhraseUpgradePromptSource {
+  prompts: PhraseUpgradePrompt[]
   packCount: number
   wordCount: number
 }
@@ -70,6 +76,10 @@ function sentenceCaseLike(source: string, replacement: string): string {
   }
 
   return replacement.charAt(0).toUpperCase() + replacement.slice(1)
+}
+
+function lowerFirst(value: string): string {
+  return value.charAt(0).toLowerCase() + value.slice(1)
 }
 
 function selectTemptingAlternative(word: StarterPackWord): string | null {
@@ -239,6 +249,83 @@ function toPrompt(
   }
 }
 
+function toPhraseUpgradePrompt(
+  word: StarterPackWord,
+  difficulty: StarterPackDifficulty,
+): PhraseUpgradePrompt | null {
+  if (!word.exampleSentence || !word.definitionEn) {
+    return null
+  }
+
+  const plainAlternative = selectTemptingAlternative(word)
+  if (!plainAlternative || normaliseChoice(plainAlternative) === normaliseChoice(word.term)) {
+    return null
+  }
+
+  const basicSentence = replaceTerm(
+    word.exampleSentence,
+    word.term,
+    sentenceCaseLike(word.term, plainAlternative),
+  )
+  if (!basicSentence || basicSentence === word.exampleSentence) {
+    return null
+  }
+
+  const vagueChoice = replaceTerm(
+    word.exampleSentence,
+    word.term,
+    sentenceCaseLike(word.term, 'a good option'),
+  )
+  const overdoneChoice = `It is important to note that ${lowerFirst(word.exampleSentence)}`
+
+  const choices = shuffle(
+    uniqueChoices([
+      word.exampleSentence,
+      basicSentence,
+      vagueChoice ?? basicSentence,
+      overdoneChoice,
+    ]),
+  ).slice(0, 3)
+
+  if (choices.length < 3 || !choices.includes(word.exampleSentence)) {
+    return null
+  }
+
+  const focus = word.term.includes(' ') ? 'professional phrase upgrade' : 'precise vocabulary'
+  const register = word.register ?? 'neutral'
+  const nuance = [
+    word.nuance,
+    `Register: ${register}.`,
+    `Meaning: ${word.definitionEn}`,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return {
+    id: `starter-pack-upgrade-${difficulty.toLowerCase()}-${word.term
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')}`,
+    basicSentence,
+    choices,
+    correctChoice: word.exampleSentence,
+    upgradedSentence: word.exampleSentence,
+    whyStronger: `"${word.term}" is more precise and natural in this context than the plainer wording.`,
+    nuance,
+    skillFocus: focus,
+    weakChoiceFeedback: Object.fromEntries(
+      choices
+        .filter((choice) => choice !== word.exampleSentence)
+        .map((choice) => [
+          choice,
+          'This version is understandable, but it is less precise or less natural than the strongest upgrade.',
+        ]),
+    ),
+    difficulty,
+    register,
+    tags: word.tags ?? [],
+  }
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url)
   if (!response.ok) {
@@ -267,6 +354,34 @@ export async function loadB2C1SentenceRepairPrompts(): Promise<SentenceRepairPro
 
   if (prompts.length < MIN_PROMPTS) {
     throw new Error(`Only ${prompts.length} B2-C1 prompts could be built`)
+  }
+
+  return {
+    prompts,
+    packCount: packs.length,
+    wordCount: words.length,
+  }
+}
+
+export async function loadB2C1PhraseUpgradePrompts(): Promise<PhraseUpgradePromptSource> {
+  const index = await fetchJson<StarterPackMeta[]>(STARTER_PACK_INDEX_URL)
+  const selectedPacks = index.filter(isB2C1Pack)
+
+  const packs = await Promise.all(
+    selectedPacks.map((pack) =>
+      fetchJson<StarterPack>(`${STARTER_PACK_BASE_URL}/${pack.id}.json`),
+    ),
+  )
+
+  const words = packs.flatMap((pack) => pack.words)
+  const prompts = packs
+    .flatMap((pack) =>
+      pack.words.map((word) => toPhraseUpgradePrompt(word, pack.difficulty)),
+    )
+    .filter((prompt): prompt is PhraseUpgradePrompt => prompt !== null)
+
+  if (prompts.length < MIN_PROMPTS) {
+    throw new Error(`Only ${prompts.length} B2-C1 phrase upgrade prompts could be built`)
   }
 
   return {
