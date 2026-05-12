@@ -17,6 +17,7 @@ interface StarterPackWord {
   definitionEn?: string
   nuance?: string
   register?: 'formal' | 'neutral' | 'conversational'
+  synonyms?: string[]
   tags?: string[]
 }
 
@@ -63,19 +64,97 @@ function uniqueChoices(choices: string[]): string[] {
   })
 }
 
-function pickReplacement(word: StarterPackWord): string | null {
-  const fallbackByRegister = {
-    formal: 'do',
-    neutral: 'use',
-    conversational: 'say',
-  } as const
-
-  const [firstTag] = word.tags ?? []
-  if (firstTag?.includes('connect')) {
-    return 'also'
+function sentenceCaseLike(source: string, replacement: string): string {
+  if (source[0] !== source[0]?.toUpperCase()) {
+    return replacement
   }
 
-  return fallbackByRegister[word.register ?? 'neutral'] ?? 'use'
+  return replacement.charAt(0).toUpperCase() + replacement.slice(1)
+}
+
+function selectTemptingAlternative(word: StarterPackWord): string | null {
+  const candidates = [
+    ...(word.synonyms ?? []),
+    word.definitionEn?.split(/[;,.(]/)[0],
+  ].filter((candidate): candidate is string => Boolean(candidate && candidate.length <= 38))
+
+  return uniqueChoices(candidates).find(
+    (candidate) => normaliseChoice(candidate) !== normaliseChoice(word.term),
+  ) ?? null
+}
+
+function getErrorPattern(word: StarterPackWord): {
+  replacement: string
+  focus: string
+  reason: string
+} | null {
+  const term = word.term.trim()
+  const [firstWord, secondWord] = term.split(/\s+/)
+  const synonym = selectTemptingAlternative(word)
+
+  if (term.includes(' on')) {
+    return {
+      replacement: term.replace(/\bon\b/i, ''),
+      focus: 'missing preposition',
+      reason: `"${term}" needs "on" before the topic in this context.`,
+    }
+  }
+
+  if (term.includes(' with')) {
+    return {
+      replacement: term.replace(/\bwith\b/i, 'to'),
+      focus: 'wrong preposition',
+      reason: `"${term}" is the fixed phrase here; changing the preposition makes it sound non-native.`,
+    }
+  }
+
+  if (term.includes(' to')) {
+    return {
+      replacement: term.replace(/\bto\b/i, 'for'),
+      focus: 'wrong preposition',
+      reason: `"${term}" is the natural pattern for this idea.`,
+    }
+  }
+
+  if (term.includes(' of')) {
+    return {
+      replacement: term.replace(/\bof\b/i, 'about'),
+      focus: 'wrong phrase pattern',
+      reason: `"${term}" is the expected professional phrase in this sentence.`,
+    }
+  }
+
+  if (term.includes(' ')) {
+    return {
+      replacement: synonym ?? firstWord,
+      focus: 'phrase precision',
+      reason: `"${term}" works as a complete expression; the shorter wording loses the intended professional meaning.`,
+    }
+  }
+
+  if (word.register === 'formal' && synonym) {
+    return {
+      replacement: synonym,
+      focus: 'register and precision',
+      reason: `"${term}" is more precise and more appropriate for this formal context than the plainer alternative.`,
+    }
+  }
+
+  if (secondWord) {
+    return {
+      replacement: firstWord,
+      focus: 'phrase precision',
+      reason: `"${term}" is the complete phrase expected here.`,
+    }
+  }
+
+  return synonym
+    ? {
+        replacement: synonym,
+        focus: 'word choice',
+        reason: `"${term}" is the more natural choice in this exact sentence.`,
+      }
+    : null
 }
 
 function getDistractors(word: StarterPackWord, allWords: StarterPackWord[]): string[] {
@@ -85,11 +164,11 @@ function getDistractors(word: StarterPackWord, allWords: StarterPackWord[]): str
     .filter((candidate) =>
       (candidate.tags ?? []).some((tag) => sameTag.has(normaliseChoice(tag))),
     )
-    .map((candidate) => candidate.term)
+    .flatMap((candidate) => [candidate.term, ...(candidate.synonyms ?? []).slice(0, 1)])
 
   const fromAnyPack = allWords
     .filter((candidate) => candidate.term !== word.term)
-    .map((candidate) => candidate.term)
+    .flatMap((candidate) => [candidate.term, ...(candidate.synonyms ?? []).slice(0, 1)])
 
   return uniqueChoices([...fromSameTag, ...fromAnyPack]).slice(0, 2)
 }
@@ -107,11 +186,12 @@ function toPrompt(
     return null
   }
 
-  const replacement = pickReplacement(word)
-  if (!replacement || normaliseChoice(replacement) === normaliseChoice(word.term)) {
+  const errorPattern = getErrorPattern(word)
+  if (!errorPattern || normaliseChoice(errorPattern.replacement) === normaliseChoice(word.term)) {
     return null
   }
 
+  const replacement = sentenceCaseLike(word.term, errorPattern.replacement)
   const sentence = replaceTerm(word.exampleSentence, word.term, replacement)
   if (!sentence) {
     return null
@@ -124,12 +204,15 @@ function toPrompt(
   }
 
   const context = [
-    word.definitionEn,
+    errorPattern.reason,
     word.nuance,
+    `Meaning: ${word.definitionEn}`,
     word.register ? `Register: ${word.register}.` : undefined,
   ]
     .filter(Boolean)
     .join(' ')
+
+  const repairedSentence = replaceTerm(sentence, replacement, word.term) ?? word.exampleSentence
 
   return {
     id: `starter-pack-${difficulty.toLowerCase()}-${word.term
@@ -139,7 +222,17 @@ function toPrompt(
     target: replacement,
     choices,
     correctChoice: word.term,
-    explanation: `"${word.term}" is the ${difficulty} choice here. ${context}`,
+    repairedSentence,
+    skillFocus: errorPattern.focus,
+    explanation: `${context}`,
+    wrongChoiceFeedback: Object.fromEntries(
+      choices
+        .filter((choice) => choice !== word.term)
+        .map((choice) => [
+          choice,
+          `"${choice}" is related vocabulary, but it does not repair this sentence as naturally as "${word.term}".`,
+        ]),
+    ),
     difficulty,
     register: word.register,
     tags: word.tags ?? [],

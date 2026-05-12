@@ -16,6 +16,7 @@ interface RunAnswer {
   promptId: string
   selectedChoice: string
   isCorrect: boolean
+  feedback?: string
 }
 
 interface RunState {
@@ -64,6 +65,14 @@ function getResultLabel(score: number) {
     return 'Getting sharper'
   }
   return 'Warming up'
+}
+
+function repairSentence(prompt: SentenceRepairPrompt): string {
+  if (prompt.repairedSentence) {
+    return prompt.repairedSentence
+  }
+
+  return prompt.sentence.replace(prompt.target, prompt.correctChoice)
 }
 
 export function EseGameSandboxPage() {
@@ -154,6 +163,7 @@ export function EseGameSandboxPage() {
           promptId: currentPrompt.id,
           selectedChoice: choice,
           isCorrect,
+          feedback: currentPrompt.wrongChoiceFeedback?.[choice],
         },
       ],
       score: isCorrect ? run.score + 1 : run.score,
@@ -190,32 +200,32 @@ export function EseGameSandboxPage() {
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-5 py-6 sm:px-8">
-        <header className="border-b border-neutral-800 pb-5">
+      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-4 sm:px-8 sm:py-6">
+        <header className="border-b border-neutral-800 pb-4 sm:pb-5">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">
             Local experiment
           </p>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-semibold tracking-normal text-white">
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">
                 Sentence Repair
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300">
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300 sm:mt-3">
                 Fix six unnatural sentences. No production stores, APIs, or vocabulary writes.
               </p>
             </div>
-            <div className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
+            <div className="w-fit max-w-full break-all rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
               {ESE_GAME_EXPERIMENT_ROUTE}
             </div>
           </div>
         </header>
 
-        <section className="flex flex-1 flex-col justify-center py-6">
-          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-5 shadow-2xl shadow-black/20 sm:p-6">
+        <section className="flex flex-1 flex-col justify-center py-4 sm:py-6">
+          <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
             {run.status === 'idle' && (
-              <div className="mx-auto max-w-2xl py-8 text-center">
+              <div className="mx-auto max-w-2xl py-6 text-center sm:py-8">
                 <p className="text-sm font-medium text-teal-300">B2-C1 starter packs</p>
-                <h2 className="mt-3 text-2xl font-semibold text-white">
+                <h2 className="mt-3 text-xl font-semibold text-white sm:text-2xl">
                   Fix 6 sentences before the run ends.
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-neutral-300">
@@ -236,7 +246,7 @@ export function EseGameSandboxPage() {
                   type="button"
                   onClick={startRun}
                   disabled={promptLibrary.status === 'loading'}
-                  className="mt-7 rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-7 w-full rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                   {promptLibrary.status === 'loading' ? 'Loading prompts...' : 'Start run'}
                 </button>
@@ -245,11 +255,11 @@ export function EseGameSandboxPage() {
 
             {(run.status === 'playing' || run.status === 'feedback') && currentPrompt && (
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                   <div className="font-medium text-neutral-300">
                     Sentence {run.promptIndex + 1} / {PROMPTS_PER_RUN}
                   </div>
-                  <div className="flex gap-3 text-neutral-400">
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400">
                     <span>Score {run.score}</span>
                     <span>Streak {run.streak}</span>
                     <span>Best {run.bestStreak}</span>
@@ -262,7 +272,7 @@ export function EseGameSandboxPage() {
                   />
                 </div>
 
-                <div className="mt-8 rounded-md border border-neutral-800 bg-neutral-950 p-5">
+                <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:mt-8 sm:p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                     Repair the highlighted phrase
                   </p>
@@ -286,7 +296,7 @@ export function EseGameSandboxPage() {
                       </span>
                     ))}
                   </div>
-                  <p className="mt-4 text-2xl leading-10 text-white">
+                  <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
                     {currentPrompt.sentence.split(currentPrompt.target)[0]}
                     <mark className="rounded bg-amber-300 px-1 text-neutral-950">
                       {currentPrompt.target}
@@ -308,12 +318,12 @@ export function EseGameSandboxPage() {
                         type="button"
                         onClick={() => selectChoice(choice)}
                         disabled={run.status === 'feedback'}
-                        className={`min-h-14 rounded-md border px-4 py-3 text-left text-sm font-semibold transition ${
+                        className={`min-h-14 rounded-md border px-4 py-3 text-left text-sm font-semibold shadow-sm transition active:scale-[0.99] ${
                           showCorrect
-                            ? 'border-teal-300 bg-teal-300 text-neutral-950'
+                            ? 'border-teal-300 bg-teal-300 text-neutral-950 shadow-teal-950/30'
                             : showIncorrect
-                              ? 'border-rose-300 bg-rose-300 text-neutral-950'
-                              : 'border-neutral-700 bg-neutral-950 text-neutral-100 hover:border-teal-300 disabled:hover:border-neutral-700'
+                              ? 'border-rose-300 bg-rose-300 text-neutral-950 shadow-rose-950/30'
+                              : 'border-neutral-700 bg-neutral-950 text-neutral-100 hover:border-teal-300 hover:bg-neutral-900 disabled:hover:border-neutral-700 disabled:hover:bg-neutral-950'
                         }`}
                       >
                         {choice}
@@ -323,21 +333,49 @@ export function EseGameSandboxPage() {
                 </div>
 
                 {run.status === 'feedback' && latestAnswer && (
-                  <div className="mt-6 rounded-md border border-neutral-700 bg-neutral-950 p-4">
-                    <p
-                      className={`text-sm font-semibold ${
-                        latestAnswer.isCorrect ? 'text-teal-300' : 'text-rose-300'
-                      }`}
-                    >
-                      {latestAnswer.isCorrect ? 'Correct' : 'Not quite'}
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-neutral-300">
+                  <div className="mt-6 rounded-md border border-neutral-700 bg-neutral-950 p-4 sm:p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p
+                          className={`text-sm font-semibold ${
+                            latestAnswer.isCorrect ? 'text-teal-300' : 'text-rose-300'
+                          }`}
+                        >
+                          {latestAnswer.isCorrect ? 'Correct' : 'Not quite'}
+                        </p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-neutral-500">
+                          {currentPrompt.skillFocus ?? 'sentence repair'}
+                        </p>
+                      </div>
+                      {!latestAnswer.isCorrect && (
+                        <div className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-300">
+                          Your pick: <span className="font-semibold text-rose-300">{latestAnswer.selectedChoice}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {!latestAnswer.isCorrect && latestAnswer.feedback && (
+                      <p className="mt-4 rounded-md border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-sm leading-6 text-rose-100">
+                        {latestAnswer.feedback}
+                      </p>
+                    )}
+
+                    <div className="mt-4 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        Best repair
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-neutral-100">
+                        {repairSentence(currentPrompt)}
+                      </p>
+                    </div>
+
+                    <p className="mt-4 text-sm leading-6 text-neutral-300">
                       {currentPrompt.explanation}
                     </p>
                     <button
                       type="button"
                       onClick={continueRun}
-                      className="mt-4 rounded-md bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200"
+                      className="mt-4 w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200 sm:w-auto sm:py-2"
                     >
                       {run.promptIndex + 1 >= run.prompts.length ? 'Show result' : 'Continue'}
                     </button>
@@ -347,12 +385,12 @@ export function EseGameSandboxPage() {
             )}
 
             {run.status === 'complete' && (
-              <div className="mx-auto max-w-2xl py-8 text-center">
+              <div className="mx-auto max-w-2xl py-6 text-center sm:py-8">
                 <p className="text-sm font-medium text-teal-300">{getResultLabel(run.score)}</p>
-                <h2 className="mt-3 text-4xl font-semibold text-white">
+                <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
                   {run.score} / {PROMPTS_PER_RUN}
                 </h2>
-                <div className="mt-7 grid gap-3 sm:grid-cols-4">
+                <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <ResultMetric label="Score" value={`${run.score}/${PROMPTS_PER_RUN}`} />
                   <ResultMetric label="Streak" value={run.streak.toString()} />
                   <ResultMetric label="Best streak" value={progress.bestStreak.toString()} />
@@ -362,14 +400,14 @@ export function EseGameSandboxPage() {
                   <button
                     type="button"
                     onClick={startRun}
-                    className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300"
+                    className="w-full rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 sm:w-auto"
                   >
                     Play again
                   </button>
                   <button
                     type="button"
                     onClick={() => setRun(EMPTY_RUN_STATE)}
-                    className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500"
+                    className="w-full rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 sm:w-auto"
                   >
                     Back to start
                   </button>

@@ -6,3 +6,6 @@ export const ESE_GAME_EXPERIMENT_LS_PREFIX = 'ese-game-experiment:'
 
 export const SENTENCE_REPAIR_PROGRESS_KEY =
   `${ESE_GAME_EXPERIMENT_LS_PREFIX}sentence-repair-progress`
+
+export const PHRASE_UPGRADE_PROGRESS_KEY =
+  `${ESE_GAME_EXPERIMENT_LS_PREFIX}phrase-upgrade-progress`
