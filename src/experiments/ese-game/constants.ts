@@ -9,3 +9,6 @@ export const SENTENCE_REPAIR_PROGRESS_KEY =
 
 export const PHRASE_UPGRADE_PROGRESS_KEY =
   `${ESE_GAME_EXPERIMENT_LS_PREFIX}phrase-upgrade-progress`
+
+export const MISSION_CONTROL_STATE_KEY =
+  `${ESE_GAME_EXPERIMENT_LS_PREFIX}mission-control-state`

@@ -4,14 +4,16 @@ const STARTER_PACK_INDEX_URL = '/data/starter-packs/index.json'
 const STARTER_PACK_BASE_URL = '/data/starter-packs'
 const MIN_PROMPTS = 6
 
-type StarterPackDifficulty = 'B2' | 'C1' | 'Mixed'
+export type StarterPackDifficulty = 'B2' | 'C1' | 'Mixed'
 
-interface StarterPackMeta {
+export interface StarterPackMeta {
   id: string
+  title?: string
+  theme?: string
   difficulty: StarterPackDifficulty
 }
 
-interface StarterPackWord {
+export interface StarterPackWord {
   term: string
   exampleSentence?: string
   definitionEn?: string
@@ -19,6 +21,14 @@ interface StarterPackWord {
   register?: 'formal' | 'neutral' | 'conversational'
   synonyms?: string[]
   tags?: string[]
+}
+
+export interface StarterPackMissionWord extends StarterPackWord {
+  id: string
+  packId: string
+  packTitle: string
+  packTheme: string
+  difficulty: StarterPackDifficulty
 }
 
 interface StarterPack extends StarterPackMeta {
@@ -29,12 +39,14 @@ export interface SentenceRepairPromptSource {
   prompts: SentenceRepairPrompt[]
   packCount: number
   wordCount: number
+  words: StarterPackMissionWord[]
 }
 
 export interface PhraseUpgradePromptSource {
   prompts: PhraseUpgradePrompt[]
   packCount: number
   wordCount: number
+  words: StarterPackMissionWord[]
 }
 
 function isB2C1Pack(meta: StarterPackMeta): boolean {
@@ -80,6 +92,14 @@ function sentenceCaseLike(source: string, replacement: string): string {
 
 function lowerFirst(value: string): string {
   return value.charAt(0).toLowerCase() + value.slice(1)
+}
+
+function slug(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+function getWordId(packId: string, term: string): string {
+  return `${packId}:${slug(term)}`
 }
 
 function selectTemptingAlternative(word: StarterPackWord): string | null {
@@ -188,9 +208,9 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function toPrompt(
-  word: StarterPackWord,
+  word: StarterPackMissionWord,
   difficulty: StarterPackDifficulty,
-  allWords: StarterPackWord[],
+  allWords: StarterPackMissionWord[],
 ): SentenceRepairPrompt | null {
   if (!word.exampleSentence || !word.definitionEn) {
     return null
@@ -225,9 +245,7 @@ function toPrompt(
   const repairedSentence = replaceTerm(sentence, replacement, word.term) ?? word.exampleSentence
 
   return {
-    id: `starter-pack-${difficulty.toLowerCase()}-${word.term
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')}`,
+    id: `starter-pack-${word.packId}-${difficulty.toLowerCase()}-${slug(word.term)}`,
     sentence,
     target: replacement,
     choices,
@@ -246,11 +264,13 @@ function toPrompt(
     difficulty,
     register: word.register,
     tags: word.tags ?? [],
+    sourceWordId: word.id,
+    sourceTerm: word.term,
   }
 }
 
 function toPhraseUpgradePrompt(
-  word: StarterPackWord,
+  word: StarterPackMissionWord,
   difficulty: StarterPackDifficulty,
 ): PhraseUpgradePrompt | null {
   if (!word.exampleSentence || !word.definitionEn) {
@@ -302,9 +322,7 @@ function toPhraseUpgradePrompt(
     .join(' ')
 
   return {
-    id: `starter-pack-upgrade-${difficulty.toLowerCase()}-${word.term
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')}`,
+    id: `starter-pack-upgrade-${word.packId}-${difficulty.toLowerCase()}-${slug(word.term)}`,
     basicSentence,
     choices,
     correctChoice: word.exampleSentence,
@@ -323,6 +341,8 @@ function toPhraseUpgradePrompt(
     difficulty,
     register,
     tags: word.tags ?? [],
+    sourceWordId: word.id,
+    sourceTerm: word.term,
   }
 }
 
@@ -335,7 +355,10 @@ async function fetchJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export async function loadB2C1SentenceRepairPrompts(): Promise<SentenceRepairPromptSource> {
+export async function loadStarterPackMissionVocabulary(): Promise<{
+  packs: StarterPackMeta[]
+  words: StarterPackMissionWord[]
+}> {
   const index = await fetchJson<StarterPackMeta[]>(STARTER_PACK_INDEX_URL)
   const selectedPacks = index.filter(isB2C1Pack)
 
@@ -345,11 +368,28 @@ export async function loadB2C1SentenceRepairPrompts(): Promise<SentenceRepairPro
     ),
   )
 
-  const words = packs.flatMap((pack) => pack.words)
-  const prompts = packs
-    .flatMap((pack) =>
-      pack.words.map((word) => toPrompt(word, pack.difficulty, words)),
-    )
+  const words = packs.flatMap((pack) =>
+    pack.words.map((word) => ({
+      ...word,
+      id: getWordId(pack.id, word.term),
+      packId: pack.id,
+      packTitle: pack.title ?? pack.id,
+      packTheme: pack.theme ?? pack.title ?? pack.id,
+      difficulty: pack.difficulty,
+    })),
+  )
+
+  return {
+    packs: selectedPacks,
+    words,
+  }
+}
+
+export async function loadB2C1SentenceRepairPrompts(): Promise<SentenceRepairPromptSource> {
+  const source = await loadStarterPackMissionVocabulary()
+
+  const prompts = source.words
+    .map((word) => toPrompt(word, word.difficulty, source.words))
     .filter((prompt): prompt is SentenceRepairPrompt => prompt !== null)
 
   if (prompts.length < MIN_PROMPTS) {
@@ -358,26 +398,17 @@ export async function loadB2C1SentenceRepairPrompts(): Promise<SentenceRepairPro
 
   return {
     prompts,
-    packCount: packs.length,
-    wordCount: words.length,
+    packCount: source.packs.length,
+    wordCount: source.words.length,
+    words: source.words,
   }
 }
 
 export async function loadB2C1PhraseUpgradePrompts(): Promise<PhraseUpgradePromptSource> {
-  const index = await fetchJson<StarterPackMeta[]>(STARTER_PACK_INDEX_URL)
-  const selectedPacks = index.filter(isB2C1Pack)
+  const source = await loadStarterPackMissionVocabulary()
 
-  const packs = await Promise.all(
-    selectedPacks.map((pack) =>
-      fetchJson<StarterPack>(`${STARTER_PACK_BASE_URL}/${pack.id}.json`),
-    ),
-  )
-
-  const words = packs.flatMap((pack) => pack.words)
-  const prompts = packs
-    .flatMap((pack) =>
-      pack.words.map((word) => toPhraseUpgradePrompt(word, pack.difficulty)),
-    )
+  const prompts = source.words
+    .map((word) => toPhraseUpgradePrompt(word, word.difficulty))
     .filter((prompt): prompt is PhraseUpgradePrompt => prompt !== null)
 
   if (prompts.length < MIN_PROMPTS) {
@@ -386,7 +417,8 @@ export async function loadB2C1PhraseUpgradePrompts(): Promise<PhraseUpgradePromp
 
   return {
     prompts,
-    packCount: packs.length,
-    wordCount: words.length,
+    packCount: source.packs.length,
+    wordCount: source.words.length,
+    words: source.words,
   }
 }

@@ -11,6 +11,8 @@ export interface SentenceRepairPrompt {
   difficulty?: 'B2' | 'C1' | 'Mixed'
   register?: 'formal' | 'neutral' | 'conversational'
   tags?: string[]
+  sourceWordId?: string
+  sourceTerm?: string
 }
 
 export interface PhraseUpgradePrompt {
@@ -26,6 +28,8 @@ export interface PhraseUpgradePrompt {
   difficulty?: 'B2' | 'C1' | 'Mixed'
   register?: 'formal' | 'neutral' | 'conversational'
   tags?: string[]
+  sourceWordId?: string
+  sourceTerm?: string
 }
 
 export const SENTENCE_REPAIR_PROMPTS: SentenceRepairPrompt[] = [

@@ -1,4 +1,12 @@
-import { PHRASE_UPGRADE_PROGRESS_KEY, SENTENCE_REPAIR_PROGRESS_KEY } from './constants'
+import {
+  MISSION_CONTROL_STATE_KEY,
+  PHRASE_UPGRADE_PROGRESS_KEY,
+  SENTENCE_REPAIR_PROGRESS_KEY,
+} from './constants'
+import {
+  DEFAULT_MISSION_CONTROL_STATE,
+  MissionControlState,
+} from './missionControl'
 
 export interface SentenceRepairProgress {
   totalRuns: number
@@ -41,6 +49,23 @@ function isPhraseUpgradeProgress(value: unknown): value is PhraseUpgradeProgress
   return isProgress(value)
 }
 
+function isMissionControlState(value: unknown): value is MissionControlState {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const state = value as Record<string, unknown>
+  if (!state.filters || typeof state.filters !== 'object') {
+    return false
+  }
+
+  if (state.activeMission !== null && typeof state.activeMission !== 'object') {
+    return false
+  }
+
+  return true
+}
+
 export function loadSentenceRepairProgress(): SentenceRepairProgress {
   const raw = localStorage.getItem(SENTENCE_REPAIR_PROGRESS_KEY)
   if (!raw) {
@@ -81,4 +106,25 @@ export function savePhraseUpgradeProgress(
 ): PhraseUpgradeProgress {
   localStorage.setItem(PHRASE_UPGRADE_PROGRESS_KEY, JSON.stringify(progress))
   return progress
+}
+
+export function loadMissionControlState(): MissionControlState {
+  const raw = localStorage.getItem(MISSION_CONTROL_STATE_KEY)
+  if (!raw) {
+    return DEFAULT_MISSION_CONTROL_STATE
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    return isMissionControlState(parsed) ? parsed : DEFAULT_MISSION_CONTROL_STATE
+  } catch {
+    return DEFAULT_MISSION_CONTROL_STATE
+  }
+}
+
+export function saveMissionControlState(
+  state: MissionControlState,
+): MissionControlState {
+  localStorage.setItem(MISSION_CONTROL_STATE_KEY, JSON.stringify(state))
+  return state
 }

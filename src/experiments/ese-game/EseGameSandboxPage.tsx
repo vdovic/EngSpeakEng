@@ -1,22 +1,37 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   ESE_GAME_EXPERIMENT_ROUTE,
+  MISSION_CONTROL_STATE_KEY,
   PHRASE_UPGRADE_PROGRESS_KEY,
   SENTENCE_REPAIR_PROGRESS_KEY,
 } from './constants'
 import {
-  PHRASE_UPGRADE_PROMPTS,
   PhraseUpgradePrompt,
-  SENTENCE_REPAIR_PROMPTS,
   SentenceRepairPrompt,
 } from './sampleData'
 import {
+  createMission,
+  DEFAULT_MISSION_FILTERS,
+  getMissionProgress,
+  getMissionThemes,
+  getMissionVocabulary,
+  Mission,
+  MissionControlState,
+  MissionDifficultyFilter,
+  recordMissionAnswers,
+  sampleMissionPrompts,
+} from './missionControl'
+import {
   loadB2C1PhraseUpgradePrompts,
   loadB2C1SentenceRepairPrompts,
+  loadStarterPackMissionVocabulary,
+  StarterPackMissionWord,
 } from './starterPackVocabulary'
 import {
+  loadMissionControlState,
   loadPhraseUpgradeProgress,
   loadSentenceRepairProgress,
+  saveMissionControlState,
   PhraseUpgradeProgress,
   savePhraseUpgradeProgress,
   saveSentenceRepairProgress,
@@ -26,6 +41,7 @@ import {
 const PROMPTS_PER_RUN = 6
 
 type GameMode = 'sentence-repair' | 'phrase-upgrade'
+type Screen = 'mission-control' | 'game'
 type RunStatus = 'idle' | 'playing' | 'feedback' | 'complete'
 
 interface RunAnswer {
@@ -33,6 +49,7 @@ interface RunAnswer {
   selectedChoice: string
   isCorrect: boolean
   feedback?: string
+  sourceWordId?: string
 }
 
 interface SentenceRunState {
@@ -86,10 +103,6 @@ const EMPTY_PHRASE_RUN_STATE: PhraseRunState = {
   selectedChoice: null,
 }
 
-function samplePrompts<TPrompt>(prompts: TPrompt[]) {
-  return [...prompts].sort(() => Math.random() - 0.5).slice(0, PROMPTS_PER_RUN)
-}
-
 function getResultLabel(score: number) {
   if (score === PROMPTS_PER_RUN) {
     return 'Clean run'
@@ -113,6 +126,119 @@ function repairSentence(prompt: SentenceRepairPrompt): string {
 
 export function EseGameSandboxPage() {
   const [mode, setMode] = useState<GameMode>('phrase-upgrade')
+  const [screen, setScreen] = useState<Screen>('mission-control')
+  const [missionState, setMissionState] = useState<MissionControlState>(() =>
+    loadMissionControlState(),
+  )
+  const [missionVocabulary, setMissionVocabulary] = useState<PromptLibraryState<StarterPackMissionWord>>({
+    prompts: [],
+    status: 'loading',
+    label: 'Loading starter-pack missions',
+    detail: 'Reading static JSON from /data/starter-packs only.',
+  })
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadStarterPackMissionVocabulary()
+      .then((source) => {
+        if (cancelled) {
+          return
+        }
+
+        setMissionVocabulary({
+          prompts: source.words,
+          status: 'ready',
+          label: 'B2-C1 starter-pack vocabulary',
+          detail: `${source.words.length} words across ${source.packs.length} static packs.`,
+        })
+
+        setMissionState((current) => {
+          if (current.activeMission) {
+            return current
+          }
+
+          const mission = createMission(source.words, current.filters)
+          const nextState = {
+            ...current,
+            activeMission: mission,
+          }
+          saveMissionControlState(nextState)
+          return nextState
+        })
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+
+        const message = error instanceof Error ? error.message : 'Static vocabulary fetch failed'
+        setMissionVocabulary({
+          prompts: [],
+          status: 'fallback',
+          label: 'Starter packs unavailable',
+          detail: `${message}. Mission Control requires starter-pack vocabulary.`,
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const missionThemes = useMemo(
+    () => getMissionThemes(missionVocabulary.prompts),
+    [missionVocabulary.prompts],
+  )
+  const activeMissionWords = useMemo(
+    () => getMissionVocabulary(missionState.activeMission, missionVocabulary.prompts),
+    [missionState.activeMission, missionVocabulary.prompts],
+  )
+
+  function saveMissionState(nextState: MissionControlState) {
+    setMissionState(saveMissionControlState(nextState))
+  }
+
+  function updateMissionFilters(nextFilters: MissionControlState['filters']) {
+    const mission = createMission(missionVocabulary.prompts, nextFilters)
+    saveMissionState({
+      filters: nextFilters,
+      activeMission: mission,
+    })
+  }
+
+  function reshuffleMission() {
+    const mission = createMission(missionVocabulary.prompts, missionState.filters)
+    saveMissionState({
+      ...missionState,
+      activeMission: mission,
+    })
+  }
+
+  function startMission(nextMode: GameMode = mode) {
+    if (!missionState.activeMission && missionVocabulary.status === 'ready') {
+      const mission = createMission(missionVocabulary.prompts, missionState.filters)
+      saveMissionState({
+        ...missionState,
+        activeMission: mission,
+      })
+    }
+
+    setMode(nextMode)
+    setScreen('game')
+  }
+
+  function returnToMissionControl() {
+    setScreen('mission-control')
+  }
+
+  function updateMissionProgress(modeId: GameMode, answers: RunAnswer[]) {
+    const mission = recordMissionAnswers(missionState.activeMission, modeId, answers)
+    saveMissionState({
+      ...missionState,
+      activeMission: mission,
+    })
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -138,17 +264,41 @@ export function EseGameSandboxPage() {
             <ModeButton
               active={mode === 'phrase-upgrade'}
               label="Phrase Upgrade"
-              onClick={() => setMode('phrase-upgrade')}
+              onClick={() => startMission('phrase-upgrade')}
             />
             <ModeButton
               active={mode === 'sentence-repair'}
               label="Sentence Repair"
-              onClick={() => setMode('sentence-repair')}
+              onClick={() => startMission('sentence-repair')}
             />
           </div>
         </header>
 
-        {mode === 'phrase-upgrade' ? <PhraseUpgradeMode /> : <SentenceRepairMode />}
+        {screen === 'mission-control' ? (
+          <MissionControlPanel
+            activeMission={missionState.activeMission}
+            filters={missionState.filters}
+            missionVocabulary={missionVocabulary}
+            missionWords={activeMissionWords}
+            themes={missionThemes}
+            onFiltersChange={updateMissionFilters}
+            onResetFilters={() => updateMissionFilters(DEFAULT_MISSION_FILTERS)}
+            onReshuffle={reshuffleMission}
+            onStart={startMission}
+          />
+        ) : mode === 'phrase-upgrade' ? (
+          <PhraseUpgradeMode
+            mission={missionState.activeMission}
+            onMissionProgress={updateMissionProgress}
+            onMissionControl={returnToMissionControl}
+          />
+        ) : (
+          <SentenceRepairMode
+            mission={missionState.activeMission}
+            onMissionProgress={updateMissionProgress}
+            onMissionControl={returnToMissionControl}
+          />
+        )}
       </div>
     </main>
   )
@@ -178,7 +328,216 @@ function ModeButton({
   )
 }
 
-function SentenceRepairMode() {
+function MissionControlPanel({
+  activeMission,
+  filters,
+  missionVocabulary,
+  missionWords,
+  themes,
+  onFiltersChange,
+  onResetFilters,
+  onReshuffle,
+  onStart,
+}: {
+  activeMission: Mission | null
+  filters: MissionControlState['filters']
+  missionVocabulary: PromptLibraryState<StarterPackMissionWord>
+  missionWords: StarterPackMissionWord[]
+  themes: string[]
+  onFiltersChange: (filters: MissionControlState['filters']) => void
+  onResetFilters: () => void
+  onReshuffle: () => void
+  onStart: (mode?: GameMode) => void
+}) {
+  const progress = getMissionProgress(activeMission)
+  const canStart = missionVocabulary.status === 'ready' && Boolean(activeMission)
+
+  return (
+    <section className="flex flex-1 flex-col justify-center py-4 sm:py-6">
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-teal-300">Mission Control</p>
+            <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
+              {activeMission?.title ?? 'Build today\'s mission'}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300">
+              One focused vocabulary set feeds every ESE mode, so each short run reinforces the
+              same words from a different angle.
+            </p>
+          </div>
+          <div className="rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm">
+            <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">Storage</p>
+            <p className="mt-1 break-all text-xs font-medium text-neutral-300">
+              {MISSION_CONTROL_STATE_KEY}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ResultMetric label="Theme" value={activeMission?.theme ?? filters.theme} />
+          <ResultMetric
+            label="Target words"
+            value={(activeMission?.targetCount ?? 0).toString()}
+          />
+          <ResultMetric
+            label="Progress"
+            value={`${progress.masteredCount}/${activeMission?.targetCount ?? 0}`}
+          />
+          <ResultMetric
+            label="Duration"
+            value={`${activeMission?.estimatedMinutes ?? 0} min`}
+          />
+        </div>
+
+        <div className="mt-5 h-2 overflow-hidden rounded-full bg-neutral-800">
+          <div
+            className="h-full rounded-full bg-teal-400 transition-all"
+            style={{ width: `${progress.percent}%` }}
+          />
+        </div>
+
+        <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              Theme
+            </span>
+            <select
+              value={filters.theme}
+              onChange={(event) =>
+                onFiltersChange({
+                  ...filters,
+                  theme: event.target.value,
+                })
+              }
+              disabled={missionVocabulary.status !== 'ready'}
+              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+            >
+              {themes.map((theme) => (
+                <option key={theme} value={theme}>
+                  {theme}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              Difficulty
+            </span>
+            <select
+              value={filters.difficulty}
+              onChange={(event) =>
+                onFiltersChange({
+                  ...filters,
+                  difficulty: event.target.value as MissionDifficultyFilter,
+                })
+              }
+              disabled={missionVocabulary.status !== 'ready'}
+              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+            >
+              {(['Any', 'B2', 'C1'] as MissionDifficultyFilter[]).map((difficulty) => (
+                <option key={difficulty} value={difficulty}>
+                  {difficulty}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="flex flex-col justify-end gap-2 sm:flex-row lg:flex-col">
+            <button
+              type="button"
+              onClick={onReshuffle}
+              disabled={missionVocabulary.status !== 'ready'}
+              className="rounded-md border border-neutral-700 px-4 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reshuffle
+            </button>
+            <button
+              type="button"
+              onClick={onResetFilters}
+              disabled={missionVocabulary.status !== 'ready'}
+              className="rounded-md border border-neutral-800 px-4 py-3 text-sm font-semibold text-neutral-300 transition hover:border-neutral-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Vocabulary source
+              </p>
+              <p className="mt-1 text-sm font-medium text-neutral-100">
+                {missionVocabulary.label}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-neutral-400">
+                {missionVocabulary.detail}
+              </p>
+            </div>
+            <p className="text-xs text-neutral-500">
+              Attempted {progress.attemptedCount} words
+            </p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {missionWords.map((word) => {
+              const wordProgress = activeMission?.progress[word.id]
+              const isMastered = Boolean(wordProgress?.correct)
+              const isAttempted = Boolean(wordProgress?.attempts)
+
+              return (
+                <span
+                  key={word.id}
+                  className={`rounded px-2 py-1 text-xs font-medium ${
+                    isMastered
+                      ? 'bg-teal-400 text-neutral-950'
+                      : isAttempted
+                        ? 'bg-amber-300 text-neutral-950'
+                        : 'bg-neutral-800 text-neutral-300'
+                  }`}
+                >
+                  {word.term}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => onStart('phrase-upgrade')}
+            disabled={!canStart}
+            className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Start Phrase Upgrade
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('sentence-repair')}
+            disabled={!canStart}
+            className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Start Sentence Repair
+          </button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function SentenceRepairMode({
+  mission,
+  onMissionProgress,
+  onMissionControl,
+}: {
+  mission: Mission | null
+  onMissionProgress: (mode: GameMode, answers: RunAnswer[]) => void
+  onMissionControl: () => void
+}) {
   const [progress, setProgress] = useState<SentenceRepairProgress>(() =>
     loadSentenceRepairProgress(),
   )
@@ -213,10 +572,10 @@ function SentenceRepairMode() {
 
         const message = error instanceof Error ? error.message : 'Static vocabulary fetch failed'
         setPromptLibrary({
-          prompts: SENTENCE_REPAIR_PROMPTS,
+          prompts: [],
           status: 'fallback',
-          label: 'Fallback prompt set',
-          detail: `${message}. Using local hardcoded prompts for this run.`,
+          label: 'Starter packs unavailable',
+          detail: `${message}. Sentence Repair requires starter-pack vocabulary.`,
         })
       })
 
@@ -236,14 +595,14 @@ function SentenceRepairMode() {
   }, [run.answers.length, run.status])
 
   function startRun() {
-    if (promptLibrary.status === 'loading') {
+    if (promptLibrary.status !== 'ready' || promptLibrary.prompts.length < PROMPTS_PER_RUN) {
       return
     }
 
     setRun({
       ...EMPTY_SENTENCE_RUN_STATE,
       status: 'playing',
-      prompts: samplePrompts(promptLibrary.prompts),
+      prompts: sampleMissionPrompts(promptLibrary.prompts, mission, PROMPTS_PER_RUN),
     })
   }
 
@@ -266,6 +625,7 @@ function SentenceRepairMode() {
           selectedChoice: choice,
           isCorrect,
           feedback: currentPrompt.wrongChoiceFeedback?.[choice],
+          sourceWordId: currentPrompt.sourceWordId,
         },
       ],
       score: isCorrect ? run.score + 1 : run.score,
@@ -284,6 +644,7 @@ function SentenceRepairMode() {
         bestStreak: Math.max(progress.bestStreak, run.bestStreak),
       })
       setProgress(nextProgress)
+      onMissionProgress('sentence-repair', run.answers)
       setRun({
         ...run,
         status: 'complete',
@@ -311,10 +672,12 @@ function SentenceRepairMode() {
           <StartPanel
             eyebrow="Sentence Repair"
             title="Fix 6 sentences before the run ends."
-            body="Choose the word or phrase that sounds most natural in context."
+            body="Choose the word or phrase that sounds most natural in context. Mission words appear first when available."
             promptLibrary={promptLibrary}
+            mission={mission}
             buttonLabel="Start run"
             onStart={startRun}
+            onMissionControl={onMissionControl}
           />
         )}
 
@@ -394,7 +757,15 @@ function SentenceRepairMode() {
   )
 }
 
-function PhraseUpgradeMode() {
+function PhraseUpgradeMode({
+  mission,
+  onMissionProgress,
+  onMissionControl,
+}: {
+  mission: Mission | null
+  onMissionProgress: (mode: GameMode, answers: RunAnswer[]) => void
+  onMissionControl: () => void
+}) {
   const [progress, setProgress] = useState<PhraseUpgradeProgress>(() =>
     loadPhraseUpgradeProgress(),
   )
@@ -416,10 +787,10 @@ function PhraseUpgradeMode() {
         }
 
         setPromptLibrary({
-          prompts: [...PHRASE_UPGRADE_PROMPTS, ...source.prompts],
+          prompts: source.prompts,
           status: 'ready',
-          label: 'Curated prompts + B2-C1 starter packs',
-          detail: `${PHRASE_UPGRADE_PROMPTS.length} curated prompts plus ${source.prompts.length} prompts from ${source.wordCount} words across ${source.packCount} static packs.`,
+          label: 'B2-C1 starter packs',
+          detail: `${source.prompts.length} prompts from ${source.wordCount} words across ${source.packCount} static packs.`,
         })
       })
       .catch((error: unknown) => {
@@ -429,10 +800,10 @@ function PhraseUpgradeMode() {
 
         const message = error instanceof Error ? error.message : 'Static vocabulary fetch failed'
         setPromptLibrary({
-          prompts: PHRASE_UPGRADE_PROMPTS,
+          prompts: [],
           status: 'fallback',
-          label: 'Curated fallback prompt set',
-          detail: `${message}. Using local hardcoded phrase upgrades for this run.`,
+          label: 'Starter packs unavailable',
+          detail: `${message}. Phrase Upgrade requires starter-pack vocabulary.`,
         })
       })
 
@@ -452,14 +823,14 @@ function PhraseUpgradeMode() {
   }, [run.answers.length, run.status])
 
   function startRun() {
-    if (promptLibrary.status === 'loading') {
+    if (promptLibrary.status !== 'ready' || promptLibrary.prompts.length < PROMPTS_PER_RUN) {
       return
     }
 
     setRun({
       ...EMPTY_PHRASE_RUN_STATE,
       status: 'playing',
-      prompts: samplePrompts(promptLibrary.prompts),
+      prompts: sampleMissionPrompts(promptLibrary.prompts, mission, PROMPTS_PER_RUN),
     })
   }
 
@@ -482,6 +853,7 @@ function PhraseUpgradeMode() {
           selectedChoice: choice,
           isCorrect,
           feedback: currentPrompt.weakChoiceFeedback?.[choice],
+          sourceWordId: currentPrompt.sourceWordId,
         },
       ],
       score: isCorrect ? run.score + 1 : run.score,
@@ -500,6 +872,7 @@ function PhraseUpgradeMode() {
         bestStreak: Math.max(progress.bestStreak, run.bestStreak),
       })
       setProgress(nextProgress)
+      onMissionProgress('phrase-upgrade', run.answers)
       setRun({
         ...run,
         status: 'complete',
@@ -527,10 +900,12 @@ function PhraseUpgradeMode() {
           <StartPanel
             eyebrow="Phrase Upgrade"
             title="Upgrade 6 basic sentences."
-            body="Pick the sentence that sounds most natural, precise, and professional for B2-C1 English."
+            body="Pick the sentence that sounds natural, precise, and professional. Mission words appear first when available."
             promptLibrary={promptLibrary}
+            mission={mission}
             buttonLabel="Start Phrase Upgrade"
             onStart={startRun}
+            onMissionControl={onMissionControl}
           />
         )}
 
@@ -635,21 +1010,38 @@ function StartPanel<TPrompt>({
   title,
   body,
   promptLibrary,
+  mission,
   buttonLabel,
   onStart,
+  onMissionControl,
 }: {
   eyebrow: string
   title: string
   body: string
   promptLibrary: PromptLibraryState<TPrompt>
+  mission: Mission | null
   buttonLabel: string
   onStart: () => void
+  onMissionControl: () => void
 }) {
+  const canStart = promptLibrary.status === 'ready' && promptLibrary.prompts.length >= PROMPTS_PER_RUN
+
   return (
     <div className="mx-auto max-w-2xl py-6 text-center sm:py-8">
       <p className="text-sm font-medium text-teal-300">{eyebrow}</p>
       <h2 className="mt-3 text-xl font-semibold text-white sm:text-2xl">{title}</h2>
       <p className="mt-3 text-sm leading-6 text-neutral-300">{body}</p>
+      {mission && (
+        <div className="mx-auto mt-5 max-w-md rounded-md border border-teal-400/30 bg-teal-400/10 px-4 py-3 text-left">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-300">
+            Active mission
+          </p>
+          <p className="mt-1 text-sm font-medium text-white">{mission.title}</p>
+          <p className="mt-1 text-xs leading-5 text-neutral-300">
+            {mission.targetCount} target words / {mission.estimatedMinutes} min / {mission.theme}
+          </p>
+        </div>
+      )}
       <div className="mx-auto mt-5 max-w-md rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-left">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
           Vocabulary source
@@ -660,10 +1052,17 @@ function StartPanel<TPrompt>({
       <button
         type="button"
         onClick={onStart}
-        disabled={promptLibrary.status === 'loading'}
+        disabled={!canStart}
         className="mt-7 w-full rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         {promptLibrary.status === 'loading' ? 'Loading prompts...' : buttonLabel}
+      </button>
+      <button
+        type="button"
+        onClick={onMissionControl}
+        className="mt-3 w-full rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 sm:ml-3 sm:w-auto"
+      >
+        Mission Control
       </button>
     </div>
   )
