@@ -20,6 +20,7 @@ import {
   Plus, Zap, Trophy, Flame,
   ChevronRight, Layers, Loader2, ChevronDown,
   SlidersHorizontal, Target, CheckCircle2, Clock, TrendingUp,
+  Gamepad2,
 } from 'lucide-react'
 import { getCanonicalLevel } from '@/lib/progressionLogic'
 import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
@@ -30,7 +31,6 @@ import { useOnboardingStore } from '@/store/onboardingStore'
 import { CHALLENGE_SESSION_CAP } from '@/lib/constants'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { StarterPacksSection } from '@/components/StarterPacksSection'
-import { EseBetaEntryPoint } from '@/experiments/ese-game/EseBetaEntryPoint'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { usagePoints } from '@/lib/mastery'
 import {
@@ -44,6 +44,11 @@ import {
 } from '@/lib/todayLogic'
 import { GOAL_LABELS, INTENSITY_CONFIG } from '@/types/profile'
 import type { VocabItem } from '@/types/vocabulary'
+
+const ESE_GAME_EXPERIMENT_ROUTE = '/__experiments/ese-game'
+
+const isEseGameExperimentEnabled =
+  import.meta.env.VITE_ENABLE_ESE_GAME_EXPERIMENT === 'true'
 
 // ── Module-level constants ─────────────────────────────────────────────────────
 
@@ -883,6 +888,56 @@ function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
 
 // ── DashboardPage ─────────────────────────────────────────────────────────────
 
+function BetaBadge() {
+  return (
+    <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700">
+      Beta
+    </span>
+  )
+}
+
+function GamesSection() {
+  if (!isEseGameExperimentEnabled) {
+    return null
+  }
+
+  return (
+    <section className="mb-6">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="text-base font-bold text-slate-900">Games</h2>
+          <BetaBadge />
+        </div>
+      </div>
+
+      <a
+        href={ESE_GAME_EXPERIMENT_ROUTE}
+        className="group flex min-h-[92px] flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-teal-200 hover:bg-teal-50/30 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <div className="flex min-w-0 gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition-colors group-hover:bg-teal-100 group-hover:text-teal-700">
+            <Gamepad2 size={18} aria-hidden="true" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-bold text-slate-900">ESE Learning System</p>
+              <BetaBadge />
+            </div>
+            <p className="mt-1 max-w-xl text-sm leading-6 text-slate-500">
+              Practice B2-C1 vocabulary through missions, sentence repair, phrase upgrades, and recall challenges.
+            </p>
+          </div>
+        </div>
+
+        <span className="inline-flex items-center gap-1 self-start text-xs font-semibold text-teal-700 transition-colors group-hover:text-teal-800 sm:self-center">
+          Open
+          <ChevronRight size={13} aria-hidden="true" />
+        </span>
+      </a>
+    </section>
+  )
+}
+
 export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => void }) {
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
@@ -1001,8 +1056,6 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         onFocus={() => navigate('/focus')}
       />
 
-      <EseBetaEntryPoint />
-
       {/* 3. Subtle SRS review chip — Fix 5: restores the review path */}
       <ReviewChip
         reviewCount={dueItems.length}
@@ -1026,6 +1079,8 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         action={nudge.action}
         actionLabel={nudge.actionLabel}
       />
+
+      <GamesSection />
 
       {/* 6. Almost-mastered strip (conditional) */}
       <AlmostMasteredStrip
