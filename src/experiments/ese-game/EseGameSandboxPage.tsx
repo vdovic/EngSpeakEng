@@ -1,8 +1,9 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ESE_GAME_EXPERIMENT_ROUTE,
   MISSION_CONTROL_STATE_KEY,
   PHRASE_UPGRADE_PROGRESS_KEY,
+  RECALL_CHALLENGE_PROGRESS_KEY,
   SENTENCE_REPAIR_PROGRESS_KEY,
 } from './constants'
 import {
@@ -12,15 +13,27 @@ import {
 import {
   createMission,
   DEFAULT_MISSION_FILTERS,
+  getMissionCategoryCounts,
   getMissionProgress,
   getMissionThemes,
   getMissionVocabulary,
+  getProgressTrends,
   Mission,
+  MISSION_CATEGORIES,
   MissionControlState,
+  MissionCategoryFilter,
   MissionDifficultyFilter,
+  MissionStyle,
   recordMissionAnswers,
+  sampleRecallMissionPrompts,
   sampleMissionPrompts,
 } from './missionControl'
+import {
+  buildRecallPrompts,
+  evaluateRecallAnswer,
+  RecallEvaluation,
+  RecallPrompt,
+} from './recallChallenge'
 import {
   loadB2C1PhraseUpgradePrompts,
   loadB2C1SentenceRepairPrompts,
@@ -30,17 +43,21 @@ import {
 import {
   loadMissionControlState,
   loadPhraseUpgradeProgress,
+  loadRecallChallengeProgress,
   loadSentenceRepairProgress,
   saveMissionControlState,
   PhraseUpgradeProgress,
   savePhraseUpgradeProgress,
+  RecallChallengeProgress,
+  saveRecallChallengeProgress,
   saveSentenceRepairProgress,
   SentenceRepairProgress,
 } from './storage'
 
 const PROMPTS_PER_RUN = 6
+const RECALL_PROMPTS_PER_RUN = 5
 
-type GameMode = 'sentence-repair' | 'phrase-upgrade'
+type GameMode = 'sentence-repair' | 'phrase-upgrade' | 'recall-challenge'
 type Screen = 'mission-control' | 'game'
 type RunStatus = 'idle' | 'playing' | 'feedback' | 'complete'
 
@@ -48,6 +65,7 @@ interface RunAnswer {
   promptId: string
   selectedChoice: string
   isCorrect: boolean
+  score?: number
   feedback?: string
   sourceWordId?: string
 }
@@ -72,6 +90,18 @@ interface PhraseRunState {
   streak: number
   bestStreak: number
   selectedChoice: string | null
+}
+
+interface RecallRunState {
+  status: RunStatus
+  promptIndex: number
+  prompts: RecallPrompt[]
+  answers: RunAnswer[]
+  score: number
+  streak: number
+  bestStreak: number
+  typedAnswer: string
+  evaluation: RecallEvaluation | null
 }
 
 interface PromptLibraryState<TPrompt> {
@@ -103,14 +133,26 @@ const EMPTY_PHRASE_RUN_STATE: PhraseRunState = {
   selectedChoice: null,
 }
 
-function getResultLabel(score: number) {
-  if (score === PROMPTS_PER_RUN) {
+const EMPTY_RECALL_RUN_STATE: RecallRunState = {
+  status: 'idle',
+  promptIndex: 0,
+  prompts: [],
+  answers: [],
+  score: 0,
+  streak: 0,
+  bestStreak: 0,
+  typedAnswer: '',
+  evaluation: null,
+}
+
+function getResultLabel(score: number, total = PROMPTS_PER_RUN) {
+  if (score === total) {
     return 'Clean run'
   }
-  if (score >= 5) {
+  if (score / total >= 0.8) {
     return 'Natural ear'
   }
-  if (score >= 3) {
+  if (score / total >= 0.5) {
     return 'Getting sharper'
   }
   return 'Warming up'
@@ -133,8 +175,8 @@ export function EseGameSandboxPage() {
   const [missionVocabulary, setMissionVocabulary] = useState<PromptLibraryState<StarterPackMissionWord>>({
     prompts: [],
     status: 'loading',
-    label: 'Loading starter-pack missions',
-    detail: 'Reading static JSON from /data/starter-packs only.',
+    label: 'Loading full library missions',
+    detail: 'Reading static JSON from /data/migration-vocab.json and /data/starter-packs only.',
   })
 
   useEffect(() => {
@@ -149,8 +191,8 @@ export function EseGameSandboxPage() {
         setMissionVocabulary({
           prompts: source.words,
           status: 'ready',
-          label: 'B2-C1 starter-pack vocabulary',
-          detail: `${source.words.length} words across ${source.packs.length} static packs.`,
+          label: 'B2-C1 full vocabulary library',
+          detail: `${source.words.length} items from migration vocabulary plus ${source.packs.length} starter packs.`,
         })
 
         setMissionState((current) => {
@@ -158,7 +200,7 @@ export function EseGameSandboxPage() {
             return current
           }
 
-          const mission = createMission(source.words, current.filters)
+          const mission = createMission(source.words, current.filters, current.wordStats)
           const nextState = {
             ...current,
             activeMission: mission,
@@ -176,8 +218,8 @@ export function EseGameSandboxPage() {
         setMissionVocabulary({
           prompts: [],
           status: 'fallback',
-          label: 'Starter packs unavailable',
-          detail: `${message}. Mission Control requires starter-pack vocabulary.`,
+          label: 'Full library unavailable',
+          detail: `${message}. Mission Control requires static vocabulary JSON.`,
         })
       })
 
@@ -194,21 +236,31 @@ export function EseGameSandboxPage() {
     () => getMissionVocabulary(missionState.activeMission, missionVocabulary.prompts),
     [missionState.activeMission, missionVocabulary.prompts],
   )
+  const categoryCounts = useMemo(
+    () => getMissionCategoryCounts(missionVocabulary.prompts),
+    [missionVocabulary.prompts],
+  )
+  const progressTrends = useMemo(() => getProgressTrends(missionState), [missionState])
 
   function saveMissionState(nextState: MissionControlState) {
     setMissionState(saveMissionControlState(nextState))
   }
 
   function updateMissionFilters(nextFilters: MissionControlState['filters']) {
-    const mission = createMission(missionVocabulary.prompts, nextFilters)
+    const mission = createMission(missionVocabulary.prompts, nextFilters, missionState.wordStats)
     saveMissionState({
+      ...missionState,
       filters: nextFilters,
       activeMission: mission,
     })
   }
 
   function reshuffleMission() {
-    const mission = createMission(missionVocabulary.prompts, missionState.filters)
+    const mission = createMission(
+      missionVocabulary.prompts,
+      missionState.filters,
+      missionState.wordStats,
+    )
     saveMissionState({
       ...missionState,
       activeMission: mission,
@@ -217,7 +269,11 @@ export function EseGameSandboxPage() {
 
   function startMission(nextMode: GameMode = mode) {
     if (!missionState.activeMission && missionVocabulary.status === 'ready') {
-      const mission = createMission(missionVocabulary.prompts, missionState.filters)
+      const mission = createMission(
+        missionVocabulary.prompts,
+        missionState.filters,
+        missionState.wordStats,
+      )
       saveMissionState({
         ...missionState,
         activeMission: mission,
@@ -233,11 +289,7 @@ export function EseGameSandboxPage() {
   }
 
   function updateMissionProgress(modeId: GameMode, answers: RunAnswer[]) {
-    const mission = recordMissionAnswers(missionState.activeMission, modeId, answers)
-    saveMissionState({
-      ...missionState,
-      activeMission: mission,
-    })
+    saveMissionState(recordMissionAnswers(missionState, modeId, answers))
   }
 
   return (
@@ -260,11 +312,16 @@ export function EseGameSandboxPage() {
               {ESE_GAME_EXPERIMENT_ROUTE}
             </div>
           </div>
-          <div className="mt-4 grid gap-2 sm:inline-grid sm:grid-cols-2">
+          <div className="mt-4 grid gap-2 sm:inline-grid sm:grid-cols-3">
             <ModeButton
               active={mode === 'phrase-upgrade'}
               label="Phrase Upgrade"
               onClick={() => startMission('phrase-upgrade')}
+            />
+            <ModeButton
+              active={mode === 'recall-challenge'}
+              label="Recall Challenge"
+              onClick={() => startMission('recall-challenge')}
             />
             <ModeButton
               active={mode === 'sentence-repair'}
@@ -281,6 +338,8 @@ export function EseGameSandboxPage() {
             missionVocabulary={missionVocabulary}
             missionWords={activeMissionWords}
             themes={missionThemes}
+            categoryCounts={categoryCounts}
+            progressTrends={progressTrends}
             onFiltersChange={updateMissionFilters}
             onResetFilters={() => updateMissionFilters(DEFAULT_MISSION_FILTERS)}
             onReshuffle={reshuffleMission}
@@ -288,6 +347,12 @@ export function EseGameSandboxPage() {
           />
         ) : mode === 'phrase-upgrade' ? (
           <PhraseUpgradeMode
+            mission={missionState.activeMission}
+            onMissionProgress={updateMissionProgress}
+            onMissionControl={returnToMissionControl}
+          />
+        ) : mode === 'recall-challenge' ? (
+          <RecallChallengeMode
             mission={missionState.activeMission}
             onMissionProgress={updateMissionProgress}
             onMissionControl={returnToMissionControl}
@@ -334,6 +399,8 @@ function MissionControlPanel({
   missionVocabulary,
   missionWords,
   themes,
+  categoryCounts,
+  progressTrends,
   onFiltersChange,
   onResetFilters,
   onReshuffle,
@@ -344,6 +411,15 @@ function MissionControlPanel({
   missionVocabulary: PromptLibraryState<StarterPackMissionWord>
   missionWords: StarterPackMissionWord[]
   themes: string[]
+  categoryCounts: Record<string, number>
+  progressTrends: {
+    totalAttempts: number
+    weakCount: number
+    masteredCount: number
+    recentAverage: number
+    previousAverage: number
+    trendLabel: 'New' | 'Improving' | 'Steady' | 'Needs focus'
+  }
   onFiltersChange: (filters: MissionControlState['filters']) => void
   onResetFilters: () => void
   onReshuffle: () => void
@@ -362,8 +438,8 @@ function MissionControlPanel({
               {activeMission?.title ?? 'Build today\'s mission'}
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300">
-              One focused vocabulary set feeds every ESE mode, so each short run reinforces the
-              same words from a different angle.
+              Full Library Mode turns the complete vocabulary set into short, focused B2-C1
+              missions with professional context and local-only adaptation.
             </p>
           </div>
           <div className="rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm">
@@ -375,7 +451,7 @@ function MissionControlPanel({
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ResultMetric label="Theme" value={activeMission?.theme ?? filters.theme} />
+          <ResultMetric label="Mission type" value={activeMission?.style ?? filters.style} />
           <ResultMetric
             label="Target words"
             value={(activeMission?.targetCount ?? 0).toString()}
@@ -390,6 +466,16 @@ function MissionControlPanel({
           />
         </div>
 
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <ResultMetric label="Library items" value={missionVocabulary.prompts.length.toString()} />
+          <ResultMetric label="Weak areas" value={progressTrends.weakCount.toString()} />
+          <ResultMetric label="Mastered" value={progressTrends.masteredCount.toString()} />
+          <ResultMetric
+            label="Recent trend"
+            value={progressTrends.recentAverage ? `${progressTrends.recentAverage}%` : progressTrends.trendLabel}
+          />
+        </div>
+
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-neutral-800">
           <div
             className="h-full rounded-full bg-teal-400 transition-all"
@@ -397,7 +483,7 @@ function MissionControlPanel({
           />
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-6 grid gap-4 lg:grid-cols-4">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
               Theme
@@ -416,6 +502,29 @@ function MissionControlPanel({
               {themes.map((theme) => (
                 <option key={theme} value={theme}>
                   {theme}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              Category
+            </span>
+            <select
+              value={filters.category}
+              onChange={(event) =>
+                onFiltersChange({
+                  ...filters,
+                  category: event.target.value as MissionCategoryFilter,
+                })
+              }
+              disabled={missionVocabulary.status !== 'ready'}
+              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+            >
+              {MISSION_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category === 'Any' ? 'Any' : `${category} (${categoryCounts[category] ?? 0})`}
                 </option>
               ))}
             </select>
@@ -444,7 +553,48 @@ function MissionControlPanel({
             </select>
           </label>
 
-          <div className="flex flex-col justify-end gap-2 sm:flex-row lg:flex-col">
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              Mission
+            </span>
+            <select
+              value={filters.style}
+              onChange={(event) =>
+                onFiltersChange({
+                  ...filters,
+                  style: event.target.value as MissionStyle,
+                })
+              }
+              disabled={missionVocabulary.status !== 'ready'}
+              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+            >
+              {(['themed', 'mixed', 'challenge'] as MissionStyle[]).map((style) => (
+                <option key={style} value={style}>
+                  {style}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <label className="flex items-center gap-3 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-3 text-sm text-neutral-200">
+            <input
+              type="checkbox"
+              checked={filters.focusWeakAreas}
+              onChange={(event) =>
+                onFiltersChange({
+                  ...filters,
+                  focusWeakAreas: event.target.checked,
+                })
+              }
+              disabled={missionVocabulary.status !== 'ready'}
+              className="h-4 w-4 accent-teal-400"
+            />
+            <span>Focus weak areas</span>
+          </label>
+
+          <div className="flex flex-col justify-end gap-2 sm:flex-row">
             <button
               type="button"
               onClick={onReshuffle}
@@ -464,6 +614,76 @@ function MissionControlPanel({
           </div>
         </div>
 
+        {activeMission && (
+          <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
+            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Composition
+              </p>
+              <p className="mt-2 text-neutral-200">
+                {activeMission.composition.b2} B2 / {activeMission.composition.c1} C1
+              </p>
+            </div>
+            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Item mix
+              </p>
+              <p className="mt-2 text-neutral-200">
+                {activeMission.composition.words} words / {activeMission.composition.phrases} phrases / {activeMission.composition.chunks} chunks
+              </p>
+            </div>
+            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Adaptation
+              </p>
+              <p className="mt-2 text-neutral-200">
+                {activeMission.composition.weak} weak / {activeMission.composition.migrationVocab} full-library
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeMission && (
+          <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Vocabulary categories
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  ['business', activeMission.composition.business],
+                  ['meetings', activeMission.composition.meetings],
+                  ['email', activeMission.composition.email],
+                  ['fluency', activeMission.composition.fluency],
+                  ['phrasal verbs', activeMission.composition.phrasalVerbs],
+                ]
+                  .filter(([, value]) => Number(value) > 0)
+                  .map(([label, value]) => (
+                    <span
+                      key={label}
+                      className="rounded bg-neutral-800 px-2 py-1 text-xs font-medium text-neutral-300"
+                    >
+                      {label} {value}
+                    </span>
+                  ))}
+              </div>
+            </div>
+            <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Progress trend
+              </p>
+              <p className="mt-2 text-neutral-200">
+                {progressTrends.trendLabel}
+                {progressTrends.previousAverage
+                  ? ` from ${progressTrends.previousAverage}% to ${progressTrends.recentAverage}%`
+                  : progressTrends.recentAverage
+                    ? ` at ${progressTrends.recentAverage}%`
+                    : ' after your first run'}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -478,12 +698,12 @@ function MissionControlPanel({
               </p>
             </div>
             <p className="text-xs text-neutral-500">
-              Attempted {progress.attemptedCount} words
+              Attempted {progress.attemptedCount} mission items / {progressTrends.totalAttempts} total answers
             </p>
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            {missionWords.map((word) => {
+            {missionWords.slice(0, 18).map((word) => {
               const wordProgress = activeMission?.progress[word.id]
               const isMastered = Boolean(wordProgress?.correct)
               const isAttempted = Boolean(wordProgress?.attempts)
@@ -503,6 +723,11 @@ function MissionControlPanel({
                 </span>
               )
             })}
+            {missionWords.length > 18 && (
+              <span className="rounded bg-neutral-800 px-2 py-1 text-xs font-medium text-neutral-400">
+                +{missionWords.length - 18} more
+              </span>
+            )}
           </div>
         </div>
 
@@ -514,6 +739,14 @@ function MissionControlPanel({
             className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Start Phrase Upgrade
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('recall-challenge')}
+            disabled={!canStart}
+            className="rounded-md border border-teal-400 px-5 py-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Start Recall Challenge
           </button>
           <button
             type="button"
@@ -545,8 +778,8 @@ function SentenceRepairMode({
   const [promptLibrary, setPromptLibrary] = useState<PromptLibraryState<SentenceRepairPrompt>>({
     prompts: [],
     status: 'loading',
-    label: 'Loading B2-C1 starter packs',
-    detail: 'Reading static JSON from /data/starter-packs only.',
+    label: 'Loading B2-C1 full library',
+    detail: 'Reading static JSON from /data/migration-vocab.json and /data/starter-packs only.',
   })
 
   useEffect(() => {
@@ -561,8 +794,8 @@ function SentenceRepairMode({
         setPromptLibrary({
           prompts: source.prompts,
           status: 'ready',
-          label: 'B2-C1 starter packs',
-          detail: `${source.prompts.length} prompts from ${source.wordCount} words across ${source.packCount} static packs.`,
+          label: 'B2-C1 full library',
+          detail: `${source.prompts.length} prompts from ${source.wordCount} library items plus ${source.packCount} starter packs.`,
         })
       })
       .catch((error: unknown) => {
@@ -574,8 +807,8 @@ function SentenceRepairMode({
         setPromptLibrary({
           prompts: [],
           status: 'fallback',
-          label: 'Starter packs unavailable',
-          detail: `${message}. Sentence Repair requires starter-pack vocabulary.`,
+          label: 'Full library unavailable',
+          detail: `${message}. Sentence Repair requires static vocabulary JSON.`,
         })
       })
 
@@ -773,8 +1006,8 @@ function PhraseUpgradeMode({
   const [promptLibrary, setPromptLibrary] = useState<PromptLibraryState<PhraseUpgradePrompt>>({
     prompts: [],
     status: 'loading',
-    label: 'Loading B2-C1 starter packs',
-    detail: 'Reading static JSON from /data/starter-packs only.',
+    label: 'Loading B2-C1 full library',
+    detail: 'Reading static JSON from /data/migration-vocab.json and /data/starter-packs only.',
   })
 
   useEffect(() => {
@@ -789,8 +1022,8 @@ function PhraseUpgradeMode({
         setPromptLibrary({
           prompts: source.prompts,
           status: 'ready',
-          label: 'B2-C1 starter packs',
-          detail: `${source.prompts.length} prompts from ${source.wordCount} words across ${source.packCount} static packs.`,
+          label: 'B2-C1 full library',
+          detail: `${source.prompts.length} prompts from ${source.wordCount} library items plus ${source.packCount} starter packs.`,
         })
       })
       .catch((error: unknown) => {
@@ -802,8 +1035,8 @@ function PhraseUpgradeMode({
         setPromptLibrary({
           prompts: [],
           status: 'fallback',
-          label: 'Starter packs unavailable',
-          detail: `${message}. Phrase Upgrade requires starter-pack vocabulary.`,
+          label: 'Full library unavailable',
+          detail: `${message}. Phrase Upgrade requires static vocabulary JSON.`,
         })
       })
 
@@ -978,22 +1211,317 @@ function PhraseUpgradeMode({
   )
 }
 
+function RecallChallengeMode({
+  mission,
+  onMissionProgress,
+  onMissionControl,
+}: {
+  mission: Mission | null
+  onMissionProgress: (mode: GameMode, answers: RunAnswer[]) => void
+  onMissionControl: () => void
+}) {
+  const [progress, setProgress] = useState<RecallChallengeProgress>(() =>
+    loadRecallChallengeProgress(),
+  )
+  const [run, setRun] = useState<RecallRunState>(EMPTY_RECALL_RUN_STATE)
+  const [promptLibrary, setPromptLibrary] = useState<PromptLibraryState<RecallPrompt>>({
+    prompts: [],
+    status: 'loading',
+    label: 'Loading B2-C1 recall prompts',
+    detail: 'Reading static JSON from /data/migration-vocab.json and /data/starter-packs only.',
+  })
+  const answerInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    loadStarterPackMissionVocabulary()
+      .then((source) => {
+        if (cancelled) {
+          return
+        }
+
+        const prompts = buildRecallPrompts(source.words)
+        setPromptLibrary({
+          prompts,
+          status: 'ready',
+          label: 'B2-C1 full library recall',
+          detail: `${prompts.length} typed recall prompts from ${source.words.length} library items.`,
+        })
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+
+        const message = error instanceof Error ? error.message : 'Static vocabulary fetch failed'
+        setPromptLibrary({
+          prompts: [],
+          status: 'fallback',
+          label: 'Recall library unavailable',
+          detail: `${message}. Recall Challenge requires static vocabulary JSON.`,
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (run.status === 'playing') {
+      answerInputRef.current?.focus()
+    }
+  }, [run.promptIndex, run.status])
+
+  const currentPrompt = run.prompts[run.promptIndex]
+  const progressPercent = useMemo(() => {
+    if (run.status === 'idle') {
+      return 0
+    }
+
+    return Math.round((run.answers.length / RECALL_PROMPTS_PER_RUN) * 100)
+  }, [run.answers.length, run.status])
+
+  function startRun() {
+    if (promptLibrary.status !== 'ready' || promptLibrary.prompts.length < RECALL_PROMPTS_PER_RUN) {
+      return
+    }
+
+    setRun({
+      ...EMPTY_RECALL_RUN_STATE,
+      status: 'playing',
+      prompts: sampleRecallMissionPrompts(
+        promptLibrary.prompts,
+        mission,
+        RECALL_PROMPTS_PER_RUN,
+      ),
+    })
+  }
+
+  function submitAnswer(event?: FormEvent) {
+    event?.preventDefault()
+    if (!currentPrompt || run.status !== 'playing') {
+      return
+    }
+
+    const evaluation = evaluateRecallAnswer(currentPrompt, run.typedAnswer)
+    const isStrongRecall = evaluation.score === 1
+    const nextStreak = isStrongRecall ? run.streak + 1 : 0
+
+    setRun({
+      ...run,
+      status: 'feedback',
+      evaluation,
+      answers: [
+        ...run.answers,
+        {
+          promptId: currentPrompt.id,
+          selectedChoice: run.typedAnswer || '(blank)',
+          isCorrect: evaluation.isCorrect,
+          score: evaluation.score,
+          feedback: evaluation.feedback,
+          sourceWordId: currentPrompt.sourceWordId,
+        },
+      ],
+      score: run.score + evaluation.score,
+      streak: nextStreak,
+      bestStreak: Math.max(run.bestStreak, nextStreak),
+    })
+  }
+
+  function continueRun() {
+    const isComplete = run.promptIndex + 1 >= run.prompts.length
+
+    if (isComplete) {
+      const nextProgress = saveRecallChallengeProgress({
+        totalRuns: progress.totalRuns + 1,
+        bestScore: Math.max(progress.bestScore, run.score),
+        bestStreak: Math.max(progress.bestStreak, run.bestStreak),
+      })
+      setProgress(nextProgress)
+      onMissionProgress('recall-challenge', run.answers)
+      setRun({
+        ...run,
+        status: 'complete',
+        typedAnswer: '',
+      })
+      return
+    }
+
+    setRun({
+      ...run,
+      status: 'playing',
+      promptIndex: run.promptIndex + 1,
+      typedAnswer: '',
+      evaluation: null,
+    })
+  }
+
+  return (
+    <ModeLayout
+      progress={progress}
+      progressKey={RECALL_CHALLENGE_PROGRESS_KEY}
+      promptLibraryLabel={promptLibrary.label}
+      promptCount={RECALL_PROMPTS_PER_RUN}
+    >
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
+        {run.status === 'idle' && (
+          <StartPanel
+            eyebrow="Recall Challenge"
+            title="Type 5 target words or phrases."
+            body="Produce the missing B2-C1 vocabulary from meaning, register, and context hints. Mission words appear first when available."
+            promptLibrary={promptLibrary}
+            mission={mission}
+            buttonLabel="Start Recall Challenge"
+            onStart={startRun}
+            onMissionControl={onMissionControl}
+            promptCount={RECALL_PROMPTS_PER_RUN}
+          />
+        )}
+
+        {(run.status === 'playing' || run.status === 'feedback') && currentPrompt && (
+          <div>
+            <RunHeader
+              current={run.promptIndex + 1}
+              score={run.score}
+              streak={run.streak}
+              bestStreak={run.bestStreak}
+              progressPercent={progressPercent}
+              promptCount={RECALL_PROMPTS_PER_RUN}
+            />
+
+            <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:mt-8 sm:p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Fill the gap
+              </p>
+              <MetaTags prompt={currentPrompt} />
+              <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
+                {currentPrompt.sentence}
+              </p>
+              <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+                <div className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Meaning
+                  </p>
+                  <p className="mt-2 leading-6 text-neutral-200">{currentPrompt.meaningHint}</p>
+                </div>
+                <div className="rounded-md border border-neutral-800 bg-neutral-900 px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Register / nuance
+                  </p>
+                  <p className="mt-2 leading-6 text-neutral-200">{currentPrompt.nuanceHint}</p>
+                  {currentPrompt.firstLetterHint && (
+                    <p className="mt-2 text-xs font-medium text-teal-300">
+                      First letter hint: {currentPrompt.firstLetterHint}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {run.status === 'playing' && (
+              <form onSubmit={submitAnswer} className="mt-5">
+                <label className="block">
+                  <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Your answer
+                  </span>
+                  <input
+                    ref={answerInputRef}
+                    type="text"
+                    value={run.typedAnswer}
+                    onChange={(event) =>
+                      setRun({
+                        ...run,
+                        typedAnswer: event.target.value,
+                      })
+                    }
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    inputMode="text"
+                    className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-4 py-4 text-base text-white outline-none transition placeholder:text-neutral-600 focus:border-teal-300"
+                    placeholder="Type the missing word or phrase"
+                  />
+                </label>
+                <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <button
+                    type="submit"
+                    className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300"
+                  >
+                    Check answer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitAnswer()}
+                    className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500"
+                  >
+                    Skip
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {run.status === 'feedback' && run.evaluation && (
+              <div className="mt-6 rounded-md border border-neutral-700 bg-neutral-950 p-4 sm:p-5">
+                <FeedbackHeader
+                  isCorrect={run.evaluation.isCorrect}
+                  skillFocus={run.evaluation.title}
+                  selectedChoice={run.answers[run.answers.length - 1]?.selectedChoice ?? ''}
+                />
+                <p className="mt-4 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm leading-6 text-neutral-100">
+                  {run.evaluation.feedback}
+                </p>
+                <ExplanationBlock label="Target answer" body={run.evaluation.betterAnswer} />
+                {currentPrompt.saferAlternatives.length > 0 && (
+                  <ExplanationBlock
+                    label="Related alternatives"
+                    body={currentPrompt.saferAlternatives.join(', ')}
+                  />
+                )}
+                <ExplanationBlock label="Professional nuance" body={currentPrompt.nuanceHint} />
+                <ContinueButton
+                  isLast={run.promptIndex + 1 >= run.prompts.length}
+                  onClick={continueRun}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {run.status === 'complete' && (
+          <CompletePanel
+            score={run.score}
+            progress={progress}
+            runStreak={run.streak}
+            onPlayAgain={startRun}
+            onBack={() => setRun(EMPTY_RECALL_RUN_STATE)}
+            promptCount={RECALL_PROMPTS_PER_RUN}
+          />
+        )}
+      </div>
+    </ModeLayout>
+  )
+}
+
 function ModeLayout({
   children,
   progress,
   progressKey,
   promptLibraryLabel,
+  promptCount = PROMPTS_PER_RUN,
 }: {
   children: ReactNode
-  progress: SentenceRepairProgress | PhraseUpgradeProgress
+  progress: SentenceRepairProgress | PhraseUpgradeProgress | RecallChallengeProgress
   progressKey: string
   promptLibraryLabel: string
+  promptCount?: number
 }) {
   return (
     <section className="flex flex-1 flex-col justify-center py-4 sm:py-6">
       {children}
       <aside className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-        <ResultMetric label="Best score" value={`${progress.bestScore} / ${PROMPTS_PER_RUN}`} />
+        <ResultMetric label="Best score" value={`${progress.bestScore} / ${promptCount}`} />
         <ResultMetric label="Best streak" value={progress.bestStreak.toString()} />
         <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
           <p className="text-neutral-500">Storage / source</p>
@@ -1014,6 +1542,7 @@ function StartPanel<TPrompt>({
   buttonLabel,
   onStart,
   onMissionControl,
+  promptCount = PROMPTS_PER_RUN,
 }: {
   eyebrow: string
   title: string
@@ -1023,8 +1552,9 @@ function StartPanel<TPrompt>({
   buttonLabel: string
   onStart: () => void
   onMissionControl: () => void
+  promptCount?: number
 }) {
-  const canStart = promptLibrary.status === 'ready' && promptLibrary.prompts.length >= PROMPTS_PER_RUN
+  const canStart = promptLibrary.status === 'ready' && promptLibrary.prompts.length >= promptCount
 
   return (
     <div className="mx-auto max-w-2xl py-6 text-center sm:py-8">
@@ -1074,18 +1604,20 @@ function RunHeader({
   streak,
   bestStreak,
   progressPercent,
+  promptCount = PROMPTS_PER_RUN,
 }: {
   current: number
   score: number
   streak: number
   bestStreak: number
   progressPercent: number
+  promptCount?: number
 }) {
   return (
     <>
       <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="font-medium text-neutral-300">
-          Prompt {current} / {PROMPTS_PER_RUN}
+          Prompt {current} / {promptCount}
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400">
           <span>Score {score}</span>
@@ -1232,21 +1764,23 @@ function CompletePanel({
   runStreak,
   onPlayAgain,
   onBack,
+  promptCount = PROMPTS_PER_RUN,
 }: {
   score: number
-  progress: SentenceRepairProgress | PhraseUpgradeProgress
+  progress: SentenceRepairProgress | PhraseUpgradeProgress | RecallChallengeProgress
   runStreak: number
   onPlayAgain: () => void
   onBack: () => void
+  promptCount?: number
 }) {
   return (
     <div className="mx-auto max-w-2xl py-6 text-center sm:py-8">
-      <p className="text-sm font-medium text-teal-300">{getResultLabel(score)}</p>
+      <p className="text-sm font-medium text-teal-300">{getResultLabel(score, promptCount)}</p>
       <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
-        {score} / {PROMPTS_PER_RUN}
+        {score} / {promptCount}
       </h2>
       <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <ResultMetric label="Score" value={`${score}/${PROMPTS_PER_RUN}`} />
+        <ResultMetric label="Score" value={`${score}/${promptCount}`} />
         <ResultMetric label="Streak" value={runStreak.toString()} />
         <ResultMetric label="Best streak" value={progress.bestStreak.toString()} />
         <ResultMetric label="Runs played" value={progress.totalRuns.toString()} />

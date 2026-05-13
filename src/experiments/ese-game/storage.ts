@@ -1,6 +1,7 @@
 import {
   MISSION_CONTROL_STATE_KEY,
   PHRASE_UPGRADE_PROGRESS_KEY,
+  RECALL_CHALLENGE_PROGRESS_KEY,
   SENTENCE_REPAIR_PROGRESS_KEY,
 } from './constants'
 import {
@@ -20,6 +21,12 @@ export interface PhraseUpgradeProgress {
   bestStreak: number
 }
 
+export interface RecallChallengeProgress {
+  totalRuns: number
+  bestScore: number
+  bestStreak: number
+}
+
 export const DEFAULT_SENTENCE_REPAIR_PROGRESS: SentenceRepairProgress = {
   totalRuns: 0,
   bestScore: 0,
@@ -27,6 +34,12 @@ export const DEFAULT_SENTENCE_REPAIR_PROGRESS: SentenceRepairProgress = {
 }
 
 export const DEFAULT_PHRASE_UPGRADE_PROGRESS: PhraseUpgradeProgress = {
+  totalRuns: 0,
+  bestScore: 0,
+  bestStreak: 0,
+}
+
+export const DEFAULT_RECALL_CHALLENGE_PROGRESS: RecallChallengeProgress = {
   totalRuns: 0,
   bestScore: 0,
   bestStreak: 0,
@@ -49,6 +62,10 @@ function isPhraseUpgradeProgress(value: unknown): value is PhraseUpgradeProgress
   return isProgress(value)
 }
 
+function isRecallChallengeProgress(value: unknown): value is RecallChallengeProgress {
+  return isProgress(value)
+}
+
 function isMissionControlState(value: unknown): value is MissionControlState {
   if (!value || typeof value !== 'object') {
     return false
@@ -64,6 +81,26 @@ function isMissionControlState(value: unknown): value is MissionControlState {
   }
 
   return true
+}
+
+function normalizeMissionControlState(state: MissionControlState): MissionControlState {
+  const activeMission = state.activeMission &&
+    'composition' in state.activeMission &&
+    'migrationVocab' in state.activeMission.composition
+    ? state.activeMission
+    : null
+
+  return {
+    ...DEFAULT_MISSION_CONTROL_STATE,
+    ...state,
+    activeMission,
+    filters: {
+      ...DEFAULT_MISSION_CONTROL_STATE.filters,
+      ...(state.filters ?? {}),
+    },
+    wordStats: state.wordStats ?? {},
+    recentRuns: Array.isArray(state.recentRuns) ? state.recentRuns : [],
+  }
 }
 
 export function loadSentenceRepairProgress(): SentenceRepairProgress {
@@ -108,6 +145,27 @@ export function savePhraseUpgradeProgress(
   return progress
 }
 
+export function loadRecallChallengeProgress(): RecallChallengeProgress {
+  const raw = localStorage.getItem(RECALL_CHALLENGE_PROGRESS_KEY)
+  if (!raw) {
+    return DEFAULT_RECALL_CHALLENGE_PROGRESS
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    return isRecallChallengeProgress(parsed) ? parsed : DEFAULT_RECALL_CHALLENGE_PROGRESS
+  } catch {
+    return DEFAULT_RECALL_CHALLENGE_PROGRESS
+  }
+}
+
+export function saveRecallChallengeProgress(
+  progress: RecallChallengeProgress,
+): RecallChallengeProgress {
+  localStorage.setItem(RECALL_CHALLENGE_PROGRESS_KEY, JSON.stringify(progress))
+  return progress
+}
+
 export function loadMissionControlState(): MissionControlState {
   const raw = localStorage.getItem(MISSION_CONTROL_STATE_KEY)
   if (!raw) {
@@ -116,7 +174,9 @@ export function loadMissionControlState(): MissionControlState {
 
   try {
     const parsed = JSON.parse(raw)
-    return isMissionControlState(parsed) ? parsed : DEFAULT_MISSION_CONTROL_STATE
+    return isMissionControlState(parsed)
+      ? normalizeMissionControlState(parsed)
+      : DEFAULT_MISSION_CONTROL_STATE
   } catch {
     return DEFAULT_MISSION_CONTROL_STATE
   }

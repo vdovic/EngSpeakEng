@@ -1,10 +1,13 @@
 import { PhraseUpgradePrompt, SentenceRepairPrompt } from './sampleData'
 
+const MIGRATION_VOCAB_URL = '/data/migration-vocab.json'
 const STARTER_PACK_INDEX_URL = '/data/starter-packs/index.json'
 const STARTER_PACK_BASE_URL = '/data/starter-packs'
 const MIN_PROMPTS = 6
 
 export type StarterPackDifficulty = 'B2' | 'C1' | 'Mixed'
+export type EseVocabularyType = 'word' | 'phrase' | 'chunk'
+export type EseVocabularySource = 'migration-vocab' | 'starter-pack'
 
 export interface StarterPackMeta {
   id: string
@@ -15,12 +18,19 @@ export interface StarterPackMeta {
 
 export interface StarterPackWord {
   term: string
+  type?: EseVocabularyType
+  cefr?: StarterPackDifficulty
+  difficulty?: StarterPackDifficulty
   exampleSentence?: string
+  workSentence?: string
   definitionEn?: string
   nuance?: string
   register?: 'formal' | 'neutral' | 'conversational'
   synonyms?: string[]
   tags?: string[]
+  partOfSpeech?: string
+  collocations?: string[]
+  commonMistakes?: string
 }
 
 export interface StarterPackMissionWord extends StarterPackWord {
@@ -29,10 +39,21 @@ export interface StarterPackMissionWord extends StarterPackWord {
   packTitle: string
   packTheme: string
   difficulty: StarterPackDifficulty
+  source: EseVocabularySource
+  categories: string[]
+  searchableText: string
+  qualityScore: number
 }
 
 interface StarterPack extends StarterPackMeta {
   words: StarterPackWord[]
+}
+
+interface MigrationVocabularyItem extends StarterPackWord {
+  id: string
+  status?: string
+  archived?: boolean
+  generationStatus?: string
 }
 
 export interface SentenceRepairPromptSource {
@@ -48,6 +69,15 @@ export interface PhraseUpgradePromptSource {
   wordCount: number
   words: StarterPackMissionWord[]
 }
+
+export interface FullLibraryVocabularySource {
+  packs: StarterPackMeta[]
+  words: StarterPackMissionWord[]
+}
+
+let vocabularyPromise: Promise<FullLibraryVocabularySource> | null = null
+let sentencePromptPromise: Promise<SentenceRepairPromptSource> | null = null
+let phrasePromptPromise: Promise<PhraseUpgradePromptSource> | null = null
 
 function isB2C1Pack(meta: StarterPackMeta): boolean {
   return meta.difficulty === 'B2' || meta.difficulty === 'C1'
@@ -98,15 +128,246 @@ function slug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-function getWordId(packId: string, term: string): string {
-  return `${packId}:${slug(term)}`
+function getWordId(sourceId: string, term: string): string {
+  return `${sourceId}:${slug(term)}`
+}
+
+function compactText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function compactArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+    : []
+}
+
+function inferType(word: StarterPackWord): EseVocabularyType {
+  if (word.type === 'chunk' || word.type === 'phrase' || word.type === 'word') {
+    return word.type
+  }
+
+  return word.term.trim().includes(' ') ? 'phrase' : 'word'
+}
+
+function buildSearchableText(word: StarterPackWord, packTheme?: string): string {
+  return [
+    word.term,
+    word.definitionEn,
+    word.exampleSentence,
+    word.workSentence,
+    word.nuance,
+    word.register,
+    word.partOfSpeech,
+    packTheme,
+    ...(word.tags ?? []),
+    ...(word.synonyms ?? []),
+    ...(word.collocations ?? []),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+function includesAny(text: string, values: string[]): boolean {
+  return values.some((value) => text.includes(value))
+}
+
+function getCategories(word: StarterPackWord, packTheme?: string): string[] {
+  const text = buildSearchableText(word, packTheme)
+  const type = inferType(word)
+  const categories = new Set<string>()
+
+  if (includesAny(text, ['business', 'professional', 'client', 'stakeholder', 'manager', 'team', 'project', 'office', 'workplace'])) {
+    categories.add('business')
+  }
+  if (includesAny(text, ['meeting', 'presentation', 'agenda', 'discussion', 'recap', 'decision', 'follow-up'])) {
+    categories.add('meetings')
+  }
+  if (includesAny(text, ['email', 'writing', 'written', 'report', 'document', 'message', 'formal phrase'])) {
+    categories.add('email')
+  }
+  if (includesAny(text, ['fluency', 'conversation', 'natural', 'idiom', 'discourse', 'connector'])) {
+    categories.add('fluency')
+  }
+  if (includesAny(text, ['phrasal-verb', 'phrasal verb']) || (word.tags ?? []).includes('phrasal-verb')) {
+    categories.add('phrasal verbs')
+  }
+  if (type === 'chunk' || (word.tags ?? []).includes('chunks')) {
+    categories.add('chunks')
+  }
+  if (type === 'phrase' || word.term.trim().includes(' ')) {
+    categories.add('phrases')
+  }
+  if (categories.size === 0) {
+    categories.add(type === 'word' ? 'business' : 'phrases')
+  }
+
+  return Array.from(categories)
+}
+
+function explicitDifficulty(word: StarterPackWord): StarterPackDifficulty | undefined {
+  const value = word.cefr ?? word.difficulty
+  return value === 'B2' || value === 'C1' ? value : undefined
+}
+
+function estimateDifficulty(word: StarterPackWord): StarterPackDifficulty {
+  const text = buildSearchableText(word)
+  let score = 0
+
+  const explicit = explicitDifficulty(word)
+  if (explicit) {
+    return explicit
+  }
+
+  if (word.register === 'formal') {
+    score += 2
+  }
+  if (word.register === 'conversational') {
+    score -= 1
+  }
+  if (inferType(word) !== 'word') {
+    score += 1
+  }
+  if (word.term.length > 12 || word.term.split(/\s+/).length >= 3) {
+    score += 1
+  }
+  if (word.nuance && word.nuance.length > 120) {
+    score += 1
+  }
+  if (includesAny(text, ['formal', 'precise', 'nuance', 'academic', 'legal', 'strategic', 'idiom', 'phrasal-verb', 'collocation'])) {
+    score += 1
+  }
+  if ((word.tags ?? []).some((tag) => ['c1', 'advanced', 'academic', 'formal'].includes(normaliseChoice(tag)))) {
+    score += 2
+  }
+  if ((word.tags ?? []).some((tag) => ['b1', 'a2', 'beginner'].includes(normaliseChoice(tag)))) {
+    score -= 2
+  }
+  if (includesAny(text, ['easy', 'simple', 'everyday', 'casual'])) {
+    score -= 1
+  }
+
+  return score >= 2 ? 'C1' : 'B2'
+}
+
+function getQualityScore(word: StarterPackWord): number {
+  let score = 0
+
+  if (word.workSentence) {
+    score += 3
+  }
+  if (word.exampleSentence) {
+    score += 2
+  }
+  if (word.definitionEn) {
+    score += 2
+  }
+  if (word.nuance) {
+    score += 1
+  }
+  if (word.register) {
+    score += 1
+  }
+  if ((word.tags ?? []).length) {
+    score += 1
+  }
+  if ((word.synonyms ?? []).length) {
+    score += 1
+  }
+  if ((word.collocations ?? []).length) {
+    score += 1
+  }
+
+  return score
+}
+
+function getTheme(word: StarterPackWord, packTheme?: string): string {
+  if (packTheme) {
+    return packTheme
+  }
+
+  const categories = getCategories(word)
+  if (categories.includes('meetings')) {
+    return 'Meetings & Presentations'
+  }
+  if (categories.includes('email')) {
+    return 'Written Communication'
+  }
+  if (categories.includes('phrasal verbs')) {
+    return 'Phrasal Verbs'
+  }
+  if (categories.includes('fluency')) {
+    return 'Everyday Fluency'
+  }
+  if (categories.includes('chunks') || categories.includes('phrases')) {
+    return 'Phrases & Chunks'
+  }
+  return 'Business & Professional'
+}
+
+function normalizeRegister(value: unknown): StarterPackWord['register'] {
+  return value === 'formal' || value === 'neutral' || value === 'conversational'
+    ? value
+    : 'neutral'
+}
+
+function normalizeWord(
+  word: StarterPackWord,
+  source: EseVocabularySource,
+  sourceId: string,
+  packTitle: string,
+  packTheme: string,
+  difficulty?: StarterPackDifficulty,
+): StarterPackMissionWord | null {
+  const term = compactText(word.term)
+  const definitionEn = compactText(word.definitionEn)
+  const exampleSentence = compactText(word.exampleSentence)
+  const workSentence = compactText(word.workSentence)
+
+  if (!term || !definitionEn || (!exampleSentence && !workSentence)) {
+    return null
+  }
+
+  const normalized: StarterPackWord = {
+    ...word,
+    term,
+    type: inferType(word),
+    cefr: explicitDifficulty(word),
+    difficulty: explicitDifficulty(word),
+    exampleSentence,
+    workSentence,
+    definitionEn,
+    nuance: compactText(word.nuance),
+    register: normalizeRegister(word.register),
+    synonyms: compactArray(word.synonyms),
+    tags: compactArray(word.tags),
+    partOfSpeech: compactText(word.partOfSpeech),
+    collocations: compactArray(word.collocations),
+    commonMistakes: compactText(word.commonMistakes),
+  }
+  const theme = getTheme(normalized, packTheme)
+  const categories = getCategories(normalized, theme)
+
+  return {
+    ...normalized,
+    id: getWordId(sourceId, term),
+    packId: sourceId,
+    packTitle,
+    packTheme: theme,
+    difficulty: difficulty === 'Mixed' ? estimateDifficulty(normalized) : difficulty ?? estimateDifficulty(normalized),
+    source,
+    categories,
+    searchableText: buildSearchableText(normalized, theme),
+    qualityScore: getQualityScore(normalized),
+  }
 }
 
 function selectTemptingAlternative(word: StarterPackWord): string | null {
   const candidates = [
     ...(word.synonyms ?? []),
     word.definitionEn?.split(/[;,.(]/)[0],
-  ].filter((candidate): candidate is string => Boolean(candidate && candidate.length <= 38))
+  ].filter((candidate): candidate is string => Boolean(candidate && candidate.length <= 42))
 
   return uniqueChoices(candidates).find(
     (candidate) => normaliseChoice(candidate) !== normaliseChoice(word.term),
@@ -119,13 +380,13 @@ function getErrorPattern(word: StarterPackWord): {
   reason: string
 } | null {
   const term = word.term.trim()
-  const [firstWord, secondWord] = term.split(/\s+/)
+  const [firstWord] = term.split(/\s+/)
   const synonym = selectTemptingAlternative(word)
 
   if (term.includes(' on')) {
     return {
       replacement: term.replace(/\bon\b/i, ''),
-      focus: 'missing preposition',
+      focus: 'verb + preposition pattern',
       reason: `"${term}" needs "on" before the topic in this context.`,
     }
   }
@@ -133,7 +394,7 @@ function getErrorPattern(word: StarterPackWord): {
   if (term.includes(' with')) {
     return {
       replacement: term.replace(/\bwith\b/i, 'to'),
-      focus: 'wrong preposition',
+      focus: 'fixed phrase pattern',
       reason: `"${term}" is the fixed phrase here; changing the preposition makes it sound non-native.`,
     }
   }
@@ -141,7 +402,7 @@ function getErrorPattern(word: StarterPackWord): {
   if (term.includes(' to')) {
     return {
       replacement: term.replace(/\bto\b/i, 'for'),
-      focus: 'wrong preposition',
+      focus: 'collocation pattern',
       reason: `"${term}" is the natural pattern for this idea.`,
     }
   }
@@ -149,7 +410,7 @@ function getErrorPattern(word: StarterPackWord): {
   if (term.includes(' of')) {
     return {
       replacement: term.replace(/\bof\b/i, 'about'),
-      focus: 'wrong phrase pattern',
+      focus: 'phrase precision',
       reason: `"${term}" is the expected professional phrase in this sentence.`,
     }
   }
@@ -158,53 +419,59 @@ function getErrorPattern(word: StarterPackWord): {
     return {
       replacement: synonym ?? firstWord,
       focus: 'phrase precision',
-      reason: `"${term}" works as a complete expression; the shorter wording loses the intended professional meaning.`,
-    }
-  }
-
-  if (word.register === 'formal' && synonym) {
-    return {
-      replacement: synonym,
-      focus: 'register and precision',
-      reason: `"${term}" is more precise and more appropriate for this formal context than the plainer alternative.`,
-    }
-  }
-
-  if (secondWord) {
-    return {
-      replacement: firstWord,
-      focus: 'phrase precision',
-      reason: `"${term}" is the complete phrase expected here.`,
+      reason: `"${term}" works as a complete expression; the shorter wording loses the intended meaning.`,
     }
   }
 
   return synonym
     ? {
         replacement: synonym,
-        focus: 'word choice',
+        focus: word.register === 'formal' ? 'register and precision' : 'word choice',
         reason: `"${term}" is the more natural choice in this exact sentence.`,
       }
     : null
 }
 
-function getDistractors(word: StarterPackWord, allWords: StarterPackWord[]): string[] {
+function getDistractors(word: StarterPackMissionWord, allWords: StarterPackMissionWord[]): string[] {
+  const sameCategory = new Set(word.categories)
   const sameTag = new Set((word.tags ?? []).map(normaliseChoice))
-  const fromSameTag = allWords
-    .filter((candidate) => candidate.term !== word.term)
+  const fromSameArea = allWords
+    .filter((candidate) => candidate.id !== word.id)
     .filter((candidate) =>
+      candidate.categories.some((category) => sameCategory.has(category)) ||
       (candidate.tags ?? []).some((tag) => sameTag.has(normaliseChoice(tag))),
     )
     .flatMap((candidate) => [candidate.term, ...(candidate.synonyms ?? []).slice(0, 1)])
 
   const fromAnyPack = allWords
-    .filter((candidate) => candidate.term !== word.term)
+    .filter((candidate) => candidate.id !== word.id)
     .flatMap((candidate) => [candidate.term, ...(candidate.synonyms ?? []).slice(0, 1)])
 
-  return uniqueChoices([...fromSameTag, ...fromAnyPack]).slice(0, 2)
+  return uniqueChoices([...fromSameArea, ...fromAnyPack]).slice(0, 2)
 }
 
 function shuffle<T>(items: T[]): T[] {
   return [...items].sort(() => Math.random() - 0.5)
+}
+
+function bestSentence(word: StarterPackMissionWord): string | undefined {
+  return word.workSentence ?? word.exampleSentence
+}
+
+function buildContext(word: StarterPackMissionWord, extra?: string): string {
+  return [
+    extra,
+    word.nuance,
+    word.register ? `Register: ${word.register}.` : undefined,
+    word.tags?.length ? `Tags: ${word.tags.slice(0, 3).join(', ')}.` : undefined,
+    `Meaning: ${word.definitionEn}`,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function buildPromptId(prefix: string, word: StarterPackMissionWord): string {
+  return `${prefix}-${word.id}`
 }
 
 function toPrompt(
@@ -212,7 +479,8 @@ function toPrompt(
   difficulty: StarterPackDifficulty,
   allWords: StarterPackMissionWord[],
 ): SentenceRepairPrompt | null {
-  if (!word.exampleSentence || !word.definitionEn) {
+  const sentenceSource = bestSentence(word)
+  if (!sentenceSource || !word.definitionEn) {
     return null
   }
 
@@ -222,7 +490,7 @@ function toPrompt(
   }
 
   const replacement = sentenceCaseLike(word.term, errorPattern.replacement)
-  const sentence = replaceTerm(word.exampleSentence, word.term, replacement)
+  const sentence = replaceTerm(sentenceSource, word.term, replacement)
   if (!sentence) {
     return null
   }
@@ -233,37 +501,31 @@ function toPrompt(
     return null
   }
 
-  const context = [
-    errorPattern.reason,
-    word.nuance,
-    `Meaning: ${word.definitionEn}`,
-    word.register ? `Register: ${word.register}.` : undefined,
-  ]
-    .filter(Boolean)
-    .join(' ')
-
-  const repairedSentence = replaceTerm(sentence, replacement, word.term) ?? word.exampleSentence
+  const repairedSentence = replaceTerm(sentence, replacement, word.term) ?? sentenceSource
 
   return {
-    id: `starter-pack-${word.packId}-${difficulty.toLowerCase()}-${slug(word.term)}`,
+    id: buildPromptId('full-library-repair', word),
     sentence,
     target: replacement,
     choices,
     correctChoice: word.term,
     repairedSentence,
     skillFocus: errorPattern.focus,
-    explanation: `${context}`,
+    explanation: buildContext(
+      word,
+      `${errorPattern.reason} Source: ${word.workSentence ? 'work context' : 'example context'}.`,
+    ),
     wrongChoiceFeedback: Object.fromEntries(
       choices
         .filter((choice) => choice !== word.term)
         .map((choice) => [
           choice,
-          `"${choice}" is related vocabulary, but it does not repair this sentence as naturally as "${word.term}".`,
+          `"${choice}" is related language, but it does not repair this context as naturally as "${word.term}".`,
         ]),
     ),
     difficulty,
     register: word.register,
-    tags: word.tags ?? [],
+    tags: uniqueChoices([...(word.tags ?? []), ...word.categories]).slice(0, 4),
     sourceWordId: word.id,
     sourceTerm: word.term,
   }
@@ -273,7 +535,8 @@ function toPhraseUpgradePrompt(
   word: StarterPackMissionWord,
   difficulty: StarterPackDifficulty,
 ): PhraseUpgradePrompt | null {
-  if (!word.exampleSentence || !word.definitionEn) {
+  const sentenceSource = bestSentence(word)
+  if (!sentenceSource || !word.definitionEn) {
     return null
   }
 
@@ -283,64 +546,59 @@ function toPhraseUpgradePrompt(
   }
 
   const basicSentence = replaceTerm(
-    word.exampleSentence,
+    sentenceSource,
     word.term,
     sentenceCaseLike(word.term, plainAlternative),
   )
-  if (!basicSentence || basicSentence === word.exampleSentence) {
+  if (!basicSentence || basicSentence === sentenceSource) {
     return null
   }
 
   const vagueChoice = replaceTerm(
-    word.exampleSentence,
+    sentenceSource,
     word.term,
-    sentenceCaseLike(word.term, 'a good option'),
+    sentenceCaseLike(word.term, word.type === 'word' ? 'a good option' : 'a useful thing'),
   )
-  const overdoneChoice = `It is important to note that ${lowerFirst(word.exampleSentence)}`
+  const overdoneChoice = `It is important to note that ${lowerFirst(sentenceSource)}`
 
   const choices = shuffle(
     uniqueChoices([
-      word.exampleSentence,
+      sentenceSource,
       basicSentence,
       vagueChoice ?? basicSentence,
       overdoneChoice,
     ]),
   ).slice(0, 3)
 
-  if (choices.length < 3 || !choices.includes(word.exampleSentence)) {
+  if (choices.length < 3 || !choices.includes(sentenceSource)) {
     return null
   }
 
-  const focus = word.term.includes(' ') ? 'professional phrase upgrade' : 'precise vocabulary'
-  const register = word.register ?? 'neutral'
-  const nuance = [
-    word.nuance,
-    `Register: ${register}.`,
-    `Meaning: ${word.definitionEn}`,
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const focus = word.type === 'word' ? 'precise vocabulary' : 'natural chunk or phrase'
 
   return {
-    id: `starter-pack-upgrade-${word.packId}-${difficulty.toLowerCase()}-${slug(word.term)}`,
+    id: buildPromptId('full-library-upgrade', word),
     basicSentence,
     choices,
-    correctChoice: word.exampleSentence,
-    upgradedSentence: word.exampleSentence,
-    whyStronger: `"${word.term}" is more precise and natural in this context than the plainer wording.`,
-    nuance,
+    correctChoice: sentenceSource,
+    upgradedSentence: sentenceSource,
+    whyStronger: [
+      `"${word.term}" is more precise, natural, or professionally appropriate in this context than the plainer wording.`,
+      word.workSentence ? 'The source sentence comes from a workplace context.' : undefined,
+    ].filter(Boolean).join(' '),
+    nuance: buildContext(word),
     skillFocus: focus,
     weakChoiceFeedback: Object.fromEntries(
       choices
-        .filter((choice) => choice !== word.exampleSentence)
+        .filter((choice) => choice !== sentenceSource)
         .map((choice) => [
           choice,
           'This version is understandable, but it is less precise or less natural than the strongest upgrade.',
         ]),
     ),
     difficulty,
-    register,
-    tags: word.tags ?? [],
+    register: word.register,
+    tags: uniqueChoices([...(word.tags ?? []), ...word.categories]).slice(0, 4),
     sourceWordId: word.id,
     sourceTerm: word.term,
   }
@@ -355,70 +613,121 @@ async function fetchJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export async function loadStarterPackMissionVocabulary(): Promise<{
-  packs: StarterPackMeta[]
-  words: StarterPackMissionWord[]
-}> {
-  const index = await fetchJson<StarterPackMeta[]>(STARTER_PACK_INDEX_URL)
+async function loadFullLibraryVocabulary(): Promise<FullLibraryVocabularySource> {
+  const [migrationVocabulary, index] = await Promise.all([
+    fetchJson<MigrationVocabularyItem[]>(MIGRATION_VOCAB_URL),
+    fetchJson<StarterPackMeta[]>(STARTER_PACK_INDEX_URL),
+  ])
   const selectedPacks = index.filter(isB2C1Pack)
-
   const packs = await Promise.all(
     selectedPacks.map((pack) =>
       fetchJson<StarterPack>(`${STARTER_PACK_BASE_URL}/${pack.id}.json`),
     ),
   )
 
-  const words = packs.flatMap((pack) =>
-    pack.words.map((word) => ({
-      ...word,
-      id: getWordId(pack.id, word.term),
-      packId: pack.id,
-      packTitle: pack.title ?? pack.id,
-      packTheme: pack.theme ?? pack.title ?? pack.id,
-      difficulty: pack.difficulty,
-    })),
+  const starterWords = packs.flatMap((pack) =>
+    pack.words
+      .map((word) =>
+        normalizeWord(
+          word,
+          'starter-pack',
+          pack.id,
+          pack.title ?? pack.id,
+          pack.theme ?? pack.title ?? pack.id,
+          pack.difficulty,
+        ),
+      )
+      .filter((word): word is StarterPackMissionWord => word !== null),
   )
+
+  const migrationWords = migrationVocabulary
+    .filter((word) => !word.archived && word.generationStatus !== 'failed')
+    .map((word) =>
+      normalizeWord(
+        word,
+        'migration-vocab',
+        'migration-vocab',
+        'Full Vocabulary Library',
+        '',
+      ),
+    )
+    .filter((word): word is StarterPackMissionWord => word !== null)
+
+  const byTerm = new Map<string, StarterPackMissionWord>()
+  for (const word of [...migrationWords, ...starterWords]) {
+    const key = normaliseChoice(word.term)
+      const existing = byTerm.get(key)
+      if (!existing) {
+        byTerm.set(key, word)
+        continue
+      }
+
+      const preferred = word.qualityScore > existing.qualityScore ? word : existing
+      const fallback = preferred.id === word.id ? existing : word
+      byTerm.set(key, {
+        ...fallback,
+        ...preferred,
+        id: existing.id,
+        source: existing.source === 'starter-pack' || word.source === 'starter-pack'
+          ? 'starter-pack'
+          : preferred.source,
+        categories: uniqueChoices([...existing.categories, ...word.categories]),
+        tags: uniqueChoices([...(existing.tags ?? []), ...(word.tags ?? [])]),
+        synonyms: uniqueChoices([...(existing.synonyms ?? []), ...(word.synonyms ?? [])]),
+        searchableText: `${existing.searchableText} ${word.searchableText}`,
+        qualityScore: Math.max(existing.qualityScore, word.qualityScore),
+      })
+  }
 
   return {
     packs: selectedPacks,
-    words,
+    words: Array.from(byTerm.values()),
   }
+}
+
+export async function loadStarterPackMissionVocabulary(): Promise<FullLibraryVocabularySource> {
+  vocabularyPromise ??= loadFullLibraryVocabulary()
+  return vocabularyPromise
 }
 
 export async function loadB2C1SentenceRepairPrompts(): Promise<SentenceRepairPromptSource> {
-  const source = await loadStarterPackMissionVocabulary()
+  sentencePromptPromise ??= loadStarterPackMissionVocabulary().then((source) => {
+    const prompts = source.words
+      .map((word) => toPrompt(word, word.difficulty, source.words))
+      .filter((prompt): prompt is SentenceRepairPrompt => prompt !== null)
 
-  const prompts = source.words
-    .map((word) => toPrompt(word, word.difficulty, source.words))
-    .filter((prompt): prompt is SentenceRepairPrompt => prompt !== null)
+    if (prompts.length < MIN_PROMPTS) {
+      throw new Error(`Only ${prompts.length} B2-C1 prompts could be built`)
+    }
 
-  if (prompts.length < MIN_PROMPTS) {
-    throw new Error(`Only ${prompts.length} B2-C1 prompts could be built`)
-  }
+    return {
+      prompts,
+      packCount: source.packs.length,
+      wordCount: source.words.length,
+      words: source.words,
+    }
+  })
 
-  return {
-    prompts,
-    packCount: source.packs.length,
-    wordCount: source.words.length,
-    words: source.words,
-  }
+  return sentencePromptPromise
 }
 
 export async function loadB2C1PhraseUpgradePrompts(): Promise<PhraseUpgradePromptSource> {
-  const source = await loadStarterPackMissionVocabulary()
+  phrasePromptPromise ??= loadStarterPackMissionVocabulary().then((source) => {
+    const prompts = source.words
+      .map((word) => toPhraseUpgradePrompt(word, word.difficulty))
+      .filter((prompt): prompt is PhraseUpgradePrompt => prompt !== null)
 
-  const prompts = source.words
-    .map((word) => toPhraseUpgradePrompt(word, word.difficulty))
-    .filter((prompt): prompt is PhraseUpgradePrompt => prompt !== null)
+    if (prompts.length < MIN_PROMPTS) {
+      throw new Error(`Only ${prompts.length} B2-C1 phrase upgrade prompts could be built`)
+    }
 
-  if (prompts.length < MIN_PROMPTS) {
-    throw new Error(`Only ${prompts.length} B2-C1 phrase upgrade prompts could be built`)
-  }
+    return {
+      prompts,
+      packCount: source.packs.length,
+      wordCount: source.words.length,
+      words: source.words,
+    }
+  })
 
-  return {
-    prompts,
-    packCount: source.packs.length,
-    wordCount: source.words.length,
-    words: source.words,
-  }
+  return phrasePromptPromise
 }
