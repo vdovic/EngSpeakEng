@@ -15,3 +15,6 @@ export const RECALL_CHALLENGE_PROGRESS_KEY =
 
 export const MISSION_CONTROL_STATE_KEY =
   `${ESE_GAME_EXPERIMENT_LS_PREFIX}mission-control-state`
+
+export const DAILY_TRAINING_SESSION_KEY =
+  `${ESE_GAME_EXPERIMENT_LS_PREFIX}daily-training-session`

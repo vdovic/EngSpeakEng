@@ -1,4 +1,5 @@
 import {
+  DAILY_TRAINING_SESSION_KEY,
   MISSION_CONTROL_STATE_KEY,
   PHRASE_UPGRADE_PROGRESS_KEY,
   RECALL_CHALLENGE_PROGRESS_KEY,
@@ -27,6 +28,19 @@ export interface RecallChallengeProgress {
   bestStreak: number
 }
 
+export interface DailyTrainingSessionSummary {
+  completedAt: string
+  missionId: string | null
+  missionTitle: string
+  totalScore: number
+  totalPrompts: number
+  wordsPracticed: string[]
+  weakWords: string[]
+  strongestWords: string[]
+  recommendedNextMission: string
+  insight: string
+}
+
 export const DEFAULT_SENTENCE_REPAIR_PROGRESS: SentenceRepairProgress = {
   totalRuns: 0,
   bestScore: 0,
@@ -44,6 +58,8 @@ export const DEFAULT_RECALL_CHALLENGE_PROGRESS: RecallChallengeProgress = {
   bestScore: 0,
   bestStreak: 0,
 }
+
+export const DEFAULT_DAILY_TRAINING_SESSION_SUMMARY: DailyTrainingSessionSummary | null = null
 
 function isProgress(value: unknown): value is SentenceRepairProgress {
   if (!value || typeof value !== 'object') {
@@ -81,6 +97,32 @@ function isMissionControlState(value: unknown): value is MissionControlState {
   }
 
   return true
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string')
+}
+
+function isDailyTrainingSessionSummary(
+  value: unknown,
+): value is DailyTrainingSessionSummary {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const summary = value as Record<string, unknown>
+  return (
+    typeof summary.completedAt === 'string' &&
+    (typeof summary.missionId === 'string' || summary.missionId === null) &&
+    typeof summary.missionTitle === 'string' &&
+    typeof summary.totalScore === 'number' &&
+    typeof summary.totalPrompts === 'number' &&
+    isStringArray(summary.wordsPracticed) &&
+    isStringArray(summary.weakWords) &&
+    isStringArray(summary.strongestWords) &&
+    typeof summary.recommendedNextMission === 'string' &&
+    typeof summary.insight === 'string'
+  )
 }
 
 function normalizeMissionControlState(state: MissionControlState): MissionControlState {
@@ -187,4 +229,27 @@ export function saveMissionControlState(
 ): MissionControlState {
   localStorage.setItem(MISSION_CONTROL_STATE_KEY, JSON.stringify(state))
   return state
+}
+
+export function loadDailyTrainingSessionSummary(): DailyTrainingSessionSummary | null {
+  const raw = localStorage.getItem(DAILY_TRAINING_SESSION_KEY)
+  if (!raw) {
+    return DEFAULT_DAILY_TRAINING_SESSION_SUMMARY
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    return isDailyTrainingSessionSummary(parsed)
+      ? parsed
+      : DEFAULT_DAILY_TRAINING_SESSION_SUMMARY
+  } catch {
+    return DEFAULT_DAILY_TRAINING_SESSION_SUMMARY
+  }
+}
+
+export function saveDailyTrainingSessionSummary(
+  summary: DailyTrainingSessionSummary,
+): DailyTrainingSessionSummary {
+  localStorage.setItem(DAILY_TRAINING_SESSION_KEY, JSON.stringify(summary))
+  return summary
 }

@@ -1,5 +1,6 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  DAILY_TRAINING_SESSION_KEY,
   ESE_GAME_EXPERIMENT_ROUTE,
   MISSION_CONTROL_STATE_KEY,
   PHRASE_UPGRADE_PROGRESS_KEY,
@@ -42,11 +43,14 @@ import {
 } from './starterPackVocabulary'
 import {
   loadMissionControlState,
+  loadDailyTrainingSessionSummary,
   loadPhraseUpgradeProgress,
   loadRecallChallengeProgress,
   loadSentenceRepairProgress,
   saveMissionControlState,
+  DailyTrainingSessionSummary,
   PhraseUpgradeProgress,
+  saveDailyTrainingSessionSummary,
   savePhraseUpgradeProgress,
   RecallChallengeProgress,
   saveRecallChallengeProgress,
@@ -56,10 +60,15 @@ import {
 
 const PROMPTS_PER_RUN = 6
 const RECALL_PROMPTS_PER_RUN = 5
+const DAILY_SENTENCE_PROMPTS = 3
+const DAILY_PHRASE_PROMPTS = 4
+const DAILY_RECALL_PROMPTS = 3
+const DAILY_TOTAL_PROMPTS = DAILY_SENTENCE_PROMPTS + DAILY_PHRASE_PROMPTS + DAILY_RECALL_PROMPTS
 
 type GameMode = 'sentence-repair' | 'phrase-upgrade' | 'recall-challenge'
-type Screen = 'mission-control' | 'game'
+type Screen = 'mission-control' | 'game' | 'daily-session'
 type RunStatus = 'idle' | 'playing' | 'feedback' | 'complete'
+type DailyStageId = 'sentence-repair' | 'phrase-upgrade' | 'recall-challenge' | 'summary'
 
 interface RunAnswer {
   promptId: string
@@ -104,6 +113,24 @@ interface RecallRunState {
   evaluation: RecallEvaluation | null
 }
 
+interface DailyTrainingSessionState {
+  status: 'intro' | 'playing' | 'feedback' | 'summary'
+  stage: DailyStageId
+  promptIndex: number
+  sentencePrompts: SentenceRepairPrompt[]
+  phrasePrompts: PhraseUpgradePrompt[]
+  recallPrompts: RecallPrompt[]
+  answers: RunAnswer[]
+  stageAnswers: Partial<Record<GameMode, RunAnswer[]>>
+  score: number
+  streak: number
+  bestStreak: number
+  selectedChoice: string | null
+  typedAnswer: string
+  evaluation: RecallEvaluation | null
+  summary: DailyTrainingSessionSummary | null
+}
+
 interface PromptLibraryState<TPrompt> {
   prompts: TPrompt[]
   status: 'loading' | 'ready' | 'fallback'
@@ -145,6 +172,24 @@ const EMPTY_RECALL_RUN_STATE: RecallRunState = {
   evaluation: null,
 }
 
+const EMPTY_DAILY_TRAINING_SESSION_STATE: DailyTrainingSessionState = {
+  status: 'intro',
+  stage: 'sentence-repair',
+  promptIndex: 0,
+  sentencePrompts: [],
+  phrasePrompts: [],
+  recallPrompts: [],
+  answers: [],
+  stageAnswers: {},
+  score: 0,
+  streak: 0,
+  bestStreak: 0,
+  selectedChoice: null,
+  typedAnswer: '',
+  evaluation: null,
+  summary: null,
+}
+
 function getResultLabel(score: number, total = PROMPTS_PER_RUN) {
   if (score === total) {
     return 'Clean run'
@@ -178,6 +223,9 @@ export function EseGameSandboxPage() {
     label: 'Loading full library missions',
     detail: 'Reading static JSON from /data/migration-vocab.json and /data/starter-packs only.',
   })
+  const [lastDailySummary, setLastDailySummary] = useState<DailyTrainingSessionSummary | null>(() =>
+    loadDailyTrainingSessionSummary(),
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -284,12 +332,42 @@ export function EseGameSandboxPage() {
     setScreen('game')
   }
 
+  function startDailySession() {
+    if (!missionState.activeMission && missionVocabulary.status === 'ready') {
+      const mission = createMission(
+        missionVocabulary.prompts,
+        missionState.filters,
+        missionState.wordStats,
+      )
+      saveMissionState({
+        ...missionState,
+        activeMission: mission,
+      })
+    }
+
+    setScreen('daily-session')
+  }
+
   function returnToMissionControl() {
     setScreen('mission-control')
   }
 
   function updateMissionProgress(modeId: GameMode, answers: RunAnswer[]) {
     saveMissionState(recordMissionAnswers(missionState, modeId, answers))
+  }
+
+  function updateDailySessionProgress(
+    stageAnswers: Partial<Record<GameMode, RunAnswer[]>>,
+    summary: DailyTrainingSessionSummary,
+  ) {
+    const nextState = (Object.entries(stageAnswers) as [GameMode, RunAnswer[]][])
+      .reduce(
+        (currentState, [stageMode, answers]) =>
+          recordMissionAnswers(currentState, stageMode, answers),
+        missionState,
+      )
+    saveMissionState(nextState)
+    setLastDailySummary(saveDailyTrainingSessionSummary(summary))
   }
 
   return (
@@ -344,6 +422,15 @@ export function EseGameSandboxPage() {
             onResetFilters={() => updateMissionFilters(DEFAULT_MISSION_FILTERS)}
             onReshuffle={reshuffleMission}
             onStart={startMission}
+            onStartDailySession={startDailySession}
+            lastDailySummary={lastDailySummary}
+          />
+        ) : screen === 'daily-session' ? (
+          <DailyTrainingSession
+            mission={missionState.activeMission}
+            missionWords={activeMissionWords}
+            onMissionProgress={updateDailySessionProgress}
+            onMissionControl={returnToMissionControl}
           />
         ) : mode === 'phrase-upgrade' ? (
           <PhraseUpgradeMode
@@ -405,6 +492,8 @@ function MissionControlPanel({
   onResetFilters,
   onReshuffle,
   onStart,
+  onStartDailySession,
+  lastDailySummary,
 }: {
   activeMission: Mission | null
   filters: MissionControlState['filters']
@@ -424,6 +513,8 @@ function MissionControlPanel({
   onResetFilters: () => void
   onReshuffle: () => void
   onStart: (mode?: GameMode) => void
+  onStartDailySession: () => void
+  lastDailySummary: DailyTrainingSessionSummary | null
 }) {
   const progress = getMissionProgress(activeMission)
   const canStart = missionVocabulary.status === 'ready' && Boolean(activeMission)
@@ -438,8 +529,8 @@ function MissionControlPanel({
               {activeMission?.title ?? 'Build today\'s mission'}
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300">
-              Full Library Mode turns the complete vocabulary set into short, focused B2-C1
-              missions with professional context and local-only adaptation.
+              Daily Training Session turns the active vocabulary mission into a short learning
+              journey: repair, upgrade, recall, then review.
             </p>
           </div>
           <div className="rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm">
@@ -731,7 +822,33 @@ function MissionControlPanel({
           </div>
         </div>
 
+        {lastDailySummary && (
+          <div className="mt-6 rounded-md border border-teal-400/30 bg-teal-400/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-300">
+                  Last daily session
+                </p>
+                <p className="mt-1 text-sm text-neutral-100">
+                  {lastDailySummary.totalScore}/{lastDailySummary.totalPrompts} on {lastDailySummary.missionTitle}
+                </p>
+              </div>
+              <p className="text-xs leading-5 text-neutral-300">
+                Next: {lastDailySummary.recommendedNextMission}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={onStartDailySession}
+            disabled={!canStart}
+            className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
+          >
+            Start Daily Training Session
+          </button>
           <button
             type="button"
             onClick={() => onStart('phrase-upgrade')}
@@ -759,6 +876,696 @@ function MissionControlPanel({
         </div>
       </div>
     </section>
+  )
+}
+
+function DailyTrainingSession({
+  mission,
+  missionWords,
+  onMissionProgress,
+  onMissionControl,
+}: {
+  mission: Mission | null
+  missionWords: StarterPackMissionWord[]
+  onMissionProgress: (
+    stageAnswers: Partial<Record<GameMode, RunAnswer[]>>,
+    summary: DailyTrainingSessionSummary,
+  ) => void
+  onMissionControl: () => void
+}) {
+  const [session, setSession] = useState<DailyTrainingSessionState>(
+    EMPTY_DAILY_TRAINING_SESSION_STATE,
+  )
+  const [promptLibrary, setPromptLibrary] = useState<PromptLibraryState<{
+    sentence: SentenceRepairPrompt[]
+    phrase: PhraseUpgradePrompt[]
+    recall: RecallPrompt[]
+  }>>({
+    prompts: [],
+    status: 'loading',
+    label: 'Loading Daily Training Session',
+    detail: 'Reading static vocabulary JSON for repair, upgrade, and recall prompts only.',
+  })
+  const answerInputRef = useRef<HTMLInputElement | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    Promise.all([
+      loadB2C1SentenceRepairPrompts(),
+      loadB2C1PhraseUpgradePrompts(),
+      loadStarterPackMissionVocabulary(),
+    ])
+      .then(([sentenceSource, phraseSource, vocabularySource]) => {
+        if (cancelled) {
+          return
+        }
+
+        const recallPrompts = buildRecallPrompts(vocabularySource.words)
+        setPromptLibrary({
+          prompts: [{
+            sentence: sentenceSource.prompts,
+            phrase: phraseSource.prompts,
+            recall: recallPrompts,
+          }],
+          status: 'ready',
+          label: 'B2-C1 guided session library',
+          detail: `${sentenceSource.prompts.length} repair, ${phraseSource.prompts.length} upgrade, and ${recallPrompts.length} recall prompts.`,
+        })
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return
+        }
+
+        const message = error instanceof Error ? error.message : 'Static vocabulary fetch failed'
+        setPromptLibrary({
+          prompts: [],
+          status: 'fallback',
+          label: 'Daily session unavailable',
+          detail: `${message}. Daily Training Session requires static vocabulary JSON.`,
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (session.status === 'playing' && session.stage === 'recall-challenge') {
+      answerInputRef.current?.focus()
+    }
+  }, [session.promptIndex, session.stage, session.status])
+
+  const libraries = promptLibrary.prompts[0]
+  const currentSentencePrompt = session.sentencePrompts[session.promptIndex]
+  const currentPhrasePrompt = session.phrasePrompts[session.promptIndex]
+  const currentRecallPrompt = session.recallPrompts[session.promptIndex]
+  const currentPrompt =
+    session.stage === 'sentence-repair'
+      ? currentSentencePrompt
+      : session.stage === 'phrase-upgrade'
+        ? currentPhrasePrompt
+        : currentRecallPrompt
+  const progressPercent =
+    session.status === 'intro'
+      ? 0
+      : Math.round((session.answers.length / DAILY_TOTAL_PROMPTS) * 100)
+
+  function startSession() {
+    if (
+      !libraries ||
+      promptLibrary.status !== 'ready' ||
+      libraries.sentence.length < DAILY_SENTENCE_PROMPTS ||
+      libraries.phrase.length < DAILY_PHRASE_PROMPTS ||
+      libraries.recall.length < DAILY_RECALL_PROMPTS
+    ) {
+      return
+    }
+
+    setSession({
+      ...EMPTY_DAILY_TRAINING_SESSION_STATE,
+      status: 'playing',
+      sentencePrompts: sampleMissionPrompts(
+        libraries.sentence,
+        mission,
+        DAILY_SENTENCE_PROMPTS,
+      ),
+      phrasePrompts: sampleMissionPrompts(
+        libraries.phrase,
+        mission,
+        DAILY_PHRASE_PROMPTS,
+      ),
+      recallPrompts: sampleRecallMissionPrompts(
+        libraries.recall,
+        mission,
+        DAILY_RECALL_PROMPTS,
+      ),
+    })
+  }
+
+  function recordChoiceAnswer(choice: string) {
+    if (session.status !== 'playing') {
+      return
+    }
+
+    const prompt =
+      session.stage === 'sentence-repair' ? currentSentencePrompt : currentPhrasePrompt
+    if (!prompt) {
+      return
+    }
+
+    const modeId = session.stage as GameMode
+    const isCorrect = choice === prompt.correctChoice
+    const nextStreak = isCorrect ? session.streak + 1 : 0
+    const feedback =
+      session.stage === 'sentence-repair'
+        ? currentSentencePrompt?.wrongChoiceFeedback?.[choice]
+        : currentPhrasePrompt?.weakChoiceFeedback?.[choice]
+    const answer: RunAnswer = {
+      promptId: prompt.id,
+      selectedChoice: choice,
+      isCorrect,
+      score: isCorrect ? 1 : 0,
+      feedback,
+      sourceWordId: prompt.sourceWordId,
+    }
+
+    setSession({
+      ...session,
+      status: 'feedback',
+      selectedChoice: choice,
+      answers: [...session.answers, answer],
+      stageAnswers: {
+        ...session.stageAnswers,
+        [modeId]: [...(session.stageAnswers[modeId] ?? []), answer],
+      },
+      score: session.score + (isCorrect ? 1 : 0),
+      streak: nextStreak,
+      bestStreak: Math.max(session.bestStreak, nextStreak),
+    })
+  }
+
+  function submitRecallAnswer(event?: FormEvent) {
+    event?.preventDefault()
+    if (!currentRecallPrompt || session.status !== 'playing') {
+      return
+    }
+
+    const evaluation = evaluateRecallAnswer(currentRecallPrompt, session.typedAnswer)
+    const nextStreak = evaluation.score === 1 ? session.streak + 1 : 0
+    const answer: RunAnswer = {
+      promptId: currentRecallPrompt.id,
+      selectedChoice: session.typedAnswer || '(blank)',
+      isCorrect: evaluation.isCorrect,
+      score: evaluation.score,
+      feedback: evaluation.feedback,
+      sourceWordId: currentRecallPrompt.sourceWordId,
+    }
+
+    setSession({
+      ...session,
+      status: 'feedback',
+      evaluation,
+      answers: [...session.answers, answer],
+      stageAnswers: {
+        ...session.stageAnswers,
+        'recall-challenge': [...(session.stageAnswers['recall-challenge'] ?? []), answer],
+      },
+      score: session.score + evaluation.score,
+      streak: nextStreak,
+      bestStreak: Math.max(session.bestStreak, nextStreak),
+    })
+  }
+
+  function continueSession() {
+    const currentStageLength =
+      session.stage === 'sentence-repair'
+        ? DAILY_SENTENCE_PROMPTS
+        : session.stage === 'phrase-upgrade'
+          ? DAILY_PHRASE_PROMPTS
+          : DAILY_RECALL_PROMPTS
+    const isLastPromptInStage = session.promptIndex + 1 >= currentStageLength
+
+    if (!isLastPromptInStage) {
+      setSession({
+        ...session,
+        status: 'playing',
+        promptIndex: session.promptIndex + 1,
+        selectedChoice: null,
+        typedAnswer: '',
+        evaluation: null,
+      })
+      return
+    }
+
+    if (session.stage === 'sentence-repair') {
+      setSession({
+        ...session,
+        status: 'playing',
+        stage: 'phrase-upgrade',
+        promptIndex: 0,
+        selectedChoice: null,
+        typedAnswer: '',
+        evaluation: null,
+      })
+      return
+    }
+
+    if (session.stage === 'phrase-upgrade') {
+      setSession({
+        ...session,
+        status: 'playing',
+        stage: 'recall-challenge',
+        promptIndex: 0,
+        selectedChoice: null,
+        typedAnswer: '',
+        evaluation: null,
+      })
+      return
+    }
+
+    const summary = buildDailyTrainingSummary(session, mission, missionWords)
+    onMissionProgress(session.stageAnswers, summary)
+    setSession({
+      ...session,
+      status: 'summary',
+      stage: 'summary',
+      selectedChoice: null,
+      typedAnswer: '',
+      evaluation: null,
+      summary,
+    })
+  }
+
+  return (
+    <section className="flex flex-1 flex-col justify-center py-4 sm:py-6">
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
+        <div className="flex flex-col gap-4 border-b border-neutral-800 pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-teal-300">Daily Training Session</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              10-minute guided mission
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300">
+              Warm up with sentence repair, upgrade expression, then recall the vocabulary from memory.
+            </p>
+          </div>
+          <div className="rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-400">
+            {DAILY_TRAINING_SESSION_KEY}
+          </div>
+        </div>
+
+        <DailyStageTracker stage={session.stage} />
+
+        {session.status === 'intro' && (
+          <StartPanel
+            eyebrow="Daily path"
+            title={`${DAILY_TOTAL_PROMPTS} prompts across 3 modes.`}
+            body="The session reuses your active Mission Control vocabulary and combines mode results into one learning summary."
+            promptLibrary={promptLibrary}
+            mission={mission}
+            buttonLabel="Start Daily Session"
+            onStart={startSession}
+            onMissionControl={onMissionControl}
+            promptCount={1}
+          />
+        )}
+
+        {(session.status === 'playing' || session.status === 'feedback') && currentPrompt && (
+          <div className="pt-5">
+            <RunHeader
+              current={Math.min(session.answers.length + 1, DAILY_TOTAL_PROMPTS)}
+              score={session.score}
+              streak={session.streak}
+              bestStreak={session.bestStreak}
+              progressPercent={progressPercent}
+              promptCount={DAILY_TOTAL_PROMPTS}
+            />
+
+            {session.stage === 'sentence-repair' && currentSentencePrompt && (
+              <div>
+                <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Warm-up: repair the highlighted phrase
+                  </p>
+                  <MetaTags prompt={currentSentencePrompt} />
+                  <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
+                    {currentSentencePrompt.sentence.split(currentSentencePrompt.target)[0]}
+                    <mark className="rounded bg-amber-300 px-1 text-neutral-950">
+                      {currentSentencePrompt.target}
+                    </mark>
+                    {currentSentencePrompt.sentence
+                      .split(currentSentencePrompt.target)
+                      .slice(1)
+                      .join(currentSentencePrompt.target)}
+                  </p>
+                </div>
+                <ChoiceGrid
+                  choices={currentSentencePrompt.choices}
+                  selectedChoice={session.selectedChoice}
+                  correctChoice={currentSentencePrompt.correctChoice}
+                  status={session.status === 'feedback' ? 'feedback' : 'playing'}
+                  onSelect={recordChoiceAnswer}
+                />
+              </div>
+            )}
+
+            {session.stage === 'phrase-upgrade' && currentPhrasePrompt && (
+              <div>
+                <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Upgrade: choose the stronger sentence
+                  </p>
+                  <MetaTags prompt={currentPhrasePrompt} />
+                  <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
+                    {currentPhrasePrompt.basicSentence}
+                  </p>
+                </div>
+                <ChoiceGrid
+                  choices={currentPhrasePrompt.choices}
+                  selectedChoice={session.selectedChoice}
+                  correctChoice={currentPhrasePrompt.correctChoice}
+                  status={session.status === 'feedback' ? 'feedback' : 'playing'}
+                  onSelect={recordChoiceAnswer}
+                />
+              </div>
+            )}
+
+            {session.stage === 'recall-challenge' && currentRecallPrompt && (
+              <div>
+                <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Recall: produce the target vocabulary
+                  </p>
+                  <MetaTags prompt={currentRecallPrompt} />
+                  <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
+                    {currentRecallPrompt.sentence}
+                  </p>
+                  <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+                    <ExplanationBlock label="Meaning" body={currentRecallPrompt.meaningHint} />
+                    <ExplanationBlock label="Nuance" body={currentRecallPrompt.nuanceHint} />
+                  </div>
+                </div>
+
+                {session.status === 'playing' && (
+                  <form onSubmit={submitRecallAnswer} className="mt-5">
+                    <input
+                      ref={answerInputRef}
+                      type="text"
+                      value={session.typedAnswer}
+                      onChange={(event) =>
+                        setSession({
+                          ...session,
+                          typedAnswer: event.target.value,
+                        })
+                      }
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      className="w-full rounded-md border border-neutral-700 bg-neutral-950 px-4 py-4 text-base text-white outline-none transition placeholder:text-neutral-600 focus:border-teal-300"
+                      placeholder="Type the missing word or phrase"
+                    />
+                    <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <button
+                        type="submit"
+                        className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300"
+                      >
+                        Check answer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => submitRecallAnswer()}
+                        className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500"
+                      >
+                        Skip
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+
+            {session.status === 'feedback' && (
+              <DailyFeedback
+                session={session}
+                sentencePrompt={currentSentencePrompt}
+                phrasePrompt={currentPhrasePrompt}
+                recallPrompt={currentRecallPrompt}
+                onContinue={continueSession}
+              />
+            )}
+          </div>
+        )}
+
+        {session.status === 'summary' && session.summary && (
+          <DailySessionSummaryPanel
+            summary={session.summary}
+            onRestart={startSession}
+            onMissionControl={onMissionControl}
+          />
+        )}
+      </div>
+    </section>
+  )
+}
+
+function DailyStageTracker({ stage }: { stage: DailyStageId }) {
+  const stages: { id: DailyStageId; label: string; detail: string }[] = [
+    { id: 'sentence-repair', label: 'Warm-up', detail: 'Repair' },
+    { id: 'phrase-upgrade', label: 'Upgrade', detail: 'Phrase' },
+    { id: 'recall-challenge', label: 'Recall', detail: 'Memory' },
+    { id: 'summary', label: 'Summary', detail: 'Review' },
+  ]
+  const activeIndex = stages.findIndex((entry) => entry.id === stage)
+
+  return (
+    <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {stages.map((entry, index) => {
+        const isActive = entry.id === stage
+        const isDone = index < activeIndex
+        return (
+          <div
+            key={entry.id}
+            className={`rounded-md border px-3 py-3 ${
+              isActive
+                ? 'border-teal-300 bg-teal-300 text-neutral-950'
+                : isDone
+                  ? 'border-teal-400/30 bg-teal-400/10 text-teal-200'
+                  : 'border-neutral-800 bg-neutral-950 text-neutral-300'
+            }`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.14em]">{entry.label}</p>
+            <p className="mt-1 text-sm font-medium">{entry.detail}</p>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function DailyFeedback({
+  session,
+  sentencePrompt,
+  phrasePrompt,
+  recallPrompt,
+  onContinue,
+}: {
+  session: DailyTrainingSessionState
+  sentencePrompt?: SentenceRepairPrompt
+  phrasePrompt?: PhraseUpgradePrompt
+  recallPrompt?: RecallPrompt
+  onContinue: () => void
+}) {
+  const latestAnswer = session.answers[session.answers.length - 1]
+
+  if (!latestAnswer) {
+    return null
+  }
+
+  return (
+    <div className="mt-6 rounded-md border border-neutral-700 bg-neutral-950 p-4 sm:p-5">
+      <FeedbackHeader
+        isCorrect={latestAnswer.isCorrect}
+        skillFocus={
+          session.stage === 'recall-challenge'
+            ? session.evaluation?.title ?? 'recall'
+            : session.stage === 'sentence-repair'
+              ? sentencePrompt?.skillFocus ?? 'sentence repair'
+              : phrasePrompt?.skillFocus ?? 'phrase upgrade'
+        }
+        selectedChoice={latestAnswer.selectedChoice}
+      />
+      {latestAnswer.feedback && (
+        <p className="mt-4 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm leading-6 text-neutral-100">
+          {latestAnswer.feedback}
+        </p>
+      )}
+      {session.stage === 'sentence-repair' && sentencePrompt && (
+        <>
+          <ExplanationBlock label="Best repair" body={repairSentence(sentencePrompt)} />
+          <ExplanationBlock label="Why it works" body={sentencePrompt.explanation} />
+        </>
+      )}
+      {session.stage === 'phrase-upgrade' && phrasePrompt && (
+        <>
+          <ExplanationBlock label="Why it is stronger" body={phrasePrompt.whyStronger} />
+          <ExplanationBlock label="Full upgraded sentence" body={phrasePrompt.upgradedSentence} />
+        </>
+      )}
+      {session.stage === 'recall-challenge' && recallPrompt && session.evaluation && (
+        <>
+          <ExplanationBlock label="Target answer" body={session.evaluation.betterAnswer} />
+          <ExplanationBlock label="Professional nuance" body={recallPrompt.nuanceHint} />
+        </>
+      )}
+      <ContinueButton
+        isLast={session.answers.length >= DAILY_TOTAL_PROMPTS}
+        onClick={onContinue}
+      />
+    </div>
+  )
+}
+
+function buildDailyTrainingSummary(
+  session: DailyTrainingSessionState,
+  mission: Mission | null,
+  missionWords: StarterPackMissionWord[],
+): DailyTrainingSessionSummary {
+  const wordById = new Map(missionWords.map((word) => [word.id, word]))
+  const wordScores = new Map<string, { term: string; attempts: number; score: number }>()
+
+  session.answers.forEach((answer) => {
+    if (!answer.sourceWordId) {
+      return
+    }
+
+    const word = wordById.get(answer.sourceWordId)
+    if (!word) {
+      return
+    }
+
+    const current = wordScores.get(answer.sourceWordId) ?? {
+      term: word.term,
+      attempts: 0,
+      score: 0,
+    }
+    wordScores.set(answer.sourceWordId, {
+      ...current,
+      attempts: current.attempts + 1,
+      score: current.score + (answer.score ?? (answer.isCorrect ? 1 : 0)),
+    })
+  })
+
+  const scoredWords = Array.from(wordScores.values())
+  const weakWords = scoredWords
+    .filter((entry) => entry.score / entry.attempts < 0.75)
+    .sort((a, b) => a.score / a.attempts - b.score / b.attempts)
+    .map((entry) => entry.term)
+    .slice(0, 5)
+  const strongestWords = scoredWords
+    .filter((entry) => entry.score / entry.attempts >= 0.9)
+    .sort((a, b) => b.attempts - a.attempts)
+    .map((entry) => entry.term)
+    .slice(0, 5)
+  const totalScore = Number(session.score.toFixed(1))
+  const phraseScore = session.stageAnswers['phrase-upgrade']?.filter((answer) => answer.isCorrect).length ?? 0
+  const recallScore = session.stageAnswers['recall-challenge']?.reduce(
+    (sum, answer) => sum + (answer.score ?? 0),
+    0,
+  ) ?? 0
+  const recommendedNextMission =
+    weakWords.length >= 3
+      ? `Focus Weak Areas: ${weakWords.slice(0, 3).join(', ')}`
+      : totalScore >= DAILY_TOTAL_PROMPTS * 0.8
+        ? 'C1 Challenge Mission'
+        : 'Mixed Fluency Mission'
+  const insight =
+    recallScore < DAILY_RECALL_PROMPTS * 0.7
+      ? 'Recognition is ahead of recall today, so review the weak words out loud before the next mission.'
+      : phraseScore >= DAILY_PHRASE_PROMPTS * 0.75
+        ? 'Your upgrade choices were strong; keep transferring those phrases into recall.'
+        : 'You built useful contrast between similar choices, which is exactly how phrasing gets sharper.'
+
+  return {
+    completedAt: new Date().toISOString(),
+    missionId: mission?.id ?? null,
+    missionTitle: mission?.title ?? 'Daily Training Session',
+    totalScore,
+    totalPrompts: DAILY_TOTAL_PROMPTS,
+    wordsPracticed: scoredWords.map((entry) => entry.term).slice(0, 12),
+    weakWords,
+    strongestWords,
+    recommendedNextMission,
+    insight,
+  }
+}
+
+function DailySessionSummaryPanel({
+  summary,
+  onRestart,
+  onMissionControl,
+}: {
+  summary: DailyTrainingSessionSummary
+  onRestart: () => void
+  onMissionControl: () => void
+}) {
+  return (
+    <div className="pt-6">
+      <p className="text-sm font-medium text-teal-300">Session Summary</p>
+      <h2 className="mt-2 text-3xl font-semibold text-white">
+        {summary.totalScore} / {summary.totalPrompts}
+      </h2>
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <ResultMetric label="Total score" value={`${summary.totalScore}/${summary.totalPrompts}`} />
+        <ResultMetric label="Words practiced" value={summary.wordsPracticed.length.toString()} />
+        <ResultMetric label="Next mission" value={summary.recommendedNextMission} />
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <WordListPanel title="Weak words" words={summary.weakWords} emptyLabel="No clear weak words" />
+        <WordListPanel title="Strongest words" words={summary.strongestWords} emptyLabel="No strongest word yet" />
+      </div>
+      <WordListPanel
+        title="Words practiced"
+        words={summary.wordsPracticed}
+        emptyLabel="No mission words were matched"
+      />
+      <div className="mt-5 rounded-md border border-teal-400/30 bg-teal-400/10 p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-300">
+          Learning insight
+        </p>
+        <p className="mt-2 text-sm leading-6 text-neutral-100">{summary.insight}</p>
+      </div>
+      <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={onRestart}
+          className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300"
+        >
+          Start another session
+        </button>
+        <button
+          type="button"
+          onClick={onMissionControl}
+          className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500"
+        >
+          Mission Control
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function WordListPanel({
+  title,
+  words,
+  emptyLabel,
+}: {
+  title: string
+  words: string[]
+  emptyLabel: string
+}) {
+  return (
+    <div className="mt-5 rounded-md border border-neutral-800 bg-neutral-950 p-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+        {title}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {words.length ? (
+          words.map((word) => (
+            <span
+              key={word}
+              className="rounded bg-neutral-800 px-2 py-1 text-xs font-medium text-neutral-200"
+            >
+              {word}
+            </span>
+          ))
+        ) : (
+          <span className="text-sm text-neutral-400">{emptyLabel}</span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -1638,7 +2445,7 @@ function RunHeader({
 function MetaTags({
   prompt,
 }: {
-  prompt: Pick<SentenceRepairPrompt | PhraseUpgradePrompt, 'difficulty' | 'register' | 'tags'>
+  prompt: Pick<SentenceRepairPrompt | PhraseUpgradePrompt | RecallPrompt, 'difficulty' | 'register' | 'tags'>
 }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2">
