@@ -26,7 +26,6 @@ function ExperimentUnavailable() {
 const isEseGameExperimentPath = window.location.pathname === ESE_GAME_EXPERIMENT_ROUTE
 
 const isEseGameExperimentEnabled =
-  import.meta.env.DEV &&
   import.meta.env.VITE_ENABLE_ESE_GAME_EXPERIMENT === 'true'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

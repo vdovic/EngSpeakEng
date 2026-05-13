@@ -30,6 +30,7 @@ import { CHALLENGE_SESSION_CAP } from '@/lib/constants'
 import { todayDateKey } from '@/lib/dateUtils'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { StarterPacksSection } from '@/components/StarterPacksSection'
+import { EseBetaEntryPoint } from '@/experiments/ese-game/EseBetaEntryPoint'
 import { subDays, startOfDay, isWithinInterval } from 'date-fns'
 import { GOAL_LABELS, INTENSITY_CONFIG } from '@/types/profile'
 
@@ -1097,6 +1098,8 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         onChallenge={() => navigate('/challenge')}
         onInbox={() => navigate('/library')}
       />
+
+      <EseBetaEntryPoint />
 
       {/* 3. Compact stats row — Goal Progress + Focus Health */}
       <TodayCompactRow

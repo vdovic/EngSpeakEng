@@ -374,16 +374,24 @@ export function EseGameSandboxPage() {
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
       <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col px-4 py-4 sm:px-8 sm:py-6">
         <header className="border-b border-neutral-800 pb-4 sm:pb-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">
-            Local experiment
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">
+              Beta / experimental
+            </p>
+            <a
+              href="/"
+              className="inline-flex min-h-10 items-center justify-center rounded-md border border-neutral-700 px-3 py-2 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 hover:bg-neutral-900"
+            >
+              Return to main app
+            </a>
+          </div>
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">
-                ESE Game Lab
+                ESE Game Lab Beta
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300 sm:mt-3">
-                Short B2-C1 English practice modes. No production stores, APIs, or vocabulary writes.
+                Experimental B2-C1 practice modes. Uses isolated local beta progress only: no production stores, APIs, or vocabulary writes.
               </p>
             </div>
             <div className="w-fit max-w-full break-all rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
@@ -907,6 +915,7 @@ function DailyTrainingSession({
     detail: 'Reading static vocabulary JSON for repair, upgrade, and recall prompts only.',
   })
   const answerInputRef = useRef<HTMLInputElement | null>(null)
+  const feedbackAreaRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -957,6 +966,19 @@ function DailyTrainingSession({
       answerInputRef.current?.focus()
     }
   }, [session.promptIndex, session.stage, session.status])
+
+  useEffect(() => {
+    if (session.status !== 'feedback') {
+      return
+    }
+
+    window.requestAnimationFrame(() => {
+      feedbackAreaRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      })
+    })
+  }, [session.answers.length, session.status])
 
   const libraries = promptLibrary.prompts[0]
   const currentSentencePrompt = session.sentencePrompts[session.promptIndex]
@@ -1140,24 +1162,26 @@ function DailyTrainingSession({
   }
 
   return (
-    <section className="flex flex-1 flex-col justify-center py-4 sm:py-6">
-      <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
-        <div className="flex flex-col gap-4 border-b border-neutral-800 pb-4 sm:flex-row sm:items-start sm:justify-between">
+    <section className="flex flex-1 flex-col py-2 sm:justify-center sm:py-6">
+      <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-3 shadow-2xl shadow-black/20 sm:p-6">
+        <div className="flex flex-col gap-3 border-b border-neutral-800 pb-3 sm:flex-row sm:items-start sm:justify-between sm:pb-4">
           <div>
             <p className="text-sm font-medium text-teal-300">Daily Training Session</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">
+            <h2 className="mt-1 text-xl font-semibold text-white sm:mt-2 sm:text-2xl">
               10-minute guided mission
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300">
+            <p className="mt-1 max-w-2xl text-sm leading-5 text-neutral-300 sm:mt-2 sm:leading-6">
               Warm up with sentence repair, upgrade expression, then recall the vocabulary from memory.
             </p>
           </div>
-          <div className="rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-400">
+          <div className="hidden rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-400 sm:block">
             {DAILY_TRAINING_SESSION_KEY}
           </div>
         </div>
 
-        <DailyStageTracker stage={session.stage} />
+        <div className="sticky top-0 z-20 -mx-3 border-b border-neutral-800 bg-neutral-900/95 px-3 pb-2 pt-2 backdrop-blur sm:static sm:mx-0 sm:border-b-0 sm:bg-transparent sm:px-0 sm:pb-0 sm:pt-0 sm:backdrop-blur-0">
+          <DailyStageTracker stage={session.stage} />
+        </div>
 
         {session.status === 'intro' && (
           <StartPanel
@@ -1174,7 +1198,7 @@ function DailyTrainingSession({
         )}
 
         {(session.status === 'playing' || session.status === 'feedback') && currentPrompt && (
-          <div className="pt-5">
+          <div className="pt-3 sm:pt-5">
             <RunHeader
               current={Math.min(session.answers.length + 1, DAILY_TOTAL_PROMPTS)}
               score={session.score}
@@ -1186,12 +1210,12 @@ function DailyTrainingSession({
 
             {session.stage === 'sentence-repair' && currentSentencePrompt && (
               <div>
-                <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:p-5">
+                <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-950 p-3 sm:mt-5 sm:p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                     Warm-up: repair the highlighted phrase
                   </p>
                   <MetaTags prompt={currentSentencePrompt} />
-                  <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
+                  <p className="mt-3 text-lg leading-7 text-white sm:mt-4 sm:text-2xl sm:leading-10">
                     {currentSentencePrompt.sentence.split(currentSentencePrompt.target)[0]}
                     <mark className="rounded bg-amber-300 px-1 text-neutral-950">
                       {currentSentencePrompt.target}
@@ -1214,12 +1238,12 @@ function DailyTrainingSession({
 
             {session.stage === 'phrase-upgrade' && currentPhrasePrompt && (
               <div>
-                <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:p-5">
+                <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-950 p-3 sm:mt-5 sm:p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                     Upgrade: choose the stronger sentence
                   </p>
                   <MetaTags prompt={currentPhrasePrompt} />
-                  <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
+                  <p className="mt-3 text-lg leading-7 text-white sm:mt-4 sm:text-2xl sm:leading-10">
                     {currentPhrasePrompt.basicSentence}
                   </p>
                 </div>
@@ -1235,22 +1259,22 @@ function DailyTrainingSession({
 
             {session.stage === 'recall-challenge' && currentRecallPrompt && (
               <div>
-                <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4 sm:p-5">
+                <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-950 p-3 sm:mt-5 sm:p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                     Recall: produce the target vocabulary
                   </p>
                   <MetaTags prompt={currentRecallPrompt} />
-                  <p className="mt-4 text-xl leading-8 text-white sm:text-2xl sm:leading-10">
+                  <p className="mt-3 text-lg leading-7 text-white sm:mt-4 sm:text-2xl sm:leading-10">
                     {currentRecallPrompt.sentence}
                   </p>
-                  <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+                  <div className="mt-3 grid gap-2 text-sm sm:mt-5 sm:grid-cols-2 sm:gap-3">
                     <ExplanationBlock label="Meaning" body={currentRecallPrompt.meaningHint} />
                     <ExplanationBlock label="Nuance" body={currentRecallPrompt.nuanceHint} />
                   </div>
                 </div>
 
                 {session.status === 'playing' && (
-                  <form onSubmit={submitRecallAnswer} className="mt-5">
+                  <form onSubmit={submitRecallAnswer} className="mt-3 sm:mt-5">
                     <input
                       ref={answerInputRef}
                       type="text"
@@ -1267,7 +1291,7 @@ function DailyTrainingSession({
                       className="w-full rounded-md border border-neutral-700 bg-neutral-950 px-4 py-4 text-base text-white outline-none transition placeholder:text-neutral-600 focus:border-teal-300"
                       placeholder="Type the missing word or phrase"
                     />
-                    <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <div className="sticky bottom-3 z-10 mt-3 grid gap-2 rounded-md border border-neutral-800 bg-neutral-900/95 p-2 shadow-2xl shadow-black/30 backdrop-blur sm:static sm:grid-cols-[1fr_auto] sm:gap-3 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0">
                       <button
                         type="submit"
                         className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300"
@@ -1288,13 +1312,15 @@ function DailyTrainingSession({
             )}
 
             {session.status === 'feedback' && (
-              <DailyFeedback
-                session={session}
-                sentencePrompt={currentSentencePrompt}
-                phrasePrompt={currentPhrasePrompt}
-                recallPrompt={currentRecallPrompt}
-                onContinue={continueSession}
-              />
+              <div ref={feedbackAreaRef}>
+                <DailyFeedback
+                  session={session}
+                  sentencePrompt={currentSentencePrompt}
+                  phrasePrompt={currentPhrasePrompt}
+                  recallPrompt={currentRecallPrompt}
+                  onContinue={continueSession}
+                />
+              </div>
             )}
           </div>
         )}
@@ -1321,23 +1347,27 @@ function DailyStageTracker({ stage }: { stage: DailyStageId }) {
   const activeIndex = stages.findIndex((entry) => entry.id === stage)
 
   return (
-    <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="mt-2 grid grid-cols-4 gap-1.5 sm:mt-5 sm:gap-2">
       {stages.map((entry, index) => {
         const isActive = entry.id === stage
         const isDone = index < activeIndex
         return (
           <div
             key={entry.id}
-            className={`rounded-md border px-3 py-3 ${
+            className={`rounded-md border px-2 py-2 text-center sm:px-3 sm:py-3 sm:text-left ${
               isActive
                 ? 'border-teal-300 bg-teal-300 text-neutral-950'
                 : isDone
                   ? 'border-teal-400/30 bg-teal-400/10 text-teal-200'
                   : 'border-neutral-800 bg-neutral-950 text-neutral-300'
-            }`}
+                }`}
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.14em]">{entry.label}</p>
-            <p className="mt-1 text-sm font-medium">{entry.detail}</p>
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.08em] sm:text-xs sm:tracking-[0.14em]">
+              {entry.label}
+            </p>
+            <p className="mt-0.5 truncate text-xs font-medium sm:mt-1 sm:text-sm">
+              {entry.detail}
+            </p>
           </div>
         )
       })}
@@ -1365,7 +1395,7 @@ function DailyFeedback({
   }
 
   return (
-    <div className="mt-6 rounded-md border border-neutral-700 bg-neutral-950 p-4 sm:p-5">
+    <div className="mt-3 scroll-mt-24 rounded-md border border-neutral-700 bg-neutral-950 p-3 sm:mt-6 sm:p-5">
       <FeedbackHeader
         isCorrect={latestAnswer.isCorrect}
         skillFocus={
@@ -1378,7 +1408,7 @@ function DailyFeedback({
         selectedChoice={latestAnswer.selectedChoice}
       />
       {latestAnswer.feedback && (
-        <p className="mt-4 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm leading-6 text-neutral-100">
+        <p className="mt-3 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm leading-5 text-neutral-100 sm:mt-4 sm:leading-6">
           {latestAnswer.feedback}
         </p>
       )}
@@ -2422,17 +2452,17 @@ function RunHeader({
 }) {
   return (
     <>
-      <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-3 text-sm">
         <div className="font-medium text-neutral-300">
           Prompt {current} / {promptCount}
         </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-neutral-400">
+        <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-xs text-neutral-400 sm:text-sm">
           <span>Score {score}</span>
           <span>Streak {streak}</span>
-          <span>Best {bestStreak}</span>
+          <span className="hidden sm:inline">Best {bestStreak}</span>
         </div>
       </div>
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-neutral-800">
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-800 sm:mt-4 sm:h-2">
         <div
           className="h-full rounded-full bg-teal-400 transition-all"
           style={{ width: `${progressPercent}%` }}
@@ -2448,7 +2478,7 @@ function MetaTags({
   prompt: Pick<SentenceRepairPrompt | PhraseUpgradePrompt | RecallPrompt, 'difficulty' | 'register' | 'tags'>
 }) {
   return (
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
       {prompt.difficulty && (
         <span className="rounded bg-teal-400/10 px-2 py-1 text-xs font-semibold text-teal-300">
           {prompt.difficulty}
@@ -2485,7 +2515,7 @@ function ChoiceGrid({
   onSelect: (choice: string) => void
 }) {
   return (
-    <div className="mt-5 grid gap-3 sm:grid-cols-3">
+    <div className="mt-3 grid gap-2 sm:mt-5 sm:grid-cols-3 sm:gap-3">
       {choices.map((choice) => {
         const isSelected = selectedChoice === choice
         const isCorrect = correctChoice === choice
@@ -2498,7 +2528,7 @@ function ChoiceGrid({
             type="button"
             onClick={() => onSelect(choice)}
             disabled={status === 'feedback'}
-            className={`min-h-14 rounded-md border px-4 py-3 text-left text-sm font-semibold leading-5 shadow-sm transition active:scale-[0.99] ${
+            className={`min-h-12 rounded-md border px-4 py-3 text-left text-sm font-semibold leading-5 shadow-sm transition active:scale-[0.99] sm:min-h-14 ${
               showCorrect
                 ? 'border-teal-300 bg-teal-300 text-neutral-950 shadow-teal-950/30'
                 : showIncorrect
@@ -2524,7 +2554,7 @@ function FeedbackHeader({
   selectedChoice: string
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
       <div>
         <p className={`text-sm font-semibold ${isCorrect ? 'text-teal-300' : 'text-rose-300'}`}>
           {isCorrect ? 'Correct' : 'Not quite'}
@@ -2544,24 +2574,26 @@ function FeedbackHeader({
 
 function ExplanationBlock({ label, body }: { label: string; body: string }) {
   return (
-    <div className="mt-4 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-3">
+    <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2.5 sm:mt-4 sm:py-3">
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
         {label}
       </p>
-      <p className="mt-2 text-sm leading-6 text-neutral-100">{body}</p>
+      <p className="mt-1.5 text-sm leading-5 text-neutral-100 sm:mt-2 sm:leading-6">{body}</p>
     </div>
   )
 }
 
 function ContinueButton({ isLast, onClick }: { isLast: boolean; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="mt-4 w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200 sm:w-auto sm:py-2"
-    >
-      {isLast ? 'Show result' : 'Continue'}
-    </button>
+    <div className="sticky bottom-3 z-10 mt-3 rounded-md border border-neutral-800 bg-neutral-950/95 p-2 shadow-2xl shadow-black/30 backdrop-blur sm:static sm:mt-4 sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none sm:backdrop-blur-0">
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full rounded-md bg-white px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-200 sm:w-auto sm:py-2"
+      >
+        {isLast ? 'Show result' : 'Continue'}
+      </button>
+    </div>
   )
 }
 
