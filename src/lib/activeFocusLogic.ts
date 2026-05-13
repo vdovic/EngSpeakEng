@@ -32,13 +32,15 @@ export const ACTIVE_FOCUS_LIMIT = 25
  *
  * Selection priority:
  *   1. Due for challenge now               (+50)
- *   2. Low/mid exposure (0–5)             (+40 / +30 / +10)
- *   3. High difficulty score              (+20 / +10)
- *   4. Low real-life usage                (+20 / +10)
- *   5. Theme relevance                    (+15)
- *   6. Recently added to library          (+15 / +5)
- *   7. Mastered items deprioritised       (−40)
+ *   2. Self-assessed confidence (red first) (+35 / +25 / +15 / 0)
+ *   3. Low/mid exposure (0–5)             (+40 / +30 / +10)
+ *   4. High difficulty score              (+20 / +10)
+ *   5. Low real-life usage                (+20 / +10)
+ *   6. Theme relevance                    (+15)
+ *   7. Recently added to library          (+15 / +5)
+ *   8. Mastered items deprioritised       (−40)
  *
+ * Confidence ordering targets ~30–40% red / ~40–50% yellow / ~10–20% green.
  * Items are deterministically sorted — no Math.random().
  */
 export function selectActiveFocusItems(
@@ -48,12 +50,20 @@ export function selectActiveFocusItems(
 ): VocabItem[] {
   const scored = focusItems.map((item) => {
     let score = 0
-    const exp   = item.exposureCount ?? 0
-    const uses  = usagePoints(item.activation.usageLogs)
-    const level = deriveLevel(item)
+    const exp        = item.exposureCount ?? 0
+    const uses       = usagePoints(item.activation.usageLogs)
+    const level      = deriveLevel(item)
+    const confidence = item.activation?.confidenceLevel ?? 0
 
     // Due for challenge → highest priority
     if (isDueChallengeNow(exp, item.nextChallengeDate)) score += 50
+
+    // Self-assessed confidence — red / unset surface first, green last.
+    // Targets ~30–40% red, ~40–50% yellow, ~10–20% green in the visible set.
+    if      (confidence === 1) score += 35  // red — needs active work now
+    else if (confidence === 0) score += 25  // unset — needs first assessment
+    else if (confidence === 2) score += 15  // yellow — getting comfortable
+    // green (3) → no bonus; already comfortable, lower urgency
 
     // Low/mid exposure → actively learning
     if      (exp <= 1) score += 40

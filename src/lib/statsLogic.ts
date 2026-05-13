@@ -204,3 +204,33 @@ export function getHighExposureNoUsage(items: VocabItem[]): VocabItem[] {
       usagePoints(i.activation.usageLogs) === 0,
   )
 }
+
+// ── Confidence distribution ───────────────────────────────────────────────────
+
+export interface ConfidenceDistribution {
+  /** Not yet self-assessed (confidenceLevel === 0 or unset) */
+  unset: number
+  /** Level 1 — Red: recognises but cannot use spontaneously */
+  red: number
+  /** Level 2 — Yellow: can use when prompted */
+  yellow: number
+  /** Level 3 — Green: comfortable, can use spontaneously */
+  green: number
+}
+
+/**
+ * Returns the count of items per self-assessed confidence level.
+ * Only counts non-archived, non-inbox items (i.e. words in active learning).
+ */
+export function getConfidenceDistribution(items: VocabItem[]): ConfidenceDistribution {
+  const dist: ConfidenceDistribution = { unset: 0, red: 0, yellow: 0, green: 0 }
+  for (const item of items) {
+    if (item.archived || item.status === 'inbox') continue
+    const level = item.activation?.confidenceLevel ?? 0
+    if      (level === 1) dist.red++
+    else if (level === 2) dist.yellow++
+    else if (level === 3) dist.green++
+    else                  dist.unset++
+  }
+  return dist
+}

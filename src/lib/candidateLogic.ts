@@ -6,6 +6,7 @@
  * Scoring weights (none of these are surfaced to the user):
  *   Theme relevance          → +40  matches the user's active learning themes
  *   Balance gap fill         → +30  prefer 0–5 exposure (under-represented tiers)
+ *   Confidence (red/unset)   → +25  low confidence → higher candidate priority
  *   Low real-life usage      → +20  usageCount === 0 (never activated in real life)
  *   High difficulty          → +20  difficultyScore > 70 (hard for this learner)
  *   Not recently challenged  → +10  lastExposureAt > 7 days ago or never exposed
@@ -68,7 +69,8 @@ export function generateCandidates(
   // ── Score each candidate ──────────────────────────────────────────────────────
   const scored = pool.map((item) => {
     let score = 0
-    const exp = item.exposureCount ?? 0
+    const exp        = item.exposureCount ?? 0
+    const confidence = item.activation?.confidenceLevel ?? 0
 
     // +40 — theme relevance
     if ((item.themes ?? []).some((t) => activeThemes.includes(t))) score += 40
@@ -80,6 +82,11 @@ export function generateCandidates(
     if      (isNew && newPct < 0.30) score += 30
     else if (isMid && midPct < 0.30) score += 30
     else if (isAdv && advPct < 0.30) score += 30
+
+    // +25 / +20 / +10 — confidence: red/unset words need Focus attention most
+    if      (confidence === 1) score += 25  // red — actively struggling
+    else if (confidence === 0) score += 20  // unset — not yet assessed
+    else if (confidence === 2) score += 10  // yellow — progressing
 
     // +20 — low real-life usageCount (never activated)
     if ((item.activation?.usageCount ?? 0) === 0) score += 20

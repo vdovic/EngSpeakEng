@@ -27,8 +27,13 @@
  *
  * Principles enforced here:
  *   • NO recognition questions — selection belongs in Focus, not Challenge.
- *   • Sentence-production NEVER before exposure 6.
- *   • real-life-use-check NEVER without mastery evidence.
+ *   • Sentence-production is blocked before exposure 6 for unset, red, and
+ *     yellow confidence words.  Green (self-assessed comfortable) may receive
+ *     sentence-production from exposure 2, because the learner has explicitly
+ *     declared they can use the word spontaneously.
+ *   • real-life-use-check NEVER without mastery evidence (exp ≥ 8 AND
+ *     sentenceProduced OR usageCount ≥ 3).  This gate applies to all
+ *     confidence levels, including green.
  *   • All selection is deterministic (no Math.random).
  */
 
@@ -87,15 +92,68 @@ export function stableChoiceFromId(id: string): boolean {
 
 /**
  * Select the appropriate challenge type for an item based on its current
- * exposure count and production history.
+ * exposure count AND self-assessed confidence level.
  *
  * Selection is fully deterministic — no Math.random() calls.
+ *
+ * Confidence layer (applied first when set):
+ *   Level 1 red    → definition-choice only (learner struggles to use the word)
+ *   Level 2 yellow → fill-gap or definition-choice (can use when prompted)
+ *   Level 3 green  → sentence-production (if exp ≥ 2) or fill-gap (exp 0–1)
+ *   Level 0 unset  → fall through to exposure-based tier logic (unchanged)
+ *
+ * Exposure-based tiers (used when confidence is unset):
+ *   Tier 1 — 0–1 exposures → definition-choice
+ *   Tier 2 — 2–5 exposures → fill-gap / definition-choice
+ *   Tier 3 — 6–7 exposures → sentence-production
+ *   Tier 4 — 8  exposures  → real-life-use-check or sentence-production
  *
  * Mastery evidence (for the exposure-8 gate) matches deriveLevel() logic:
  *   review.sentenceProduced = true  OR  activation.usageCount >= 3
  */
 export function getChallengeType(item: VocabItem): ChallengeType {
-  const exp = item.exposureCount ?? 0
+  const exp        = item.exposureCount ?? 0
+  const confidence = item.activation?.confidenceLevel ?? 0
+
+  // ── Confidence layer — takes priority over exposure tiers ─────────────────
+  //
+  // Only applied when the learner has explicitly set their confidence.
+  // Level 0 (unset) falls through to the standard exposure-based logic below,
+  // preserving backward-compatible behaviour for any item not yet self-assessed.
+
+  if (confidence === 1) {
+    // Red — learner cannot produce this word yet.
+    // Keep challenge at the recognition-level regardless of exposure count.
+    return 'definition-choice'
+  }
+
+  if (confidence === 2) {
+    // Yellow — learner can use when prompted, not spontaneously.
+    // Fill-gap is the right exercise; definition-choice as fallback.
+    const hasSentence = !!(item.exampleSentence || item.workSentence)
+    return hasSentence ? 'fill-gap' : 'definition-choice'
+  }
+
+  if (confidence === 3) {
+    // Green — learner feels comfortable with spontaneous use.
+    //
+    // Mastery gate first: at exp 8 honour the real-life-use-check tier
+    // exactly as the unset path does, so green words are not locked out
+    // of the mastery-check challenge once they reach full exposure.
+    if (exp >= 8) {
+      const usageCount        = item.activation?.usageCount ?? 0
+      const hasMasteryEvidence = item.review.sentenceProduced || usageCount >= 3
+      return hasMasteryEvidence ? 'real-life-use-check' : 'sentence-production'
+    }
+    // Sentence-production from exposure 2 onward (earlier than unset words
+    // because the learner has self-assessed as comfortable).
+    if (exp >= 2) return 'sentence-production'
+    // Very fresh item (0–1 exposures) — use fill-gap or fall back.
+    const hasSentence = !!(item.exampleSentence || item.workSentence)
+    return hasSentence ? 'fill-gap' : 'definition-choice'
+  }
+
+  // ── Exposure-based tiers (confidence === 0 / unset) ───────────────────────
 
   // ── Tier 1: First encounters (0–1) ───────────────────────────────────────
   // Show the definition → pick the correct term from 4 options.

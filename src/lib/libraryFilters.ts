@@ -21,6 +21,15 @@ export type LevelFilter = Level | 'all'
 export type FocusFilter = 'all' | 'in-focus' | 'not-in-focus'
 
 /**
+ * Self-assessed confidence level filter.
+ *   '0'    = not assessed (confidenceLevel unset or 0)
+ *   '1'    = red  — recognises but cannot produce spontaneously
+ *   '2'    = yellow — can use when prompted
+ *   '3'    = green  — comfortable / spontaneous use
+ */
+export type ConfidenceFilter = 'all' | '0' | '1' | '2' | '3'
+
+/**
  * Exposure band values match the spec:
  *   '0'   = not started
  *   '1-2' = early learning
@@ -51,6 +60,7 @@ export interface LibraryFilters {
   level:        LevelFilter
   focus:        FocusFilter
   exposureBand: ExposureBandFilter
+  confidence:   ConfidenceFilter
   tag:          string    // 'all' or a tag string
   theme:        string    // 'all' or a theme string
 }
@@ -60,6 +70,7 @@ export const DEFAULT_FILTERS: LibraryFilters = {
   level:        'all',
   focus:        'all',
   exposureBand: 'all',
+  confidence:   'all',
   tag:          'all',
   theme:        'all',
 }
@@ -100,7 +111,7 @@ export function getExposureBand(item: VocabItem): ExposureBandFilter {
 // ── Single-item filter predicate ──────────────────────────────────────────────
 
 function itemPassesDimensionFilters(item: VocabItem, filters: LibraryFilters): boolean {
-  const { level, focus, exposureBand, tag, theme } = filters
+  const { level, focus, exposureBand, confidence, tag, theme } = filters
 
   if (level !== 'all' && getItemLevel(item) !== level) return false
 
@@ -108,6 +119,11 @@ function itemPassesDimensionFilters(item: VocabItem, filters: LibraryFilters): b
   if (focus === 'not-in-focus' &&  isInFocus(item)) return false
 
   if (exposureBand !== 'all' && getExposureBand(item) !== exposureBand) return false
+
+  if (confidence !== 'all') {
+    const itemConfidence = item.activation?.confidenceLevel ?? 0
+    if (String(itemConfidence) !== confidence) return false
+  }
 
   if (tag   !== 'all' && !item.tags.includes(tag))             return false
   if (theme !== 'all' && !(item.themes ?? []).includes(theme)) return false
@@ -136,6 +152,7 @@ export function filterLibraryItems(
     filters.level        !== 'all' ||
     filters.focus        !== 'all' ||
     filters.exposureBand !== 'all' ||
+    filters.confidence   !== 'all' ||
     filters.tag          !== 'all' ||
     filters.theme        !== 'all'
   )
@@ -159,6 +176,7 @@ export function hasActiveFilter(filters: LibraryFilters): boolean {
     filters.level        !== 'all' ||
     filters.focus        !== 'all' ||
     filters.exposureBand !== 'all' ||
+    filters.confidence   !== 'all' ||
     filters.tag          !== 'all' ||
     filters.theme        !== 'all'
   )
@@ -171,6 +189,7 @@ export function activeFilterCount(filters: LibraryFilters): number {
     filters.level        !== 'all',
     filters.focus        !== 'all',
     filters.exposureBand !== 'all',
+    filters.confidence   !== 'all',
     filters.tag          !== 'all',
     filters.theme        !== 'all',
   ].filter(Boolean).length

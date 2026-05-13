@@ -34,6 +34,8 @@ import {
   getUsageLogsThisWeek,
   getContextBreakdown,
   getHighExposureNoUsage,
+  getConfidenceDistribution,
+  ConfidenceDistribution,
   ExposureBand,
 } from '@/lib/statsLogic'
 
@@ -323,6 +325,56 @@ function ExposureBandSection({ dist }: { dist: Record<ExposureBand, number> }) {
   )
 }
 
+// ── Confidence distribution ───────────────────────────────────────────────────
+
+const CONFIDENCE_ROWS: {
+  key: keyof ConfidenceDistribution
+  label: string
+  sublabel: string
+  dot: string
+  bar: string
+}[] = [
+  { key: 'red',    label: 'New',             sublabel: 'Recognise, but can\'t use yet', dot: 'bg-rose-500',  bar: 'bg-rose-400'  },
+  { key: 'yellow', label: 'Getting there',   sublabel: 'Can use when prompted',         dot: 'bg-amber-400', bar: 'bg-amber-400' },
+  { key: 'green',  label: 'Comfortable',     sublabel: 'Can use spontaneously',         dot: 'bg-emerald-500', bar: 'bg-emerald-400' },
+  { key: 'unset',  label: 'Not assessed',    sublabel: 'Tap dots to self-assess',       dot: 'bg-slate-300', bar: 'bg-slate-200' },
+]
+
+function ConfidenceSection({ dist }: { dist: ConfidenceDistribution }) {
+  const total = dist.red + dist.yellow + dist.green + dist.unset || 1
+  return (
+    <div className="space-y-2.5">
+      {CONFIDENCE_ROWS.map(({ key, label, sublabel, dot, bar }) => {
+        const count = dist[key]
+        const pct   = (count / total) * 100
+        return (
+          <div key={key} className="flex items-center gap-3">
+            <div className="w-24 shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+                <span className="text-xs font-semibold text-slate-700">{label}</span>
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5 pl-3.5">{sublabel}</div>
+            </div>
+            <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full ${bar} rounded-full transition-all duration-500`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-slate-700 w-8 text-right shrink-0">
+              {count}
+            </span>
+          </div>
+        )
+      })}
+      <p className="text-[10px] text-slate-400 mt-1">
+        Self-assessed via the three dots on each word in My Current Focus.
+      </p>
+    </div>
+  )
+}
+
 // ── Activity chart (recharts) ─────────────────────────────────────────────────
 
 function ActivityChart({ data }: { data: ReturnType<typeof getDailyActivity> }) {
@@ -569,8 +621,9 @@ export function StatsPage() {
   )
 
   // ── Distribution data ─────────────────────────────────────────────────────
-  const levelDist    = useMemo(() => getLevelDistribution(items),    [items])
-  const exposureDist = useMemo(() => getExposureDistribution(items), [items])
+  const levelDist      = useMemo(() => getLevelDistribution(items),      [items])
+  const exposureDist   = useMemo(() => getExposureDistribution(items),   [items])
+  const confidenceDist = useMemo(() => getConfidenceDistribution(items), [items])
 
   // ── Phase-6 real-life usage stats ────────────────────────────────────────
   const activatedCount       = useMemo(() => getActivatedCount(items),                [items])
@@ -708,6 +761,12 @@ export function StatsPage() {
       <Card>
         <CardTitle icon={<Zap size={14} />}>Challenge exposure</CardTitle>
         <ExposureBandSection dist={exposureDist} />
+      </Card>
+
+      {/* ── Confidence distribution ────────────────────────────────────────── */}
+      <Card>
+        <CardTitle icon={<Target size={14} />}>Self-assessed confidence</CardTitle>
+        <ConfidenceSection dist={confidenceDist} />
       </Card>
 
       {/* ── Real-life usage (Phase 6) ───────────────────────────────────────── */}
