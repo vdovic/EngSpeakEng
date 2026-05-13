@@ -3,9 +3,14 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { EseGameSandboxPage } from '@/experiments/ese-game/EseGameSandboxPage'
 import { ESE_GAME_EXPERIMENT_ROUTE } from '@/experiments/ese-game/constants'
 import './index.css'
+
+const EseGameSandboxPage = React.lazy(() =>
+  import('@/experiments/ese-game/EseGameSandboxPage').then((module) => ({
+    default: module.EseGameSandboxPage,
+  })),
+)
 
 function ExperimentUnavailable() {
   return (
@@ -16,8 +21,21 @@ function ExperimentUnavailable() {
         </p>
         <h1 className="mt-3 text-2xl font-semibold">ESE Game Sandbox is disabled</h1>
         <p className="mt-3 text-sm leading-6 text-slate-300">
-          Enable it in local development with VITE_ENABLE_ESE_GAME_EXPERIMENT=true.
+          Enable it by setting VITE_ENABLE_ESE_GAME_EXPERIMENT=true before building.
         </p>
+      </div>
+    </main>
+  )
+}
+
+function ExperimentLoading() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-slate-100">
+      <div className="max-w-md">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Loading experiment
+        </p>
+        <h1 className="mt-3 text-2xl font-semibold">Opening ESE Game Sandbox</h1>
       </div>
     </main>
   )
@@ -32,7 +50,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>
       {isEseGameExperimentPath ? (
-        isEseGameExperimentEnabled ? <EseGameSandboxPage /> : <ExperimentUnavailable />
+        isEseGameExperimentEnabled ? (
+          <React.Suspense fallback={<ExperimentLoading />}>
+            <EseGameSandboxPage />
+          </React.Suspense>
+        ) : (
+          <ExperimentUnavailable />
+        )
       ) : (
         <BrowserRouter>
           <App />

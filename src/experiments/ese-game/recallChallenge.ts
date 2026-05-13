@@ -67,6 +67,27 @@ function maskTarget(sentence: string, target: string): string | null {
   return sentence.replace(pattern, '_____')
 }
 
+function hasRecallContext(word: StarterPackMissionWord): boolean {
+  return Boolean(
+    word.definitionEn &&
+      (word.workSentence || word.exampleSentence) &&
+      (
+        word.type === 'phrase' ||
+        word.type === 'chunk' ||
+        word.categories.includes('phrasal verbs')
+      ) &&
+      word.qualityScore >= 8 &&
+      (word.nuance || word.commonMistakes) &&
+      ((word.tags ?? []).length > 0 || (word.collocations ?? []).length > 0),
+  )
+}
+
+function contextRecallPrompt(sentence: string, word: StarterPackMissionWord): string {
+  const context = sentence.replace(/\s+/g, ' ').trim()
+  const register = word.register ? `${word.register} ` : ''
+  return `Use the ${register}expression for this idea: ${word.definitionEn} Context: ${context} Expression: _____`
+}
+
 function bestSentence(word: StarterPackMissionWord): string | undefined {
   return word.workSentence ?? word.exampleSentence
 }
@@ -91,9 +112,23 @@ function isSafeAcceptedSynonym(word: StarterPackMissionWord, synonym: string): b
   return true
 }
 
-function acceptedAnswers(word: StarterPackMissionWord): string[] {
+function nextWordAfterBlank(sentence: string): string | null {
+  const [, afterBlank] = sentence.split('_____')
+  const nextWord = afterBlank?.trim().match(/^[a-z]+/i)?.[0]
+  return nextWord ? nextWord.toLowerCase() : null
+}
+
+function acceptedAnswers(word: StarterPackMissionWord, clozeSentence: string): string[] {
+  const nextWord = nextWordAfterBlank(clozeSentence)
+  const fixedPrepositionFollows =
+    word.type === 'word' &&
+    Boolean(nextWord && ['by', 'for', 'from', 'in', 'into', 'of', 'on', 'to', 'with'].includes(nextWord))
   const safeSynonyms = (word.synonyms ?? []).filter((synonym) =>
-    isSafeAcceptedSynonym(word, synonym),
+    isSafeAcceptedSynonym(word, synonym) &&
+      !fixedPrepositionFollows &&
+      !normalizeAnswer(synonym).split(/\s+/).some((part) =>
+        ['by', 'for', 'from', 'in', 'into', 'of', 'on', 'to', 'with'].includes(part),
+      ),
   )
 
   return Array.from(new Set([word.term, ...safeSynonyms]))
@@ -122,13 +157,17 @@ export function buildRecallPrompts(words: StarterPackMissionWord[]): RecallPromp
   return words
     .map((word): RecallPrompt | null => {
       const sentence = bestSentence(word)
-      const clozeSentence = sentence ? maskTarget(sentence, word.term) : null
+      const clozeSentence = sentence
+        ? maskTarget(sentence, word.term) ?? (hasRecallContext(word)
+          ? contextRecallPrompt(sentence, word)
+          : null)
+        : null
 
       if (!sentence || !clozeSentence || !word.definitionEn) {
         return null
       }
 
-      const answers = acceptedAnswers(word)
+      const answers = acceptedAnswers(word, clozeSentence)
 
       return {
         id: `full-library-recall-${word.id}`,

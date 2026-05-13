@@ -121,6 +121,10 @@ function sentenceCaseLike(source: string, replacement: string): string {
 }
 
 function lowerFirst(value: string): string {
+  if (value.startsWith('I ')) {
+    return value
+  }
+
   return value.charAt(0).toLowerCase() + value.slice(1)
 }
 
@@ -374,6 +378,39 @@ function selectTemptingAlternative(word: StarterPackWord): string | null {
   ) ?? null
 }
 
+function getPlainUpgradeAlternative(word: StarterPackWord): string | null {
+  const synonym = selectTemptingAlternative(word)
+  if (synonym) {
+    return synonym
+  }
+
+  const definitionLead = word.definitionEn
+    ?.split(/[;.(]/)[0]
+    ?.replace(/^(to|a|an|the)\s+/i, '')
+    .trim()
+
+  if (
+    definitionLead &&
+    definitionLead.length >= 4 &&
+    definitionLead.length <= 58 &&
+    !definitionLead.includes(':') &&
+    normaliseChoice(definitionLead) !== normaliseChoice(word.term)
+  ) {
+    return definitionLead
+  }
+
+  return null
+}
+
+function replaceParticle(term: string, replacementParticle: string): string | null {
+  const parts = term.trim().split(/\s+/)
+  if (parts.length < 2) {
+    return null
+  }
+
+  return [...parts.slice(0, -1), replacementParticle].join(' ')
+}
+
 function getErrorPattern(word: StarterPackWord): {
   replacement: string
   focus: string
@@ -382,6 +419,14 @@ function getErrorPattern(word: StarterPackWord): {
   const term = word.term.trim()
   const [firstWord] = term.split(/\s+/)
   const synonym = selectTemptingAlternative(word)
+
+  if ((word.type === 'chunk' || (word.tags ?? []).includes('idiom')) && term.includes(' ')) {
+    return {
+      replacement: synonym ?? firstWord,
+      focus: 'idiom and chunk precision',
+      reason: `"${term}" works as a complete expression; swapping out one part or using a plainer substitute weakens the idiom.`,
+    }
+  }
 
   if (term.includes(' on')) {
     return {
@@ -415,6 +460,36 @@ function getErrorPattern(word: StarterPackWord): {
     }
   }
 
+  const particleAlternatives: Record<string, string> = {
+    up: 'out',
+    out: 'up',
+    off: 'out',
+    in: 'on',
+    into: 'in',
+    on: 'in',
+    over: 'through',
+    through: 'over',
+    back: 'again',
+    away: 'off',
+    down: 'up',
+  }
+  const lastWord = term.split(/\s+/).at(-1)?.toLowerCase()
+  const replacementParticle = lastWord ? particleAlternatives[lastWord] : undefined
+  const particleReplacement = replacementParticle
+    ? replaceParticle(term, replacementParticle)
+    : null
+
+  if (
+    particleReplacement &&
+    ((word.tags ?? []).includes('phrasal-verb') || term.split(/\s+/).length === 2)
+  ) {
+    return {
+      replacement: particleReplacement,
+      focus: 'phrasal verb particle',
+      reason: `"${term}" needs this particle in the source context; changing it creates the wrong idiom or direction.`,
+    }
+  }
+
   if (term.includes(' ')) {
     return {
       replacement: synonym ?? firstWord,
@@ -435,23 +510,91 @@ function getErrorPattern(word: StarterPackWord): {
 function getDistractors(word: StarterPackMissionWord, allWords: StarterPackMissionWord[]): string[] {
   const sameCategory = new Set(word.categories)
   const sameTag = new Set((word.tags ?? []).map(normaliseChoice))
+  const samePartOfSpeech = compactText(word.partOfSpeech)
+  const sourceDistractors = [...(word.synonyms ?? [])]
+
   const fromSameArea = allWords
     .filter((candidate) => candidate.id !== word.id)
+    .filter((candidate) => candidate.type === word.type)
+    .filter((candidate) => candidate.difficulty === word.difficulty)
+    .filter((candidate) =>
+      samePartOfSpeech ? candidate.partOfSpeech === samePartOfSpeech : true,
+    )
     .filter((candidate) =>
       candidate.categories.some((category) => sameCategory.has(category)) ||
       (candidate.tags ?? []).some((tag) => sameTag.has(normaliseChoice(tag))),
     )
-    .flatMap((candidate) => [candidate.term, ...(candidate.synonyms ?? []).slice(0, 1)])
+    .filter((candidate) => Math.abs(candidate.term.length - word.term.length) <= 12)
+    .flatMap((candidate) => [candidate.term])
 
-  const fromAnyPack = allWords
-    .filter((candidate) => candidate.id !== word.id)
-    .flatMap((candidate) => [candidate.term, ...(candidate.synonyms ?? []).slice(0, 1)])
-
-  return uniqueChoices([...fromSameArea, ...fromAnyPack]).slice(0, 2)
+  return uniqueChoices([...sourceDistractors, ...fromSameArea])
+    .filter((choice) => isUsefulDistractor(choice, word))
+    .slice(0, 6)
 }
 
 function shuffle<T>(items: T[]): T[] {
   return [...items].sort(() => Math.random() - 0.5)
+}
+
+function buildChoices(correctChoice: string, alternatives: string[], count = 3): string[] {
+  const distractors = uniqueChoices(alternatives)
+    .filter((choice) => normaliseChoice(choice) !== normaliseChoice(correctChoice))
+
+  return shuffle([correctChoice, ...shuffle(distractors).slice(0, count - 1)])
+}
+
+function hasStrongPromptContext(word: StarterPackMissionWord): boolean {
+  return Boolean(
+    word.definitionEn &&
+      (word.workSentence || word.exampleSentence) &&
+      (
+        word.nuance ||
+        word.commonMistakes ||
+        word.register !== 'neutral' ||
+        (word.synonyms ?? []).length >= 2 ||
+        (word.collocations ?? []).length > 0 ||
+        (word.tags ?? []).length > 0
+      ),
+  )
+}
+
+function isUsefulDistractor(choice: string, word: StarterPackMissionWord): boolean {
+  const normalized = normaliseChoice(choice)
+  const choiceWordCount = choice.trim().split(/\s+/).length
+  const targetWordCount = word.term.trim().split(/\s+/).length
+  const weakSingleWords = new Set([
+    'be',
+    'do',
+    'get',
+    'go',
+    'just',
+    'make',
+    'take',
+    'thing',
+    'use',
+    'what',
+  ])
+
+  if (choice.length < 4 || weakSingleWords.has(normalized)) {
+    return false
+  }
+
+  if (targetWordCount >= 2 && choiceWordCount === 1 && choice.length < 7) {
+    return false
+  }
+
+  return choiceWordCount <= targetWordCount + 1
+}
+
+function hasNaturalIdiomFrame(sentence: string, term: string): boolean {
+  const normalizedTerm = normaliseChoice(term)
+  const normalizedSentence = normaliseChoice(sentence)
+
+  if (normalizedTerm === 'around the corner') {
+    return /\b(is|are|was|were|be|been|being|seems|looks|feels)\s+around the corner\b/.test(normalizedSentence)
+  }
+
+  return true
 }
 
 function bestSentence(word: StarterPackMissionWord): string | undefined {
@@ -480,7 +623,10 @@ function toPrompt(
   allWords: StarterPackMissionWord[],
 ): SentenceRepairPrompt | null {
   const sentenceSource = bestSentence(word)
-  if (!sentenceSource || !word.definitionEn) {
+  if (!sentenceSource || !hasStrongPromptContext(word)) {
+    return null
+  }
+  if (!hasNaturalIdiomFrame(sentenceSource, word.term)) {
     return null
   }
 
@@ -491,13 +637,13 @@ function toPrompt(
 
   const replacement = sentenceCaseLike(word.term, errorPattern.replacement)
   const sentence = replaceTerm(sentenceSource, word.term, replacement)
-  if (!sentence) {
+  if (!sentence || sentence === sentenceSource || sentence.includes('  ')) {
     return null
   }
 
   const distractors = getDistractors(word, allWords)
-  const choices = shuffle(uniqueChoices([word.term, ...distractors])).slice(0, 3)
-  if (choices.length < 3 || !choices.includes(word.term)) {
+  const choices = buildChoices(word.term, distractors)
+  if (choices.length < 3) {
     return null
   }
 
@@ -520,7 +666,7 @@ function toPrompt(
         .filter((choice) => choice !== word.term)
         .map((choice) => [
           choice,
-          `"${choice}" is related language, but it does not repair this context as naturally as "${word.term}".`,
+          `"${choice}" is related, but it does not fit the collocation, register, or meaning of this sentence as well as "${word.term}".`,
         ]),
     ),
     difficulty,
@@ -536,11 +682,11 @@ function toPhraseUpgradePrompt(
   difficulty: StarterPackDifficulty,
 ): PhraseUpgradePrompt | null {
   const sentenceSource = bestSentence(word)
-  if (!sentenceSource || !word.definitionEn) {
+  if (!sentenceSource || !hasStrongPromptContext(word)) {
     return null
   }
 
-  const plainAlternative = selectTemptingAlternative(word)
+  const plainAlternative = getPlainUpgradeAlternative(word)
   if (!plainAlternative || normaliseChoice(plainAlternative) === normaliseChoice(word.term)) {
     return null
   }
@@ -550,27 +696,26 @@ function toPhraseUpgradePrompt(
     word.term,
     sentenceCaseLike(word.term, plainAlternative),
   )
-  if (!basicSentence || basicSentence === sentenceSource) {
+  if (
+    !basicSentence ||
+    basicSentence === sentenceSource ||
+    basicSentence.includes('  ') ||
+    !hasNaturalIdiomFrame(sentenceSource, word.term)
+  ) {
     return null
   }
 
-  const vagueChoice = replaceTerm(
-    sentenceSource,
-    word.term,
-    sentenceCaseLike(word.term, word.type === 'word' ? 'a good option' : 'a useful thing'),
-  )
   const overdoneChoice = `It is important to note that ${lowerFirst(sentenceSource)}`
 
-  const choices = shuffle(
-    uniqueChoices([
-      sentenceSource,
+  const choices = buildChoices(
+    sentenceSource,
+    [
       basicSentence,
-      vagueChoice ?? basicSentence,
       overdoneChoice,
-    ]),
-  ).slice(0, 3)
+    ],
+  )
 
-  if (choices.length < 3 || !choices.includes(sentenceSource)) {
+  if (choices.length < 3) {
     return null
   }
 
@@ -583,7 +728,8 @@ function toPhraseUpgradePrompt(
     correctChoice: sentenceSource,
     upgradedSentence: sentenceSource,
     whyStronger: [
-      `"${word.term}" is more precise, natural, or professionally appropriate in this context than the plainer wording.`,
+      `"${word.term}" gives the sentence stronger ${word.register === 'formal' ? 'professional register' : 'natural precision'} than the plainer wording.`,
+      word.nuance,
       word.workSentence ? 'The source sentence comes from a workplace context.' : undefined,
     ].filter(Boolean).join(' '),
     nuance: buildContext(word),
@@ -593,7 +739,9 @@ function toPhraseUpgradePrompt(
         .filter((choice) => choice !== sentenceSource)
         .map((choice) => [
           choice,
-          'This version is understandable, but it is less precise or less natural than the strongest upgrade.',
+          choice === overdoneChoice
+            ? 'This version is grammatically possible, but the framing is wordy and less direct than the stronger professional sentence.'
+            : 'This version is understandable, but it loses some register, precision, or natural collocation from the stronger option.',
         ]),
     ),
     difficulty,
