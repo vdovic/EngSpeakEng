@@ -1,4 +1,6 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { useVocabStore } from '@/store/vocabStore'
+import { useGamificationStore } from '@/store/gamificationStore'
 import {
   DAILY_TRAINING_SESSION_KEY,
   ESE_GAME_EXPERIMENT_ROUTE,
@@ -227,6 +229,11 @@ export function EseGameSandboxPage() {
     loadDailyTrainingSessionSummary(),
   )
 
+  // Production store hooks — used to record exposure/usage and game completions.
+  const recordExposureFn   = useVocabStore((s) => s.recordExposure)
+  const logUsageFn         = useVocabStore((s) => s.logUsage)
+  const recordGameCompletion = useGamificationStore((s) => s.recordGameCompletion)
+
   useEffect(() => {
     let cancelled = false
 
@@ -352,8 +359,38 @@ export function EseGameSandboxPage() {
     setScreen('mission-control')
   }
 
+  function applyGameAnswersToStore(modeId: GameMode, answers: RunAnswer[]) {
+    const seen = new Set<string>()
+    const now = new Date().toISOString()
+    let bestStreak = 0
+    let currentStreak = 0
+    for (const answer of answers) {
+      if (answer.isCorrect) {
+        currentStreak++
+        bestStreak = Math.max(bestStreak, currentStreak)
+      } else {
+        currentStreak = 0
+      }
+      // Cap at 3 unique source words per game to avoid inflating exposure.
+      if (!answer.sourceWordId || seen.size >= 3) continue
+      if (seen.has(answer.sourceWordId)) continue
+      seen.add(answer.sourceWordId)
+      if (modeId === 'phrase-upgrade' && answer.isCorrect) {
+        logUsageFn(answer.sourceWordId, {
+          usedAt: now,
+          context: 'conversation',
+          note: 'Phrase upgrade game',
+        })
+      } else {
+        recordExposureFn(answer.sourceWordId, answer.isCorrect)
+      }
+    }
+    recordGameCompletion(bestStreak)
+  }
+
   function updateMissionProgress(modeId: GameMode, answers: RunAnswer[]) {
     saveMissionState(recordMissionAnswers(missionState, modeId, answers))
+    applyGameAnswersToStore(modeId, answers)
   }
 
   function updateDailySessionProgress(
@@ -368,6 +405,10 @@ export function EseGameSandboxPage() {
       )
     saveMissionState(nextState)
     setLastDailySummary(saveDailyTrainingSessionSummary(summary))
+    // Wire daily session results into the production store.
+    for (const [stageMode, answers] of Object.entries(stageAnswers) as [GameMode, RunAnswer[]][]) {
+      applyGameAnswersToStore(stageMode, answers)
+    }
   }
 
   return (
@@ -1562,6 +1603,12 @@ function DailySessionSummaryPanel({
         >
           Mission Control
         </button>
+        <a
+          href="/focus"
+          className="rounded-md border border-teal-700/40 px-5 py-3 text-sm font-semibold text-teal-300 transition hover:border-teal-500 hover:text-teal-200"
+        >
+          Back to Focus list
+        </a>
       </div>
     </div>
   )
@@ -2639,6 +2686,12 @@ function CompletePanel({
         >
           Back to start
         </button>
+        <a
+          href="/focus"
+          className="w-full rounded-md border border-teal-700/40 px-5 py-3 text-sm font-semibold text-teal-300 transition hover:border-teal-500 hover:text-teal-200 sm:w-auto"
+        >
+          Back to Focus list
+        </a>
       </div>
     </div>
   )

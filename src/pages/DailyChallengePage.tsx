@@ -327,8 +327,20 @@ export function DailyChallengePage() {
     const standardIds = new Set(standardDue.map((i) => i.id))
     const allDue = [...standardDue, ...needsSentence.filter((i) => !standardIds.has(i.id))]
 
-    // Prioritise: My Current Focus first, then lower exposure, then higher difficulty
-    const focusDue  = shuffle(allDue.filter((i) => i.inFocus || i.weeklyFocus))
+    // Prioritise: My Current Focus first, ordered by manual drag rank when available
+    const rawFocusDue = allDue.filter((i) => i.inFocus || i.weeklyFocus)
+    let focusManualOrder: string[] = []
+    try {
+      const saved = localStorage.getItem('active-focus-order')
+      if (saved) focusManualOrder = JSON.parse(saved) as string[]
+    } catch { /* noop */ }
+    const focusDue = focusManualOrder.length > 0
+      ? [...rawFocusDue].sort((a, b) => {
+          const pa = focusManualOrder.indexOf(a.id)
+          const pb = focusManualOrder.indexOf(b.id)
+          return (pa === -1 ? Infinity : pa) - (pb === -1 ? Infinity : pb)
+        })
+      : shuffle(rawFocusDue)
     const normalDue = shuffle(allDue.filter((i) => !i.inFocus && !i.weeklyFocus))
 
     const focusTarget = Math.ceil(cap * 0.6)
