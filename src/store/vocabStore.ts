@@ -106,6 +106,13 @@ interface VocabStore {
   removeTag: (id: string, tag: string)  => Promise<void>
 
   /**
+   * Reset a word's challenge progress to zero so the learner starts the
+   * exposure ladder from scratch. Sets exposureCount to 0 and marks the
+   * word as due immediately. Does not affect Focus membership or usage logs.
+   */
+  resetExposure: (id: string) => Promise<void>
+
+  /**
    * Phase-9 bulk import: write a merged set of items to IndexedDB and reload.
    * The merge logic lives in vocabImportExport.ts; this action only persists
    * the final merged array and refreshes the in-memory store.
@@ -921,6 +928,21 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
   },
 
   // ── removeFromFocus ───────────────────────────────────────────────────────────
+  resetExposure: async (id) => {
+    const item = get().items.find((i) => i.id === id)
+    if (!item) return
+    const now = new Date().toISOString()
+    const updatedForLevel = { ...item, exposureCount: 0 }
+    const newLevel = deriveLevel(updatedForLevel)
+    await applyPatch(id, {
+      exposureCount:     0,
+      nextChallengeDate: now,
+      lastExposureAt:    now,
+      level:             newLevel,
+      updatedAt:         now,
+    }, set)
+  },
+
   removeFromFocus: async (id) => {
     const now = new Date().toISOString()
     await applyPatch(id, {
