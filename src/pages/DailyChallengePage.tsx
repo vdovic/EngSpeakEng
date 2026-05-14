@@ -41,12 +41,14 @@ type FeedbackState = {
   itemId: string
   /** exposureCount of the item BEFORE this answer was recorded */
   oldExposureCount: number
+  /** true when this answer pushed the word to MAX_EXPOSURE for the first time */
+  justMastered: boolean
 } | null
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PRACTICE_MODE_KEY = 'ese.challenge.practiceMode'
-const DEEP_TIMER_SECONDS = 30
+const DEEP_TIMER_SECONDS = 60
 
 const DEEP_PROMPTS: Partial<Record<ChallengeType | 'recognition', string>> = {
   'definition-choice': 'Read the definition and compare similar meanings.',
@@ -244,6 +246,8 @@ export function DailyChallengePage() {
   const navigate = useNavigate()
   const allItems = useVocabStore((s) => s.items)
   const recordChallengeAttempt = useVocabStore((s) => s.recordChallengeAttempt)
+  const recordExposure = useVocabStore((s) => s.recordExposure)
+  const removeFromFocus = useVocabStore((s) => s.removeFromFocus)
   const setConfidenceLevel = useVocabStore((s) => s.setConfidenceLevel)
   const { addPoints, recordChallengeCompletion, checkBadges, streakDays, points } =
     useGamificationStore()
@@ -277,6 +281,7 @@ export function DailyChallengePage() {
 
   const usedItemIds = useRef<Set<string>>(new Set())
   const pendingAdvance = useRef<(() => void) | null>(null)
+  const secondsLeftRef = useRef(DEEP_TIMER_SECONDS)
   const slotIds = useMemo(() => new Set(slots.map((s) => s.item.id)), [slots])
   const previewSlots = useMemo(() => uniqueSlotsByItem(slots), [slots])
   const previewWordCount = previewSlots.length
@@ -403,9 +408,10 @@ export function DailyChallengePage() {
 
   // ── Deep Practice timer ────────────────────────────────────────────────────────
 
-  // Reset to 30 whenever the active task changes.
+  // Reset to full duration whenever the active task changes.
   useEffect(() => {
     setSecondsLeft(DEEP_TIMER_SECONDS)
+    secondsLeftRef.current = DEEP_TIMER_SECONDS
   }, [currentIndex])
 
   // Count down 1s at a time while exercising and no feedback overlay is shown.
@@ -414,7 +420,11 @@ export function DailyChallengePage() {
     if (phase !== 'exercising') return
     if (feedback !== null) return
     if (secondsLeft <= 0) return
-    const t = setTimeout(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000)
+    const t = setTimeout(() => {
+      const next = Math.max(0, secondsLeft - 1)
+      secondsLeftRef.current = next
+      setSecondsLeft(next)
+    }, 1000)
     return () => clearTimeout(t)
   }, [practiceMode, phase, feedback, secondsLeft])
 
@@ -533,6 +543,24 @@ export function DailyChallengePage() {
         result.correct,
         result.userAnswer,
       )
+
+      // Deep Practice early answer: award a bonus +1 exposure (total +2).
+      // Rationale: finishing before the timer means the word is already familiar —
+      // the system accelerates it toward the top of the ladder.
+      const isDeepEarly = practiceMode === 'deep' && secondsLeftRef.current > 0
+      if (isDeepEarly && result.correct) {
+        recordExposure(result.itemId, true)
+      }
+
+      // Detect whether this answer just pushed the word to MAX_EXPOSURE.
+      const normalInc = result.correct ? 1 : 0
+      const bonusInc  = isDeepEarly && result.correct ? 1 : 0
+      const newExposureCount = Math.min(oldExposureCount + normalInc + bonusInc, MAX_EXPOSURE)
+      const justMastered = result.correct && newExposureCount >= MAX_EXPOSURE && oldExposureCount < MAX_EXPOSURE
+      if (justMastered) {
+        removeFromFocus(result.itemId)
+      }
+
       addPoints(result.points)
       setResults((prev) => [...prev, result])
 
@@ -569,10 +597,11 @@ export function DailyChallengePage() {
         exampleSentence: currentSlot.item.exampleSentence ?? undefined,
         itemId: result.itemId,
         oldExposureCount,
+        justMastered,
       })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentIndex, slots, isBonus, recordChallengeAttempt, addPoints, recordChallengeCompletion, checkBadges],
+    [currentIndex, slots, isBonus, practiceMode, recordChallengeAttempt, recordExposure, removeFromFocus, addPoints, recordChallengeCompletion, checkBadges],
   )
 
   const dismissFeedback = useCallback(() => {
@@ -1025,7 +1054,7 @@ export function DailyChallengePage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-indigo-700 tracking-wide">Deep Practice</span>
             <span className="text-xs font-mono font-bold text-indigo-600 tabular-nums">
-              {String(secondsLeft).padStart(2, '0')}s
+              {`${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`}
             </span>
           </div>
           <div className="h-1 bg-indigo-100 rounded-full overflow-hidden mb-2">
@@ -1184,6 +1213,17 @@ export function DailyChallengePage() {
                   </div>
                 )
               })()}
+
+              {/* ── Mastery milestone hint ── */}
+              {feedback.justMastered && (
+                <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  <p className="text-xs font-semibold text-amber-700 mb-1 uppercase tracking-wide">Challenge ladder complete</p>
+                  <p className="text-sm text-slate-700 leading-relaxed">
+                    You've drilled <span className="font-semibold">"{item.term}"</span> to the top.
+                    It's been removed from Focus — rate your confidence below to mark it as fully mastered.
+                  </p>
+                </div>
+              )}
 
               {/* ── Confidence nudge for familiar words ── */}
               {(() => {
