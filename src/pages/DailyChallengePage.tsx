@@ -248,6 +248,7 @@ export function DailyChallengePage() {
   const recordChallengeAttempt = useVocabStore((s) => s.recordChallengeAttempt)
   const recordExposure = useVocabStore((s) => s.recordExposure)
   const removeFromFocus = useVocabStore((s) => s.removeFromFocus)
+  const resetExposure = useVocabStore((s) => s.resetExposure)
   const setConfidenceLevel = useVocabStore((s) => s.setConfidenceLevel)
   const { addPoints, recordChallengeCompletion, checkBadges, streakDays, points } =
     useGamificationStore()
@@ -1270,6 +1271,21 @@ export function DailyChallengePage() {
               </div>
 
               <p className="text-center text-xs text-slate-400 mt-3">or press any key to continue</p>
+
+              {/* Reset to start — only on wrong answers with prior progress */}
+              {!feedback.correct && feedback.oldExposureCount > 0 && (
+                <div className="mt-4 pt-3 border-t border-slate-100 text-center">
+                  <button
+                    onClick={() => {
+                      resetExposure(feedback.itemId)
+                      dismissFeedback()
+                    }}
+                    className="text-xs text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    Completely forgot it? Reset progress to 0
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </>
