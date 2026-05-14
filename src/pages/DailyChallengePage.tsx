@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
-  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen,
+  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen, Info,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -40,6 +40,18 @@ type FeedbackState = {
   /** exposureCount of the item BEFORE this answer was recorded */
   oldExposureCount: number
 } | null
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const PRACTICE_MODE_KEY = 'ese.challenge.practiceMode'
+const DEEP_TIMER_SECONDS = 30
+
+const DEEP_PROMPTS: Partial<Record<ChallengeType | 'recognition', string>> = {
+  'definition-choice': 'Read the definition and compare similar meanings.',
+  'fill-gap':          'Notice the phrase pattern before filling the gap.',
+  'sentence-production': 'Think of a real sentence you might actually say.',
+  'real-life-use-check': 'Recall the situation where you used this word.',
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -241,6 +253,17 @@ export function DailyChallengePage() {
   const [wordDetailItem, setWordDetailItem]           = useState<VocabItem | null>(null)
   const [resumeBanner, setResumeBanner]               = useState<string | null>(null)
 
+  const [practiceMode, setPracticeModeRaw] = useState<'standard' | 'deep'>(() => {
+    const saved = localStorage.getItem(PRACTICE_MODE_KEY)
+    return saved === 'deep' ? 'deep' : 'standard'
+  })
+  const [secondsLeft, setSecondsLeft] = useState(DEEP_TIMER_SECONDS)
+
+  function setPracticeMode(mode: 'standard' | 'deep') {
+    localStorage.setItem(PRACTICE_MODE_KEY, mode)
+    setPracticeModeRaw(mode)
+  }
+
   const usedItemIds = useRef<Set<string>>(new Set())
   const pendingAdvance = useRef<(() => void) | null>(null)
   const slotIds = useMemo(() => new Set(slots.map((s) => s.item.id)), [slots])
@@ -350,6 +373,23 @@ export function DailyChallengePage() {
     const t = setTimeout(() => setResumeBanner(null), 3000)
     return () => clearTimeout(t)
   }, [resumeBanner])
+
+  // ── Deep Practice timer ────────────────────────────────────────────────────────
+
+  // Reset to 30 whenever the active task changes.
+  useEffect(() => {
+    setSecondsLeft(DEEP_TIMER_SECONDS)
+  }, [currentIndex])
+
+  // Count down 1s at a time while exercising and no feedback overlay is shown.
+  useEffect(() => {
+    if (practiceMode !== 'deep') return
+    if (phase !== 'exercising') return
+    if (feedback !== null) return
+    if (secondsLeft <= 0) return
+    const t = setTimeout(() => setSecondsLeft((s) => Math.max(0, s - 1)), 1000)
+    return () => clearTimeout(t)
+  }, [practiceMode, phase, feedback, secondsLeft])
 
   // ── Persist session ────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -613,6 +653,52 @@ export function DailyChallengePage() {
                 ))}
               </div>
             </div>
+
+            {/* Practice mode selector */}
+            <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-xs font-medium text-slate-500">Practice mode</span>
+                <div className="relative group">
+                  <button
+                    type="button"
+                    className="text-slate-400 hover:text-slate-600 transition-colors"
+                    aria-label="About practice modes"
+                  >
+                    <Info size={13} />
+                  </button>
+                  <div className="absolute left-5 bottom-0 hidden group-hover:block w-64 z-10 bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 leading-relaxed shadow-lg pointer-events-none">
+                    Deep Practice gives each word 30 seconds of attention. Use the time to read examples, check nuance, and think of a real situation where you could use it.
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={() => setPracticeMode('standard')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    practiceMode === 'standard'
+                      ? 'bg-slate-700 text-white border-slate-700'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-700'
+                  }`}
+                >
+                  Standard
+                </button>
+                <button
+                  onClick={() => setPracticeMode('deep')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                    practiceMode === 'deep'
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                  }`}
+                >
+                  Deep Practice · 30s/word
+                </button>
+              </div>
+              {practiceMode === 'deep' && (
+                <p className="text-xs text-indigo-600 mt-2 leading-snug">
+                  Slow down and explore each word before answering.
+                </p>
+              )}
+            </div>
           </>
         )}
 
@@ -690,11 +776,17 @@ export function DailyChallengePage() {
         <h1 className="text-2xl font-bold text-slate-900 mb-1">
           {total === 0 ? 'All caught up!' : isBonus ? 'Bonus round done!' : 'Challenge complete!'}
         </h1>
-        <p className="text-sm text-slate-500 mb-8">
+        <p className="text-sm text-slate-500 mb-2">
           {total === 0
             ? 'No items are due for practice right now.'
             : `You practised ${total} word${total !== 1 ? 's' : ''}.`}
         </p>
+        {practiceMode === 'deep' && total > 0 && (
+          <p className="text-xs text-indigo-500 mb-6">
+            You practised in Deep Practice mode — slower, more deliberate attention.
+          </p>
+        )}
+        {!(practiceMode === 'deep' && total > 0) && <div className="mb-6" />}
 
         {total > 0 && (
           <>
@@ -899,6 +991,29 @@ export function DailyChallengePage() {
           />
         </div>
       </div>
+
+      {/* ── Deep Practice timer ── */}
+      {practiceMode === 'deep' && !feedback && (
+        <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-indigo-700 tracking-wide">Deep Practice</span>
+            <span className="text-xs font-mono font-bold text-indigo-600 tabular-nums">
+              {String(secondsLeft).padStart(2, '0')}s
+            </span>
+          </div>
+          <div className="h-1 bg-indigo-100 rounded-full overflow-hidden mb-2">
+            <div
+              className="h-full bg-indigo-400 rounded-full transition-all duration-1000 ease-linear"
+              style={{ width: `${(secondsLeft / DEEP_TIMER_SECONDS) * 100}%` }}
+            />
+          </div>
+          <p className="text-xs text-indigo-600 leading-snug">
+            {secondsLeft > 0
+              ? (DEEP_PROMPTS[activeType] ?? 'Take a moment to explore the word.')
+              : 'Ready when you are.'}
+          </p>
+        </div>
+      )}
 
       {/* ── Word header (for non-embedding challenges) ── */}
       {!embedsTerm && (
