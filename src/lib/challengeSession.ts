@@ -39,6 +39,22 @@ export interface ChallengeSession {
   feedbackPending?: boolean
 }
 
+export function getUniqueWordProgress(
+  slots: Pick<SessionSlot, 'itemId'>[],
+  currentIndex: number,
+): { current: number; total: number } {
+  const total = new Set(slots.map((slot) => slot.itemId)).size
+  if (slots.length === 0 || total === 0) return { current: 0, total: 0 }
+
+  const clampedIndex = Math.min(Math.max(currentIndex, 0), slots.length - 1)
+  const seen = new Set<string>()
+  for (let i = 0; i <= clampedIndex; i += 1) {
+    seen.add(slots[i].itemId)
+  }
+
+  return { current: seen.size, total }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 export function todayKey(): string {

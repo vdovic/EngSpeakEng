@@ -20,7 +20,7 @@ import { SentenceProductionChallenge } from '@/components/challenges/SentencePro
 import { RealLifeUseCheckChallenge } from '@/components/challenges/RealLifeUseCheckChallenge'
 import { WordDetailModal } from '@/components/WordDetailModal'
 import {
-  saveSession, loadTodaySession, clearSession, todayKey,
+  saveSession, loadTodaySession, clearSession, todayKey, getUniqueWordProgress,
   PRACTICE_MODE_KEY,
 } from '@/lib/challengeSession'
 
@@ -75,6 +75,13 @@ function uniqueSlotsByItem(slots: ChallengeSlot[]): ChallengeSlot[] {
     seen.add(slot.item.id)
     return true
   })
+}
+
+function uniqueWordProgressForSlots(slots: ChallengeSlot[], currentIndex: number) {
+  return getUniqueWordProgress(
+    slots.map((slot) => ({ itemId: slot.item.id })),
+    currentIndex,
+  )
 }
 
 // ── Word picker modal ─────────────────────────────────────────────────────────
@@ -465,7 +472,7 @@ export function DailyChallengePage() {
     setWordStartedAt(ts)
     setSecondsLeft(DEEP_TIMER_SECONDS)
     secondsLeftRef.current = DEEP_TIMER_SECONDS
-  }, [currentIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentIndex, phase, practiceMode])
 
   // Self-contained tick loop that derives remaining seconds from the start
   // timestamp — drift-free and naturally resumable after reload/navigation.
@@ -794,7 +801,7 @@ export function DailyChallengePage() {
                     <Info size={13} />
                   </button>
                   <div className="absolute left-5 bottom-0 hidden group-hover:block w-64 z-10 bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 leading-relaxed shadow-lg pointer-events-none">
-                    Deep Practice gives each word 1 minute of attention. Use the time to read examples, check nuance, and think of a real situation where you could use it.
+                    Deep Practice gives each word 1m/word of attention. Use the time to read examples, check nuance, and think of a real situation where you could use it.
                   </div>
                 </div>
               </div>
@@ -1052,6 +1059,7 @@ export function DailyChallengePage() {
   // Always read the live item so progress reflects the latest recordExposure writes.
   const item = allItems.find((i) => i.id === currentSlot.item.id) ?? currentSlot.item
   const progress = (results.length / slots.length) * 100
+  const wordProgress = uniqueWordProgressForSlots(slots, currentIndex)
 
   // Types that embed the term/word in their own card UI — no separate heading needed.
   // definition-choice: definition is the prompt; term appears as an answer option.
@@ -1104,7 +1112,7 @@ export function DailyChallengePage() {
           <span className="text-xs font-semibold text-orange-600">{streakDays}d</span>
           {/* Position indicator — "3 of 10" */}
           <span className="text-xs font-semibold text-slate-700 ml-2 tabular-nums">
-            {currentIndex + 1}/{slots.length}
+            {wordProgress.current}/{wordProgress.total}
           </span>
         </div>
       </div>
