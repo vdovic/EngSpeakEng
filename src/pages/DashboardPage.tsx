@@ -75,6 +75,7 @@ function FocusSetupSection({
   count,
   kind,
   availableCount,
+  personalizeLabel,
   onCountChange,
   onKindChange,
   onRandomReshuffle,
@@ -83,6 +84,7 @@ function FocusSetupSection({
   count: FocusCount
   kind: FocusKind
   availableCount: number
+  personalizeLabel: string
   onCountChange: (count: FocusCount) => void
   onKindChange: (kind: FocusKind) => void
   onRandomReshuffle: () => void
@@ -167,7 +169,7 @@ function FocusSetupSection({
             onClick={onPersonalize}
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand-200 bg-white px-3 py-2 text-xs font-bold text-brand-700 transition-colors hover:bg-brand-50"
           >
-            Personalize my learning
+            {personalizeLabel}
           </button>
         </div>
       </div>
@@ -633,13 +635,21 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
   const isEmpty = items.length === 0
 
   async function handleRandomFocusReshuffle() {
-    const selected = shuffleForUserAction(focusBuilderPool).slice(0, focusCount)
+    const currentIds = new Set(currentFocusItems.map((item) => item.id))
+    const nonCurrent = focusBuilderPool.filter((item) => !currentIds.has(item.id))
+    const currentEligible = focusBuilderPool.filter((item) => currentIds.has(item.id))
+    const selected = [
+      ...shuffleForUserAction(nonCurrent),
+      ...shuffleForUserAction(currentEligible),
+    ].slice(0, focusCount)
     await Promise.all(currentFocusItems.map((item) => setFocusThisWeek(item.id, false)))
     await Promise.all(selected.map((item) => setFocusThisWeek(item.id, true)))
     navigate('/focus')
   }
 
   function handleChallenge(mode: 'standard' | 'deep') {
+    const existing = loadTodaySession()
+    if (existing && !existing.completed && !existing.isBonus) return
     localStorage.setItem(PRACTICE_MODE_KEY, mode)
     navigate('/challenge')
   }
@@ -681,6 +691,7 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         count={focusCount}
         kind={focusKind}
         availableCount={focusBuilderPool.length}
+        personalizeLabel={onOpenOnboarding ? 'Personalize my learning' : 'Start with themes'}
         onCountChange={setFocusCount}
         onKindChange={setFocusKind}
         onRandomReshuffle={handleRandomFocusReshuffle}

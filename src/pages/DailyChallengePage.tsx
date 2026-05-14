@@ -431,8 +431,8 @@ export function DailyChallengePage() {
 
           setCurrentIndex(restoreIndex)
           setPhase('exercising')
-          const n = restoreIndex + 1
-          setResumeBanner(`Resuming your challenge Â· ${n}/${restoredSlots.length}`)
+          const progress = uniqueWordProgressForSlots(restoredSlots, restoreIndex)
+          setResumeBanner(`Resuming your challenge · word ${progress.current}/${progress.total}`)
           return
         }
       }
