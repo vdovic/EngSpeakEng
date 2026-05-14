@@ -225,7 +225,10 @@ function ActiveFocusRow({
 // tap on the row body still navigates normally.
 
 function SortableActiveFocusRow(props: Omit<ActiveFocusRowProps, 'dragHandleProps' | 'isDragging'>) {
-  const isMastered = (props.item.exposureCount ?? 0) >= 8
+  // getFocusItems already excludes status === 'mastered' items, so this guard
+  // is a defensive belt-and-suspenders: mastered words should never appear
+  // here, but if they do (e.g. stale data), their drag handle is suppressed.
+  const isMastered = props.item.status === 'mastered'
   const {
     attributes,
     listeners,
