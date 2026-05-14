@@ -525,7 +525,7 @@ export function ActiveWeekPage() {
             <h1 className="text-xl font-bold text-slate-900">My Current Focus</h1>
           </div>
           <p className="text-sm text-slate-500 mt-0.5 ml-7">
-            Your active vocabulary portfolio.
+            The words you're actively working on — expect to see them in challenges until they feel natural.
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0 mt-0.5">
