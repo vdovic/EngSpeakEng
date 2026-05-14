@@ -30,6 +30,8 @@ interface ChallengeSlot {
   challengeType: ChallengeType
 }
 
+const EXERCISES_PER_WORD = 3
+
 type FeedbackState = {
   correct: boolean
   points: number
@@ -50,6 +52,15 @@ function shuffle<T>(arr: T[]): T[] {
     ;[a[i], a[j]] = [a[j], a[i]]
   }
   return a
+}
+
+function uniqueSlotsByItem(slots: ChallengeSlot[]): ChallengeSlot[] {
+  const seen = new Set<string>()
+  return slots.filter((slot) => {
+    if (seen.has(slot.item.id)) return false
+    seen.add(slot.item.id)
+    return true
+  })
 }
 
 // ── Word picker modal ─────────────────────────────────────────────────────────
@@ -244,8 +255,27 @@ export function DailyChallengePage() {
   const usedItemIds = useRef<Set<string>>(new Set())
   const pendingAdvance = useRef<(() => void) | null>(null)
   const slotIds = useMemo(() => new Set(slots.map((s) => s.item.id)), [slots])
+  const previewSlots = useMemo(() => uniqueSlotsByItem(slots), [slots])
+  const previewWordCount = previewSlots.length
 
   // ── Slot builders ────────────────────────────────────────────────────────────
+
+  function buildExerciseSlotsForItems(items: VocabItem[]): ChallengeSlot[] {
+    return items.flatMap((item) => {
+      const exposureCount = item.exposureCount ?? 0
+      const remainingExposureSteps = Math.max(1, MAX_EXPOSURE - exposureCount)
+      const exerciseCount = Math.min(EXERCISES_PER_WORD, remainingExposureSteps)
+
+      return Array.from({ length: exerciseCount }, (_, index) => {
+        const virtualExposureCount = Math.min(exposureCount + index, MAX_EXPOSURE)
+        const virtualItem = { ...item, exposureCount: virtualExposureCount }
+        return {
+          item,
+          challengeType: getChallengeType(virtualItem),
+        }
+      })
+    })
+  }
 
   function buildDueSlots(cap = sessionSize): ChallengeSlot[] {
     // Pool A: Standard SRS-due items (exposure 0–7)
@@ -276,9 +306,8 @@ export function DailyChallengePage() {
     const focusPick   = focusDue.slice(0, Math.min(focusTarget, focusDue.length))
     const normalPick  = normalDue.slice(0, cap - focusPick.length)
 
-    return shuffle([...focusPick, ...normalPick])
-      .slice(0, cap)
-      .map((item) => ({ item, challengeType: getChallengeType(item) }))
+    const pickedItems = shuffle([...focusPick, ...normalPick]).slice(0, cap)
+    return buildExerciseSlotsForItems(pickedItems)
   }
 
   function buildThemeSlots(theme: string, cap = sessionSize): ChallengeSlot[] {
@@ -292,9 +321,7 @@ export function DailyChallengePage() {
     )
     const due    = shuffle(pool.filter((i) =>  isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
-    return [...due, ...notDue]
-      .slice(0, cap)
-      .map((item) => ({ item, challengeType: getChallengeType(item) }))
+    return buildExerciseSlotsForItems([...due, ...notDue].slice(0, cap))
   }
 
   // ── Mount: restore session OR build fresh ────────────────────────────────────
@@ -398,7 +425,7 @@ export function DailyChallengePage() {
 
   function handleAdd(item: VocabItem) {
     usedItemIds.current.add(item.id)
-    setSlots((prev) => [...prev, { item, challengeType: getChallengeType(item) }])
+    setSlots((prev) => [...prev, ...buildExerciseSlotsForItems([item])])
   }
 
   // ── Restart / fresh ───────────────────────────────────────────────────────────
@@ -408,9 +435,9 @@ export function DailyChallengePage() {
     // Always look up live item data from the Zustand store so that exposureCount
     // and other fields updated during the just-completed session are reflected in
     // the new session's challenge type selection and preview card.
-    const liveSlots = slots.map((s) => {
+    const liveSlots = previewSlots.flatMap((s) => {
       const liveItem = allItems.find((i) => i.id === s.item.id) ?? s.item
-      return { item: liveItem, challengeType: getChallengeType(liveItem) }
+      return buildExerciseSlotsForItems([liveItem])
     })
     usedItemIds.current = new Set(liveSlots.map((s) => s.item.id))
     setSlots(liveSlots)
@@ -441,7 +468,7 @@ export function DailyChallengePage() {
     ).slice(0, CHALLENGE_SESSION_CAP)
     if (available.length === 0) return
     available.forEach((i) => usedItemIds.current.add(i.id))
-    setSlots(available.map((item) => ({ item, challengeType: getChallengeType(item) })))
+    setSlots(buildExerciseSlotsForItems(available))
     setCurrentIndex(0)
     setResults([])
     setIsBonus(true)
@@ -590,7 +617,7 @@ export function DailyChallengePage() {
                 </div>
               )}
               <span className="text-xs text-slate-400 ml-auto">
-                {slots.length} word{slots.length !== 1 ? 's' : ''}
+                {previewWordCount} word{previewWordCount !== 1 ? 's' : ''} · {slots.length} exercises
                 {selectedGroup && <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>}
               </span>
             </div>
@@ -627,12 +654,12 @@ export function DailyChallengePage() {
         )}
 
         <div className="space-y-2 mb-4">
-          {slots.map(({ item }) => (
+          {previewSlots.map(({ item }) => (
             <PreviewRow key={item.id} item={item} allItems={allItems} onRemove={() => handleRemove(item.id)} />
           ))}
         </div>
 
-        {slots.length < sessionSize && (
+        {previewWordCount < sessionSize && (
           <button
             onClick={() => setShowPicker(true)}
             className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-sm font-medium text-slate-500 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
@@ -653,7 +680,7 @@ export function DailyChallengePage() {
             Start{isBonus ? ' bonus round' : ' challenge'}
             {slots.length > 0 && (
               <span className="ml-1 text-brand-200 font-normal text-sm">
-                · {slots.length} word{slots.length !== 1 ? 's' : ''}
+                · {previewWordCount} word{previewWordCount !== 1 ? 's' : ''}, {slots.length} exercises
               </span>
             )}
           </button>
@@ -693,7 +720,7 @@ export function DailyChallengePage() {
         <p className="text-sm text-slate-500 mb-8">
           {total === 0
             ? 'No items are due for practice right now.'
-            : `You practised ${total} word${total !== 1 ? 's' : ''}.`}
+            : `You completed ${total} exercise${total !== 1 ? 's' : ''}.`}
         </p>
 
         {total > 0 && (
@@ -711,18 +738,18 @@ export function DailyChallengePage() {
             {/* Per-word summary */}
             <div className="bg-white border border-slate-200 rounded-2xl mb-6 overflow-hidden text-left">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Words practised</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Exercises completed</p>
                 <p className="text-xs text-slate-400">Challenge progress (0–{MAX_EXPOSURE})</p>
               </div>
               <div className="divide-y divide-slate-50">
-                {results.map((result) => {
+                {results.map((result, index) => {
                   const liveItem = allItems.find((i) => i.id === result.itemId)
                   const currentCount = liveItem?.exposureCount ?? 0
                   const oldCount = result.correct
                     ? Math.max(0, currentCount - 1)
                     : currentCount
                   return (
-                    <div key={result.itemId} className="flex items-center gap-3 px-4 py-2.5">
+                    <div key={`${result.itemId}-${index}`} className="flex items-center gap-3 px-4 py-2.5">
                       {result.correct
                         ? <CheckCircle size={13} className="text-emerald-500 shrink-0" />
                         : <XCircle    size={13} className="text-red-400 shrink-0" />}
@@ -922,16 +949,16 @@ export function DailyChallengePage() {
       {/* ── Challenge card ── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
         {activeType === 'definition-choice' && (
-          <DefinitionChoiceChallenge key={`${item.id}-def`} item={item} allItems={allItems} onAnswer={handleAnswer} />
+          <DefinitionChoiceChallenge key={`${currentIndex}-${item.id}-def`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
         {activeType === 'fill-gap' && (
-          <FillGapChallenge key={`${item.id}-fill`} item={item} allItems={allItems} onAnswer={handleAnswer} />
+          <FillGapChallenge key={`${currentIndex}-${item.id}-fill`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
         {activeType === 'sentence-production' && (
-          <SentenceProductionChallenge key={`${item.id}-sent`} item={item} onAnswer={handleAnswer} />
+          <SentenceProductionChallenge key={`${currentIndex}-${item.id}-sent`} item={item} onAnswer={handleAnswer} />
         )}
         {activeType === 'real-life-use-check' && (
-          <RealLifeUseCheckChallenge key={`${item.id}-rluc`} item={item} onAnswer={handleAnswer} />
+          <RealLifeUseCheckChallenge key={`${currentIndex}-${item.id}-rluc`} item={item} onAnswer={handleAnswer} />
         )}
       </div>
 
