@@ -21,6 +21,7 @@ import { RealLifeUseCheckChallenge } from '@/components/challenges/RealLifeUseCh
 import { WordDetailModal } from '@/components/WordDetailModal'
 import {
   saveSession, loadTodaySession, clearSession, todayKey,
+  PRACTICE_MODE_KEY,
 } from '@/lib/challengeSession'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,7 +48,6 @@ type FeedbackState = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const PRACTICE_MODE_KEY = 'ese.challenge.practiceMode'
 const DEEP_TIMER_SECONDS = 60
 
 const DEEP_PROMPTS: Partial<Record<ChallengeType | 'recognition', string>> = {
@@ -274,6 +274,9 @@ export function DailyChallengePage() {
     return saved === 'deep' ? 'deep' : 'standard'
   })
   const [secondsLeft, setSecondsLeft] = useState(DEEP_TIMER_SECONDS)
+  // ISO timestamp of when the current word's timer started — persisted to session
+  // so the countdown can be resumed correctly after navigation or reload.
+  const [wordStartedAt, setWordStartedAt] = useState<string | null>(null)
 
   function setPracticeMode(mode: 'standard' | 'deep') {
     localStorage.setItem(PRACTICE_MODE_KEY, mode)
@@ -283,6 +286,9 @@ export function DailyChallengePage() {
   const usedItemIds = useRef<Set<string>>(new Set())
   const pendingAdvance = useRef<(() => void) | null>(null)
   const secondsLeftRef = useRef(DEEP_TIMER_SECONDS)
+  // Set to true before restoring wordStartedAt from a saved session so the
+  // currentIndex-change effect doesn't overwrite the restored timestamp.
+  const skipNextWordTimerResetRef = useRef(false)
   const slotIds = useMemo(() => new Set(slots.map((s) => s.item.id)), [slots])
   const previewSlots = useMemo(() => uniqueSlotsByItem(slots), [slots])
   const previewWordCount = previewSlots.length
@@ -386,18 +392,41 @@ export function DailyChallengePage() {
           setSlots(restoredSlots)
           setResults(saved.results)
 
+          // Restore practice mode from session (overrides the localStorage pref
+          // so the mode is consistent with the session that was in progress).
+          if (saved.practiceMode) {
+            setPracticeModeRaw(saved.practiceMode)
+            localStorage.setItem(PRACTICE_MODE_KEY, saved.practiceMode)
+          }
+
           if (saved.completed) {
             setPhase('complete')
             return
           }
 
-          if (saved.currentIndex > 0) {
-            setCurrentIndex(saved.currentIndex)
-            setPhase('exercising')
-            const n = saved.currentIndex + 1
-            setResumeBanner(`Resuming your challenge · ${n}/${restoredSlots.length}`)
+          // If feedback was visible when the user left, advance past that word
+          // rather than showing it again without the answer context.
+          const restoreIndex = saved.feedbackPending
+            ? saved.currentIndex + 1
+            : saved.currentIndex
+
+          if (restoreIndex >= restoredSlots.length) {
+            setPhase('complete')
             return
           }
+
+          // Restore Deep Practice timer from timestamp so the countdown
+          // resumes from the correct position after reload/navigation.
+          if (saved.practiceMode === 'deep' && saved.wordStartedAt) {
+            skipNextWordTimerResetRef.current = true
+            setWordStartedAt(saved.wordStartedAt)
+          }
+
+          setCurrentIndex(restoreIndex)
+          setPhase('exercising')
+          const n = restoreIndex + 1
+          setResumeBanner(`Resuming your challenge · ${n}/${restoredSlots.length}`)
+          return
         }
       }
     }
@@ -421,25 +450,49 @@ export function DailyChallengePage() {
 
   // ── Deep Practice timer ────────────────────────────────────────────────────────
 
-  // Reset to full duration whenever the active task changes.
+  // Record the timestamp when the user moves to a new word so the countdown
+  // can be computed from elapsed real time instead of accumulated ticks.
+  // If the mount effect already set wordStartedAt from a restored session,
+  // the skip flag is set and we leave that timestamp untouched.
   useEffect(() => {
+    if (practiceMode !== 'deep') return
+    if (phase !== 'exercising') return
+    if (skipNextWordTimerResetRef.current) {
+      skipNextWordTimerResetRef.current = false
+      return
+    }
+    const ts = new Date().toISOString()
+    setWordStartedAt(ts)
     setSecondsLeft(DEEP_TIMER_SECONDS)
     secondsLeftRef.current = DEEP_TIMER_SECONDS
-  }, [currentIndex])
+  }, [currentIndex]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Count down 1s at a time while exercising and no feedback overlay is shown.
+  // Self-contained tick loop that derives remaining seconds from the start
+  // timestamp — drift-free and naturally resumable after reload/navigation.
+  // Stops automatically when feedback is showing (timer paused) or time runs out.
   useEffect(() => {
     if (practiceMode !== 'deep') return
     if (phase !== 'exercising') return
     if (feedback !== null) return
-    if (secondsLeft <= 0) return
-    const t = setTimeout(() => {
-      const next = Math.max(0, secondsLeft - 1)
-      secondsLeftRef.current = next
-      setSecondsLeft(next)
-    }, 1000)
-    return () => clearTimeout(t)
-  }, [practiceMode, phase, feedback, secondsLeft])
+    if (!wordStartedAt) return
+
+    const startedAt = new Date(wordStartedAt).getTime()
+    let cancelled = false
+
+    function tick() {
+      if (cancelled) return
+      const elapsed = Math.floor((Date.now() - startedAt) / 1000)
+      const remaining = Math.max(0, DEEP_TIMER_SECONDS - elapsed)
+      secondsLeftRef.current = remaining
+      setSecondsLeft(remaining)
+      if (remaining > 0) {
+        setTimeout(tick, 1000)
+      }
+    }
+
+    tick()
+    return () => { cancelled = true }
+  }, [practiceMode, phase, feedback, wordStartedAt])
 
   // ── Persist session ────────────────────────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -453,8 +506,13 @@ export function DailyChallengePage() {
       results,
       completed: phase === 'complete',
       isBonus: false,
+      practiceMode,
+      // Persist the word-start timestamp so the timer resumes correctly after
+      // reload or navigation. Null when feedback is showing (timer paused).
+      wordStartedAt: practiceMode === 'deep' && feedback === null ? wordStartedAt : null,
+      feedbackPending: feedback !== null,
     })
-  }, [phase, currentIndex, results]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [phase, currentIndex, results, feedback, practiceMode, wordStartedAt]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reshuffle ─────────────────────────────────────────────────────────────────
 
@@ -736,7 +794,7 @@ export function DailyChallengePage() {
                     <Info size={13} />
                   </button>
                   <div className="absolute left-5 bottom-0 hidden group-hover:block w-64 z-10 bg-slate-900 text-white text-xs rounded-xl px-3 py-2.5 leading-relaxed shadow-lg pointer-events-none">
-                    Deep Practice gives each word 30 seconds of attention. Use the time to read examples, check nuance, and think of a real situation where you could use it.
+                    Deep Practice gives each word 1 minute of attention. Use the time to read examples, check nuance, and think of a real situation where you could use it.
                   </div>
                 </div>
               </div>
@@ -759,12 +817,12 @@ export function DailyChallengePage() {
                       : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
                   }`}
                 >
-                  Deep Practice · 30s/word
+                  Deep Practice · 1m/word
                 </button>
               </div>
               {practiceMode === 'deep' && (
                 <p className="text-xs text-indigo-600 mt-2 leading-snug">
-                  Slow down and explore each word before answering.
+                  Slow down and explore each word deliberately before answering.
                 </p>
               )}
             </div>
@@ -1067,7 +1125,7 @@ export function DailyChallengePage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-indigo-700 tracking-wide">Deep Practice</span>
             <span className="text-xs font-mono font-bold text-indigo-600 tabular-nums">
-              {`${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`}
+              {secondsLeft >= 60 ? '1m' : `${secondsLeft}s`}
             </span>
           </div>
           <div className="h-1 bg-indigo-100 rounded-full overflow-hidden mb-2">
@@ -1079,7 +1137,7 @@ export function DailyChallengePage() {
           <p className="text-xs text-indigo-600 leading-snug">
             {secondsLeft > 0
               ? (DEEP_PROMPTS[activeType] ?? 'Take a moment to explore the word.')
-              : 'Ready when you are.'}
+              : 'Take your time — answer when ready.'}
           </p>
         </div>
       )}

@@ -1,5 +1,5 @@
 import { useEffect, lazy, Suspense, useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { NavBar } from '@/components/NavBar'
 import { Spinner } from '@/components/Spinner'
@@ -7,6 +7,7 @@ import { OnboardingModal } from '@/components/OnboardingModal'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { useVocabStore } from '@/store/vocabStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
+import { loadTodaySession, PRACTICE_MODE_KEY } from '@/lib/challengeSession'
 
 // ── Eager-loaded pages (part of the initial bundle — fast critical paths) ───────
 
@@ -44,6 +45,37 @@ const ThemeDetailPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 )
+
+// ── DeepPracticeIndicator ─────────────────────────────────────────────────────
+// Shown across the whole app (except on /challenge itself) when a Deep Practice
+// session is in progress. Tapping it returns the user to the challenge.
+// No interval: reads localStorage on each navigation to stay up to date.
+
+function DeepPracticeIndicator() {
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  if (location.pathname === '/challenge') return null
+
+  const session = loadTodaySession()
+  const mode = localStorage.getItem(PRACTICE_MODE_KEY)
+  if (!session || session.completed || session.isBonus || mode !== 'deep') return null
+
+  const word = session.slots[session.currentIndex]
+  const label = word ? `"${word.itemId}"` : null
+  void label // display-only, not used in this pill for brevity
+
+  return (
+    <button
+      onClick={() => navigate('/challenge')}
+      className="fixed top-3 right-3 z-40 flex items-center gap-1.5 bg-indigo-600 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-md hover:bg-indigo-700 transition-colors select-none"
+      title="Return to your active Deep Practice session"
+    >
+      <span className="w-1.5 h-1.5 rounded-full bg-indigo-200 shrink-0" aria-hidden="true" />
+      Deep Practice · active
+    </button>
+  )
+}
 
 // ── Page-level suspense fallback ──────────────────────────────────────────────
 
@@ -128,6 +160,9 @@ export default function App() {
       >
         <Plus size={22} />
       </button>
+
+      {/* Deep Practice session indicator — visible app-wide except on /challenge */}
+      <DeepPracticeIndicator />
 
       {showOnboarding && (
         <OnboardingModal onClose={() => setShowOnboarding(false)} />

@@ -2,6 +2,9 @@ import { ExerciseResult, ChallengeType } from '@/types/vocabulary'
 
 export const CHALLENGE_SESSION_KEY = 'ese-challenge-session'
 
+/** Persisted preference for practice mode — shared between Dashboard and Challenge pages. */
+export const PRACTICE_MODE_KEY = 'ese.challenge.practiceMode'
+
 /**
  * One slot as stored in localStorage.
  * Phase 3: uses ChallengeType (not legacy ExerciseType).
@@ -21,6 +24,19 @@ export interface ChallengeSession {
   results: ExerciseResult[]
   completed: boolean
   isBonus: boolean
+  /** Persisted so the challenge page restores the correct mode on reload. */
+  practiceMode?: 'standard' | 'deep'
+  /**
+   * ISO timestamp of when the current word's Deep Practice timer started.
+   * Used to compute remaining seconds on reload/navigation restore.
+   * null when feedback overlay was showing (timer was paused).
+   */
+  wordStartedAt?: string | null
+  /**
+   * True when the user had answered a word but not yet dismissed the feedback
+   * overlay. On restore we advance past this word rather than showing it again.
+   */
+  feedbackPending?: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

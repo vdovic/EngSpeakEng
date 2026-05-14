@@ -16,6 +16,7 @@
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { PRACTICE_MODE_KEY } from '@/lib/challengeSession'
 import {
   Plus, Zap, Trophy, Flame,
   ChevronRight, Layers, Loader2, ChevronDown,
@@ -121,7 +122,7 @@ function TodaySessionCard({
   sessionDoneToday: boolean
   redCount: number
   suggestedSize: SessionSize
-  onChallenge: () => void
+  onChallenge: (mode: 'standard' | 'deep') => void
   onFocus: () => void
 }) {
   // Post-session + nothing left due: soft card
@@ -135,14 +136,23 @@ function TodaySessionCard({
         <p className="text-sm text-slate-500 mb-4">
           Try using a focus word in a real conversation.
         </p>
-        <button
-          onClick={onFocus}
-          className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
-        >
-          <Zap size={14} />
-          Practice focus words
-          <ChevronRight size={13} />
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onChallenge('standard')}
+            className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
+          >
+            <Zap size={14} />
+            Review again
+            <ChevronRight size={13} />
+          </button>
+          <button
+            onClick={() => onChallenge('deep')}
+            className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+          >
+            Deep Practice
+            <ChevronRight size={13} />
+          </button>
+        </div>
       </div>
     )
   }
@@ -185,12 +195,18 @@ function TodaySessionCard({
         <p className="text-lg font-bold text-white mb-0.5">{heading}</p>
         <p className="text-brand-200 text-xs mb-4">{subtext}</p>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
-            onClick={onChallenge}
+            onClick={() => onChallenge('standard')}
             className="px-4 py-2 bg-white text-brand-700 rounded-xl font-bold text-sm hover:bg-brand-50 transition-colors shadow-sm"
           >
             {sessionDoneToday ? 'Review again' : 'Daily Challenge'}
+          </button>
+          <button
+            onClick={() => onChallenge('deep')}
+            className="px-4 py-2 bg-indigo-500/80 border border-indigo-400/50 text-white rounded-xl font-bold text-sm hover:bg-indigo-500 transition-colors"
+          >
+            Deep Practice
           </button>
           {sessionDoneToday && (
             <button
@@ -1056,7 +1072,10 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         sessionDoneToday={sessionDoneToday}
         redCount={focusConf.red}
         suggestedSize={suggestedSize}
-        onChallenge={() => navigate('/challenge')}
+        onChallenge={(mode) => {
+          localStorage.setItem(PRACTICE_MODE_KEY, mode)
+          navigate('/challenge')
+        }}
         onFocus={() => navigate('/focus')}
       />
 
