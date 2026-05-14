@@ -903,12 +903,13 @@ function GamesSection() {
 
   return (
     <section className="mb-6">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <h2 className="text-base font-bold text-slate-900">Games</h2>
-          <BetaBadge />
-        </div>
+      <div className="mb-1.5 flex items-center gap-2">
+        <h2 className="text-base font-bold text-slate-900">Practice games</h2>
+        <BetaBadge />
       </div>
+      <p className="mb-3 text-xs text-slate-400 leading-relaxed">
+        Optional drills to reinforce vocabulary outside the main Challenge sessions — playing here does not replace your daily challenges.
+      </p>
 
       <a
         href={ESE_GAME_EXPERIMENT_ROUTE}
@@ -923,8 +924,11 @@ function GamesSection() {
               <p className="text-sm font-bold text-slate-900">ESE Learning System</p>
               <BetaBadge />
             </div>
-            <p className="mt-1 max-w-xl text-sm leading-6 text-slate-500">
-              Practice B2-C1 vocabulary through missions, sentence repair, phrase upgrades, and recall challenges.
+            <p className="mt-0.5 text-sm text-slate-600">
+              Strengthen meaning recognition through sentence repair, phrase upgrade, and recall challenges.
+            </p>
+            <p className="mt-1.5 text-xs font-medium text-teal-600">
+              +1 exposure per correct answer · capped at 3 words per game
             </p>
           </div>
         </div>

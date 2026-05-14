@@ -140,10 +140,15 @@ function ActiveFocusRow({
         {/* Drag handle — only drag trigger, doesn't navigate */}
         <button
           {...dragHandleProps}
-          className="mt-0.5 shrink-0 text-slate-300 hover:text-slate-400 cursor-grab active:cursor-grabbing touch-none focus:outline-none"
-          title="Drag to reorder"
-          tabIndex={0}
-          aria-label="Drag to reorder"
+          className={`mt-0.5 shrink-0 touch-none focus:outline-none ${
+            dragHandleProps
+              ? 'text-slate-300 hover:text-slate-400 cursor-grab active:cursor-grabbing'
+              : 'text-slate-100 cursor-default pointer-events-none'
+          }`}
+          title={dragHandleProps ? "Drag to reorder" : undefined}
+          tabIndex={dragHandleProps ? 0 : -1}
+          aria-label={dragHandleProps ? "Drag to reorder" : undefined}
+          aria-hidden={!dragHandleProps}
         >
           <GripVertical size={14} />
         </button>
@@ -220,6 +225,7 @@ function ActiveFocusRow({
 // tap on the row body still navigates normally.
 
 function SortableActiveFocusRow(props: Omit<ActiveFocusRowProps, 'dragHandleProps' | 'isDragging'>) {
+  const isMastered = (props.item.exposureCount ?? 0) >= 8
   const {
     attributes,
     listeners,
@@ -227,7 +233,7 @@ function SortableActiveFocusRow(props: Omit<ActiveFocusRowProps, 'dragHandleProp
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: props.item.id })
+  } = useSortable({ id: props.item.id, disabled: isMastered })
 
   return (
     <div
@@ -243,7 +249,7 @@ function SortableActiveFocusRow(props: Omit<ActiveFocusRowProps, 'dragHandleProp
       <ActiveFocusRow
         {...props}
         isDragging={isDragging}
-        dragHandleProps={{ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>}
+        dragHandleProps={isMastered ? undefined : ({ ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>)}
       />
     </div>
   )
@@ -418,6 +424,7 @@ export function ActiveWeekPage() {
   const [candidateCap,     setCandidateCap]     = useState(CANDIDATE_PAGE)
   const [showFullMessage,  setShowFullMessage]  = useState(false)
   const [showAllPortfolio, setShowAllPortfolio] = useState(false)
+  const [dragTooltip,      setDragTooltip]      = useState(false)
 
   // ── Manual order — persisted to localStorage ──────────────────────────────────
   // Stores an array of item IDs in the user's preferred display sequence.
@@ -510,6 +517,10 @@ export function ActiveWeekPage() {
     const newOrder  = reordered.map((i) => i.id)
     setManualOrder(newOrder)
     try { localStorage.setItem(FOCUS_ORDER_LS_KEY, JSON.stringify(newOrder)) } catch { /* noop */ }
+    if (newIndex === 0) {
+      setDragTooltip(true)
+      setTimeout(() => setDragTooltip(false), 2000)
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -619,6 +630,11 @@ export function ActiveWeekPage() {
           </div>
         ) : (
           <>
+            {dragTooltip && (
+              <div className="mb-2 text-center text-[11px] text-slate-500 bg-slate-100 rounded-lg py-1.5 px-3 transition-opacity">
+                Items at the top appear first in your next sessions.
+              </div>
+            )}
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}

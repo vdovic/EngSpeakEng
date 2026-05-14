@@ -57,9 +57,16 @@ interface GamificationStore {
   goalStartDate: string
   goalDeadline: string
 
+  /** Total practice games completed across all game modes. */
+  gamesPlayed: number
+  /** Best streak achieved across all practice games. */
+  bestGameStreak: number
+
   addPoints: (n: number) => void
   recordChallengeCompletion: () => void
   checkBadges: () => Badge[]
+  /** Record a completed practice game. streak is the run's best streak. */
+  recordGameCompletion: (streak: number) => void
   /** Pass startDate as the third arg to update the goal start date. */
   setGoal: (target: number, deadline: string, startDate?: string) => void
   resetAll: () => void
@@ -79,6 +86,8 @@ export const useGamificationStore = create<GamificationStore>()(
       goalTarget: 1500,
       goalStartDate: defaultStartDate(),
       goalDeadline: defaultDeadline(),
+      gamesPlayed: 0,
+      bestGameStreak: 0,
 
       addPoints: (n) => {
         const today = todayDateKey()
@@ -137,6 +146,12 @@ export const useGamificationStore = create<GamificationStore>()(
         return newlyUnlocked
       },
 
+      recordGameCompletion: (streak) =>
+        set((s) => ({
+          gamesPlayed: s.gamesPlayed + 1,
+          bestGameStreak: Math.max(s.bestGameStreak, streak),
+        })),
+
       setGoal: (target, deadline, startDate) =>
         set((s) => ({
           goalTarget: target,
@@ -155,6 +170,8 @@ export const useGamificationStore = create<GamificationStore>()(
           goalTarget: 1500,
           goalStartDate: defaultStartDate(),
           goalDeadline: defaultDeadline(),
+          gamesPlayed: 0,
+          bestGameStreak: 0,
         }),
     }),
     { name: 'speak-english-gamification' },
