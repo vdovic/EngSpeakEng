@@ -26,7 +26,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Target, Plus, CheckCircle2, Info, X, Search,
-  ChevronDown, ChevronUp, Lightbulb, GripVertical,
+  ChevronDown, ChevronUp, ChevronRight, Lightbulb, GripVertical,
 } from 'lucide-react'
 import {
   DndContext,
@@ -47,7 +47,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useVocabStore, useFocusThisWeekItems } from '@/store/vocabStore'
-import { useThemesStore } from '@/store/themesStore'
+import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
 import { LevelBadge } from '@/components/LevelBadge'
 import { TypeBadge } from '@/components/TypeBadge'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
@@ -61,6 +61,106 @@ import {
   getCandidateReasonBadge,
   FocusProgressSummary,
 } from '@/lib/activeFocusLogic'
+
+// ── Module-level constants ────────────────────────────────────────────────────
+
+const THEME_EMOJI_MAP: Record<string, string> = Object.fromEntries(
+  SUGGESTED_THEMES.map((s) => [s.name, s.emoji]),
+)
+
+// ─── Focus Areas section ──────────────────────────────────────────────────────
+// Shown at the top of the Focus page — compact theme-progress cards.
+
+function FocusAreasSection({
+  themeStats,
+  onNavigateToTheme,
+  onManageThemes,
+}: {
+  themeStats: { name: string; total: number; mastered: number }[]
+  onNavigateToTheme: (theme: string) => void
+  onManageThemes: () => void
+}) {
+  if (themeStats.length === 0) {
+    return (
+      <section className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-slate-700">Focus Areas</h2>
+          <button
+            onClick={onManageThemes}
+            className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+          >
+            Add area <ChevronRight size={11} />
+          </button>
+        </div>
+        <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-4 text-center">
+          <p className="text-sm text-slate-500 mb-2">No focus areas yet</p>
+          <button
+            onClick={onManageThemes}
+            className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+          >
+            Choose themes →
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-bold text-slate-700">Focus Areas</h2>
+        <button
+          onClick={onManageThemes}
+          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors"
+        >
+          Manage <ChevronRight size={11} />
+        </button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {themeStats.slice(0, 3).map(({ name, total, mastered }) => {
+          const pct   = total > 0 ? Math.round((mastered / total) * 100) : 0
+          const emoji = THEME_EMOJI_MAP[name] ?? '📌'
+          return (
+            <button
+              key={name}
+              onClick={() => onNavigateToTheme(name)}
+              className="bg-white border border-slate-200 rounded-2xl p-3.5 text-left hover:border-brand-200 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="text-lg leading-none">{emoji}</span>
+                <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-100 leading-none">
+                  Active
+                </span>
+              </div>
+              <p className="text-xs font-bold text-slate-900 truncate mb-0.5">{name}</p>
+              <p className="text-[10px] text-slate-400 mb-2">
+                {total} word{total !== 1 ? 's' : ''}
+              </p>
+              <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-brand-500 to-violet-500 rounded-full"
+                  style={{ width: `${Math.max(pct, 3)}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">{pct}% mastered</p>
+            </button>
+          )
+        })}
+        {themeStats.length < 3 && (
+          <button
+            onClick={onManageThemes}
+            className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-3.5 flex flex-col items-center justify-center gap-1.5 hover:bg-slate-100 transition-colors min-h-[96px]"
+          >
+            <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+              <Plus size={14} className="text-slate-400" />
+            </div>
+            <span className="text-[10px] font-semibold text-slate-500">Add area</span>
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}
 
 // ─── Exposure bar ─────────────────────────────────────────────────────────────
 //
@@ -497,6 +597,20 @@ export function ActiveWeekPage() {
   // ── Portfolio summary ─────────────────────────────────────────────────────────
   const summary = useMemo(() => getFocusProgressSummary(focusItems), [focusItems])
 
+  // ── Theme stats — for FocusAreasSection ──────────────────────────────────────
+  const themeStats = useMemo(
+    () =>
+      activeThemes.map((theme) => {
+        const themeItems = items.filter((i) => (i.themes ?? []).includes(theme))
+        return {
+          name:     theme,
+          total:    themeItems.length,
+          mastered: themeItems.filter((i) => i.status === 'mastered').length,
+        }
+      }),
+    [activeThemes, items],
+  )
+
   // ── Handlers ──────────────────────────────────────────────────────────────────
   // isFull = the VISIBLE active focus is at its 25-word target, not the total portfolio.
   const isFull = orderedActiveFocus.length >= ACTIVE_FOCUS_LIMIT
@@ -558,6 +672,13 @@ export function ActiveWeekPage() {
         </div>
       </div>
 
+      {/* ── Focus Areas — theme cards ── */}
+      <FocusAreasSection
+        themeStats={themeStats}
+        onNavigateToTheme={(theme) => navigate(`/themes/${encodeURIComponent(theme)}`)}
+        onManageThemes={() => navigate('/themes')}
+      />
+
       {/* Info panel */}
       {showInfo && (
         <div className="mb-4 bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs text-slate-600 leading-relaxed space-y-2">
@@ -595,7 +716,7 @@ export function ActiveWeekPage() {
         <div className="mb-3">
           <h2 className="text-base font-bold text-slate-800">Active Focus</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            The words you are actively developing now.
+            The words you're actively developing. Drag ⋮⋮ to prioritise — top words appear first in challenges.
           </p>
         </div>
 

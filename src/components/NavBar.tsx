@@ -29,7 +29,7 @@ function isNavActive(to: string, pathname: string): boolean {
 // ── Desktop sidebar — primary nav ──────────────────────────────────────────────
 
 const SIDEBAR_PRIMARY: NavLinkDef[] = [
-  { to: '/',          icon: LayoutDashboard, label: 'Today'     },
+  { to: '/',          icon: LayoutDashboard, label: 'Main'      },
   { to: '/focus',     icon: Target,          label: 'Focus'     },
   { to: '/challenge', icon: Zap,             label: 'Challenge' },
   { to: '/library',   icon: Library,         label: 'Library'   },
@@ -48,7 +48,7 @@ const SIDEBAR_FOOTER: NavLinkDef[] = [
 // ── Mobile bottom bar — 4 primary tabs + "More" ───────────────────────────────
 
 const MOBILE_PRIMARY: NavLinkDef[] = [
-  { to: '/',          icon: LayoutDashboard, label: 'Today'     },
+  { to: '/',          icon: LayoutDashboard, label: 'Main'      },
   { to: '/focus',     icon: Target,          label: 'Focus'     },
   { to: '/challenge', icon: Zap,             label: 'Challenge' },
   { to: '/library',   icon: Library,         label: 'Library'   },
@@ -72,13 +72,13 @@ function SidebarValueCard() {
       <div className="bg-gradient-to-br from-brand-50 to-violet-50 border border-brand-100 rounded-2xl p-3.5">
         <div className="flex items-center gap-1.5 mb-2.5">
           <Sparkles size={12} className="text-brand-600 shrink-0" />
-          <span className="text-[11px] font-bold text-brand-900 leading-none">ESE adapts to you</span>
+          <span className="text-[11px] font-bold text-brand-900 leading-none">Your vocabulary coach</span>
         </div>
         <ul className="space-y-1.5">
           {[
-            'Personalize by role & goals',
-            'Focus on what matters',
-            'AI-powered learning that sticks',
+            'Learn words you\'ll actually use',
+            'Spaced practice that adapts',
+            'Track fluency, not just recall',
           ].map((text) => (
             <li key={text} className="flex items-start gap-1.5">
               <span className="text-brand-400 text-xs shrink-0 mt-0.5">·</span>

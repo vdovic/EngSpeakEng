@@ -1,47 +1,42 @@
 /**
- * DashboardPage — ESE Today
+ * DashboardPage — ESE Main
  *
  * Sections (top→bottom):
- *  1. TodayHeader         — compact greeting + date
- *  2. TodaySessionCard    — confidence-aware challenge CTA (with session size hint)
- *  3. SRS review chip     — subtle "X due for review" when review items exist
- *  4. TodayHealthStrip    — 4 KPI pills (due · confidence · close · goal)
- *  5. TodayNudgeCard      — contextual nudge (no "AI" label, white card)
- *  6. AlmostMasteredStrip — well-drilled words needing real-life use (conditional)
- *  7. TodayFocusPreview   — My Current Focus list (red-first, ConfidenceDots)
- *  8. FocusAreasPreview   — real theme cards
- *  9. HowItWorks          — collapsible pipeline explainer (collapsed for experienced users)
- * 10. LearningProfileCard — profile summary + adjust link
+ *  1. TodayHeader              — compact greeting + date
+ *  2. Quick-action bar         — Add Word + streak
+ *  3. ChallengeLauncherSection — Standard / Deep Practice CTAs + resume prompt
+ *  4. LearningSnapshotStrip    — 4 high-level stats (library · learning · focus · progress)
+ *  5. ReviewChip               — subtle "X due for review" when SRS items exist
+ *  6. TodayNudgeCard           — contextual nudge (no "AI" label)
+ *  7. GamesSection             — optional practice games (feature-flagged)
+ *  8. AlmostMasteredStrip      — well-drilled words needing real-life use (conditional)
+ *  9. FocusSetupSection        — Quick fill + By theme builder
+ * 10. HowItWorks               — collapsible pipeline explainer
+ * 11. LearningProfileCard      — profile summary + adjust link
  */
 
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PRACTICE_MODE_KEY } from '@/lib/challengeSession'
+import { PRACTICE_MODE_KEY, loadTodaySession } from '@/lib/challengeSession'
 import {
-  Plus, Zap, Trophy, Flame,
-  ChevronRight, Layers, Loader2, ChevronDown,
-  SlidersHorizontal, Target, CheckCircle2, Clock, TrendingUp,
+  Plus, Flame,
+  ChevronRight, ChevronDown,
+  SlidersHorizontal, TrendingUp,
   Gamepad2,
 } from 'lucide-react'
-import { getCanonicalLevel } from '@/lib/progressionLogic'
 import { useVocabStore, useDueItems, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
-import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
-import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
 import { CHALLENGE_SESSION_CAP } from '@/lib/constants'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { StarterPacksSection } from '@/components/StarterPacksSection'
-import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { usagePoints } from '@/lib/mastery'
 import {
   getTodaySessionState,
   getAlmostMasteredCount,
   getAlmostMasteredItems,
-  getFocusConfidenceSummary,
   getTodayNudge,
   getGoalMomentum,
-  type SessionSize,
 } from '@/lib/todayLogic'
 import { GOAL_LABELS, INTENSITY_CONFIG } from '@/types/profile'
 import type { VocabItem } from '@/types/vocabulary'
@@ -50,28 +45,6 @@ const ESE_GAME_EXPERIMENT_ROUTE = '/__experiments/ese-game'
 
 const isEseGameExperimentEnabled =
   import.meta.env.VITE_ENABLE_ESE_GAME_EXPERIMENT === 'true'
-
-// ── Module-level constants ─────────────────────────────────────────────────────
-
-/** Emoji map built once from SUGGESTED_THEMES at module load */
-const THEME_EMOJI: Record<string, string> = Object.fromEntries(
-  SUGGESTED_THEMES.map((s) => [s.name, s.emoji]),
-)
-
-/** Three suggested starter focus areas (always non-empty — names match SUGGESTED_THEMES) */
-const STARTER_SUGGESTIONS = SUGGESTED_THEMES.filter((s) =>
-  ['Business & Professional', 'Everyday Conversation', 'Written Communication'].includes(s.name),
-)
-
-/**
- * Sort weight for red-first ordering in TodayFocusPreview.
- * Red (1) first, then unset (0), yellow (2), green (3).
- */
-const CONFIDENCE_ORDER: Record<number, number> = { 1: 0, 0: 1, 2: 2, 3: 3 }
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface ThemeStat { name: string; total: number; mastered: number }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -90,12 +63,6 @@ function getTodayLabel(): string {
   })
 }
 
-const SESSION_SIZE_LABEL: Record<SessionSize, string> = {
-  quick:  'Quick session',
-  normal: 'Full session',
-  deep:   'Large queue',
-}
-
 // ── TodayHeader ───────────────────────────────────────────────────────────────
 
 function TodayHeader({ greeting, dateLabel }: { greeting: string; dateLabel: string }) {
@@ -107,118 +74,85 @@ function TodayHeader({ greeting, dateLabel }: { greeting: string; dateLabel: str
   )
 }
 
-// ── TodaySessionCard ──────────────────────────────────────────────────────────
-// Confidence-aware challenge CTA with session-size hint and soft post-session state.
+// ── ChallengeLauncherSection ──────────────────────────────────────────────────
+// Two-card launcher: Standard Challenge + Deep Practice.
+// Shows a resume prompt when a session is in progress.
 
-function TodaySessionCard({
+function ChallengeLauncherSection({
   dueCount,
   sessionDoneToday,
-  redCount,
-  suggestedSize,
   onChallenge,
-  onFocus,
 }: {
   dueCount: number
   sessionDoneToday: boolean
-  redCount: number
-  suggestedSize: SessionSize
   onChallenge: (mode: 'standard' | 'deep') => void
-  onFocus: () => void
 }) {
-  // Post-session + nothing left due: soft card
-  if (sessionDoneToday && dueCount === 0) {
-    return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-3">
-        <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">
-          Done for today ✓
-        </p>
-        <p className="text-base font-bold text-slate-900 mb-1">You've practised today</p>
-        <p className="text-sm text-slate-500 mb-4">
-          Try using a focus word in a real conversation.
-        </p>
-        <div className="flex gap-2">
-          <button
-            onClick={() => onChallenge('standard')}
-            className="flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:text-emerald-800 transition-colors"
-          >
-            <Zap size={14} />
-            Review again
-            <ChevronRight size={13} />
-          </button>
-          <button
-            onClick={() => onChallenge('deep')}
-            className="flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
-          >
-            Deep Practice
-            <ChevronRight size={13} />
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  // Confidence-aware heading
-  const heading =
-    redCount > 3
-      ? `${redCount} words need your attention`
-      : dueCount > 0
-      ? `${dueCount} word${dueCount !== 1 ? 's' : ''} ready to practise`
-      : 'Keep your momentum going'
-
-  const subtext =
-    redCount > 3
-      ? 'Challenge sessions build the recall needed for real-life use.'
-      : sessionDoneToday
-      ? 'Session done — another round keeps it fresh.'
-      : 'Daily Challenge · spaced repetition'
-
-  // Session size hint (only when there's something to do)
-  const sizeLabel = dueCount > 0 ? SESSION_SIZE_LABEL[suggestedSize] : null
+  const session   = loadTodaySession()
+  const hasResume = session !== null && !session.completed && session.currentIndex > 0
 
   return (
-    <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-brand-600 via-brand-700 to-violet-700 p-5 mb-3 shadow-sm">
-      <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/5 rounded-full pointer-events-none" />
-      <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-white/5 rounded-full pointer-events-none" />
-
-      <div className="relative z-10">
-        <div className="flex items-center gap-2 mb-1">
-          <p className="text-brand-200 text-[10px] font-bold uppercase tracking-widest">
-            {sessionDoneToday ? 'Session done · more available' : 'Ready to learn?'}
-          </p>
-          {sizeLabel && (
-            <span className="text-[9px] font-semibold text-brand-300 bg-white/10 px-1.5 py-0.5 rounded-full">
-              {sizeLabel}
-            </span>
-          )}
+    <section className="mb-5">
+      {hasResume && session && (
+        <div className="mb-3 flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+          <div>
+            <p className="text-xs font-bold text-amber-800 leading-none">Session in progress</p>
+            <p className="text-[10px] text-amber-600 mt-0.5">
+              Word {session.currentIndex} of {session.slots.length}
+            </p>
+          </div>
+          <button
+            onClick={() => onChallenge(session.practiceMode ?? 'standard')}
+            className="flex items-center gap-1 text-xs font-bold text-amber-700 hover:text-amber-900 transition-colors"
+          >
+            Resume <ChevronRight size={12} />
+          </button>
         </div>
+      )}
 
-        <p className="text-lg font-bold text-white mb-0.5">{heading}</p>
-        <p className="text-brand-200 text-xs mb-4">{subtext}</p>
-
-        <div className="flex gap-2 flex-wrap">
+      <div className="grid grid-cols-2 gap-3">
+        {/* Standard Challenge */}
+        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-brand-600 to-brand-700 p-4 flex flex-col shadow-sm">
+          <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
+          <p className="text-brand-200 text-[10px] font-bold uppercase tracking-widest mb-1 relative z-10">
+            Daily Challenge
+          </p>
+          <p className="text-white font-bold text-sm mb-0.5 relative z-10">
+            {dueCount > 0
+              ? `${dueCount} word${dueCount !== 1 ? 's' : ''} ready`
+              : sessionDoneToday
+              ? 'Done for today'
+              : 'Keep going'}
+          </p>
+          <p className="text-brand-200 text-[10px] mb-3 flex-1 relative z-10">
+            Spaced recall · ~5 min
+          </p>
           <button
             onClick={() => onChallenge('standard')}
-            className="px-4 py-2 bg-white text-brand-700 rounded-xl font-bold text-sm hover:bg-brand-50 transition-colors shadow-sm"
+            className="w-full py-2 bg-white text-brand-700 rounded-xl font-bold text-xs hover:bg-brand-50 transition-colors relative z-10"
           >
-            {sessionDoneToday ? 'Review again' : 'Daily Challenge'}
+            {sessionDoneToday ? 'Review again' : 'Start'}
           </button>
+        </div>
+
+        {/* Deep Practice */}
+        <div className="relative rounded-2xl overflow-hidden bg-indigo-700 p-4 flex flex-col shadow-sm">
+          <div className="absolute -top-6 -right-6 w-20 h-20 bg-white/5 rounded-full pointer-events-none" />
+          <p className="text-indigo-300 text-[10px] font-bold uppercase tracking-widest mb-1 relative z-10">
+            Deep Practice
+          </p>
+          <p className="text-white font-bold text-sm mb-0.5 relative z-10">1 word · 1 minute</p>
+          <p className="text-indigo-200 text-[10px] mb-3 flex-1 relative z-10">
+            Think before you answer
+          </p>
           <button
             onClick={() => onChallenge('deep')}
-            className="px-4 py-2 bg-indigo-500/80 border border-indigo-400/50 text-white rounded-xl font-bold text-sm hover:bg-indigo-500 transition-colors"
+            className="w-full py-2 bg-white/20 border border-white/30 text-white rounded-xl font-bold text-xs hover:bg-white/30 transition-colors relative z-10"
           >
-            Deep Practice
+            Start
           </button>
-          {sessionDoneToday && (
-            <button
-              onClick={onFocus}
-              className="px-4 py-2 bg-white/15 border border-white/25 text-white rounded-xl font-bold text-sm hover:bg-white/25 transition-colors"
-            >
-              Focus words
-            </button>
-          )}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -249,55 +183,31 @@ function ReviewChip({
   )
 }
 
-// ── TodayHealthStrip ──────────────────────────────────────────────────────────
-// 4 compact KPI pills: due · struggling · close (to mastery) · goal
+// ── LearningSnapshotStrip ────────────────────────────────────────────────────
+// 4 high-level stat pills: library · learning · in focus · progress
 
-function TodayHealthStrip({
-  dueCount,
-  redCount,
-  almostCount,
+function LearningSnapshotStrip({
+  librarySize,
+  activelyLearning,
+  focusSize,
   percentComplete,
-  onChallenge,
+  onLibrary,
   onFocus,
   onProgress,
 }: {
-  dueCount: number
-  redCount: number
-  almostCount: number
+  librarySize: number
+  activelyLearning: number
+  focusSize: number
   percentComplete: number
-  onChallenge: () => void
+  onLibrary: () => void
   onFocus: () => void
   onProgress: () => void
 }) {
   const pills = [
-    {
-      icon: <Clock size={12} className="text-slate-400" />,
-      value: String(dueCount),
-      label: 'due',
-      highlight: dueCount > 10 ? 'text-amber-600 font-bold' : 'text-slate-700',
-      onClick: onChallenge,
-    },
-    {
-      icon: <div className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />,
-      value: String(redCount),
-      label: 'struggling',
-      highlight: redCount > 5 ? 'text-rose-600 font-bold' : 'text-slate-700',
-      onClick: onChallenge,
-    },
-    {
-      icon: <Zap size={12} className="text-amber-500" />,
-      value: String(almostCount),
-      label: 'close',        // Fix 4: was "almost mastered" — too long for 4-col pill
-      highlight: almostCount > 0 ? 'text-amber-600 font-bold' : 'text-slate-700',
-      onClick: onFocus,
-    },
-    {
-      icon: <Trophy size={12} className="text-emerald-500" />,
-      value: `${percentComplete}%`,
-      label: 'of goal',
-      highlight: 'text-slate-700',
-      onClick: onProgress,
-    },
+    { value: String(librarySize),      label: 'library',  onClick: onLibrary  },
+    { value: String(activelyLearning), label: 'learning', onClick: onFocus    },
+    { value: String(focusSize),        label: 'in focus', onClick: onFocus    },
+    { value: `${percentComplete}%`,    label: 'progress', onClick: onProgress },
   ]
 
   return (
@@ -308,10 +218,7 @@ function TodayHealthStrip({
           onClick={pill.onClick}
           className="bg-white border border-slate-200 rounded-xl px-2 py-2.5 flex flex-col items-center gap-1 hover:border-brand-200 hover:bg-brand-50/30 transition-all"
         >
-          <div className="flex items-center gap-1">
-            {pill.icon}
-          </div>
-          <span className={`text-base font-extrabold leading-none ${pill.highlight}`}>
+          <span className="text-base font-extrabold leading-none text-slate-700">
             {pill.value}
           </span>
           <span className="text-[9px] text-slate-400 font-medium leading-none text-center whitespace-nowrap">
@@ -413,257 +320,22 @@ function AlmostMasteredStrip({
   )
 }
 
-// ── TodayFocusPreview ─────────────────────────────────────────────────────────
-// Red-first ordering, ConfidenceDots (read-only), usagePoints().
-// CONFIDENCE_ORDER is module-level (Fix 7).
+// ── FocusSetupSection ─────────────────────────────────────────────────────────
+// Two-card section: "Quick fill" (auto-add from library) + "By theme" (→ /themes).
 
-function TodayFocusPreview({ onNavigate }: { onNavigate: () => void }) {
-  const focusItems = useWeeklyFocusItems()
-  const FOCUS_MAX  = 50
-
-  const sorted = [...focusItems].sort((a, b) => {
-    const ca = a.activation?.confidenceLevel ?? 0
-    const cb = b.activation?.confidenceLevel ?? 0
-    return (CONFIDENCE_ORDER[ca] ?? 1) - (CONFIDENCE_ORDER[cb] ?? 1)
-  })
-
-  const preview   = sorted.slice(0, 5)
-  const usedCount = focusItems.filter((i) => usagePoints(i.activation.usageLogs) >= 3).length
-
-  return (
-    <section className="mb-6">
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
-            <Target size={14} className="text-amber-500" />
-            My Current Focus
-          </h2>
-          {focusItems.length > 0 ? (
-            <p className="text-xs text-slate-500 mt-0.5">
-              {focusItems.length} / {FOCUS_MAX} words · {usedCount} used 3×
-            </p>
-          ) : (
-            <p className="text-xs text-slate-500 mt-0.5">
-              Words selected for real-life practice
-            </p>
-          )}
-        </div>
-        <button
-          onClick={onNavigate}
-          className="flex items-center gap-0.5 text-xs font-semibold text-brand-600 hover:text-brand-700 shrink-0 mt-1"
-        >
-          {focusItems.length > 0 ? 'See all' : 'Set up'} <ChevronRight size={12} />
-        </button>
-      </div>
-
-      {focusItems.length === 0 ? (
-        <button
-          onClick={onNavigate}
-          className="w-full bg-amber-50 border border-amber-200 border-dashed rounded-2xl p-5 text-center hover:bg-amber-100 transition-colors"
-        >
-          <Target size={24} className="mx-auto mb-2 text-amber-400" />
-          <p className="text-sm font-semibold text-amber-800 mb-1">No focus words yet</p>
-          <p className="text-xs text-amber-600">
-            Complete Daily Challenges and the system will auto-select words for real-life practice.
-          </p>
-        </button>
-      ) : (
-        <>
-          <div className="bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100 shadow-sm mb-3">
-            {preview.map((item) => {
-              const uses = usagePoints(item.activation.usageLogs)
-              const done = uses >= 3
-              return (
-                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                  {done
-                    ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                    : <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-200 shrink-0" />
-                  }
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-semibold truncate ${done ? 'line-through text-slate-400' : 'text-slate-900'}`}>
-                      {item.term}
-                    </p>
-                  </div>
-                  {/* Confidence dots — read-only (no onChange) */}
-                  <ConfidenceDots item={item} compact />
-                  {/* Usage dots */}
-                  <div className="flex gap-1 shrink-0">
-                    {[0, 1, 2].map((i) => (
-                      <div
-                        key={i}
-                        className={`w-2 h-2 rounded-full transition-colors ${
-                          i < uses ? (done ? 'bg-emerald-400' : 'bg-amber-400') : 'bg-slate-200'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-            {focusItems.length > 5 && (
-              <button
-                onClick={onNavigate}
-                className="w-full py-2.5 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors text-center"
-              >
-                +{focusItems.length - 5} more →
-              </button>
-            )}
-          </div>
-          <button
-            onClick={onNavigate}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 active:scale-[0.98] transition-all"
-          >
-            <Zap size={13} /> Practice Focus Words
-          </button>
-        </>
-      )}
-    </section>
-  )
-}
-
-// ── Focus Areas ───────────────────────────────────────────────────────────────
-
-function SuggestedFocusAreaCard({
-  name,
-  emoji,
-  description,
-  onActivate,
-  isProcessing,
-}: {
-  name: string
-  emoji: string
-  description: string
-  onActivate: () => void
-  isProcessing?: boolean
-}) {
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col hover:border-brand-200 hover:shadow-sm transition-all">
-      <div className="w-11 h-11 rounded-2xl bg-brand-50 flex items-center justify-center text-2xl mb-3 shrink-0">
-        {emoji}
-      </div>
-      <p className="text-sm font-bold text-slate-900 mb-1">{name}</p>
-      <p className="text-xs text-slate-500 leading-snug flex-1 mb-4">{description}</p>
-      <button
-        onClick={onActivate}
-        disabled={isProcessing}
-        className="w-full py-2 bg-brand-50 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 size={12} className="animate-spin" />
-            Scanning…
-          </>
-        ) : (
-          'Activate'
-        )}
-      </button>
-    </div>
-  )
-}
-
-function FocusAreaCard({
-  name,
-  total,
-  mastered,
-  onNavigate,
-  onAssign,
-  isAssigning,
-}: {
-  name: string
-  total: number
-  mastered: number
-  onNavigate: () => void
-  onAssign?: () => void
-  isAssigning?: boolean
-}) {
-  const pct   = total > 0 ? Math.round((mastered / total) * 100) : 0
-  const emoji = THEME_EMOJI[name] ?? '📌'
-  const empty = total === 0
-
-  return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 flex flex-col hover:border-brand-200 hover:shadow-sm transition-all group">
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-11 h-11 rounded-2xl bg-brand-50 flex items-center justify-center text-2xl">
-          {emoji}
-        </div>
-        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
-          Active
-        </span>
-      </div>
-      <p className="text-sm font-bold text-slate-900 mb-0.5 truncate">{name}</p>
-      <p className="text-xs text-slate-400 mb-4">{total} word{total !== 1 ? 's' : ''}</p>
-
-      {empty ? (
-        <div className="mt-auto flex flex-col gap-2">
-          <button
-            onClick={onAssign}
-            disabled={isAssigning}
-            className="w-full py-2 bg-brand-50 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-          >
-            {isAssigning ? (
-              <>
-                <Loader2 size={12} className="animate-spin" />
-                Scanning…
-              </>
-            ) : (
-              'Assign words with AI →'
-            )}
-          </button>
-          <button
-            onClick={onNavigate}
-            className="text-center text-[10px] text-slate-400 hover:text-brand-500 transition-colors"
-          >
-            or open theme
-          </button>
-        </div>
-      ) : (
-        <div className="mt-auto w-full">
-          <div className="flex items-center justify-between text-[10px] mb-1.5">
-            <span className="text-slate-400">{pct}% mastered</span>
-            <button
-              onClick={onNavigate}
-              className="flex items-center gap-0.5 text-brand-500 font-semibold hover:underline"
-            >
-              Open <ChevronRight size={10} />
-            </button>
-          </div>
-          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-brand-500 to-violet-500 rounded-full transition-all"
-              style={{ width: `${Math.max(pct, 3)}%` }}
-            />
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function FocusAreasPreview({
-  themeStats,
-  onNavigateToTheme,
+function FocusSetupSection({
+  onQuickFill,
   onManageThemes,
-  onAddTheme,
-  processingTheme,
 }: {
-  themeStats: ThemeStat[]
-  onNavigateToTheme: (theme: string) => void
+  onQuickFill: () => void
   onManageThemes: () => void
-  onAddTheme: (name: string) => void
-  processingTheme: string | null
 }) {
-  const isEmpty = themeStats.length === 0
-
   return (
     <section className="mb-8">
       <div className="flex items-end justify-between mb-4">
         <div>
-          <h2 className="text-base font-bold text-slate-900">Focus Areas</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {isEmpty
-              ? 'Get started with a suggested focus area below'
-              : 'Your personalized learning themes'}
-          </p>
+          <h2 className="text-base font-bold text-slate-900">Build your Focus</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Choose how to fill your Focus Portfolio</p>
         </div>
         <button
           onClick={onManageThemes}
@@ -673,58 +345,35 @@ function FocusAreasPreview({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {isEmpty ? (
-          STARTER_SUGGESTIONS.map((s) => (
-            <SuggestedFocusAreaCard
-              key={s.name}
-              name={s.name}
-              emoji={s.emoji}
-              description={s.description}
-              onActivate={() => onAddTheme(s.name)}
-              isProcessing={processingTheme === s.name}
-            />
-          ))
-        ) : (
-          <>
-            {themeStats.slice(0, 3).map(({ name, total, mastered }) => (
-              <FocusAreaCard
-                key={name}
-                name={name}
-                total={total}
-                mastered={mastered}
-                onNavigate={() => onNavigateToTheme(name)}
-                onAssign={() => onAddTheme(name)}
-                isAssigning={processingTheme === name}
-              />
-            ))}
-            {themeStats.length < 3 && (
-              <button
-                onClick={onManageThemes}
-                className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 hover:bg-slate-100 transition-colors"
-                style={{ minHeight: '180px' }}
-              >
-                <div className="w-11 h-11 rounded-full bg-slate-200 flex items-center justify-center">
-                  <Plus size={18} className="text-slate-400" />
-                </div>
-                <span className="text-xs font-semibold text-slate-500">Add focus area</span>
-              </button>
-            )}
-          </>
-        )}
-      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col hover:border-brand-200 hover:shadow-sm transition-all">
+          <span className="text-2xl mb-2">🎲</span>
+          <p className="text-sm font-bold text-slate-900 mb-1">Quick fill</p>
+          <p className="text-xs text-slate-500 leading-snug flex-1 mb-3">
+            Auto-select the best words from your Library
+          </p>
+          <button
+            onClick={onQuickFill}
+            className="w-full py-2 bg-brand-50 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors"
+          >
+            Build my Focus
+          </button>
+        </div>
 
-      {isEmpty && (
-        <p className="mt-3 text-center text-xs text-slate-400">
-          Or{' '}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col hover:border-brand-200 hover:shadow-sm transition-all">
+          <span className="text-2xl mb-2">🎯</span>
+          <p className="text-sm font-bold text-slate-900 mb-1">By theme</p>
+          <p className="text-xs text-slate-500 leading-snug flex-1 mb-3">
+            Choose focus areas that match your goals
+          </p>
           <button
             onClick={onManageThemes}
-            className="text-brand-600 font-semibold hover:underline"
+            className="w-full py-2 bg-brand-50 text-brand-700 border border-brand-200 rounded-xl text-xs font-bold hover:bg-brand-100 transition-colors"
           >
-            create a custom focus area
+            Choose themes
           </button>
-        </p>
-      )}
+        </div>
+      </div>
     </section>
   )
 }
@@ -740,20 +389,20 @@ const HOW_IT_WORKS_STEPS = [
     badgeCls: 'bg-slate-100 text-slate-600',
     cardBorder: 'border-slate-200 hover:border-slate-300',
     actionCls: 'text-slate-500',
-    description: 'Add words from meetings, articles, or anywhere you encounter new language.',
+    description: 'Add words from work, reading, or conversations. Build your personal Library.',
     howTo: 'Tap + Add or Quick Add',
     href: '/library',
   },
   {
-    emoji: '📖',
-    label: 'Learn',
-    badge: 'Review & Challenge',
+    emoji: '⚡',
+    label: 'Challenge',
+    badge: 'Daily practice',
     badgeCls: 'bg-blue-100 text-blue-700',
     cardBorder: 'border-blue-200 hover:border-blue-300',
     actionCls: 'text-blue-600',
-    description: 'Activate new words from Library. They enter spaced-repetition Review and the Daily Challenge pool.',
-    howTo: 'Tap "Learning" on any new word',
-    href: '/review',
+    description: 'Daily Challenge sessions build recall through spaced repetition. Short, adaptive, effective.',
+    howTo: 'Start a Challenge here',
+    href: '/challenge',
   },
   {
     emoji: '💬',
@@ -762,8 +411,8 @@ const HOW_IT_WORKS_STEPS = [
     badgeCls: 'bg-amber-100 text-amber-700',
     cardBorder: 'border-amber-200 hover:border-amber-300',
     actionCls: 'text-amber-600',
-    description: 'Speak or write the word in real life. 3 logged uses moves it to the active stage.',
-    howTo: 'Tap "+ I used it" on any word',
+    description: 'Use the word in a real conversation or message. Log it with one tap.',
+    howTo: 'Tap "+ I used it" anywhere',
     href: '/focus',
   },
   {
@@ -773,7 +422,7 @@ const HOW_IT_WORKS_STEPS = [
     badgeCls: 'bg-emerald-100 text-emerald-700',
     cardBorder: 'border-emerald-200 hover:border-emerald-300',
     actionCls: 'text-emerald-600',
-    description: '3 recalls + 3 real-life uses + a sentence written. ESE marks it mastered automatically.',
+    description: 'Enough challenges and real-life uses? The system marks it mastered automatically.',
     howTo: 'Achieved automatically',
     href: '/progress',
   },
@@ -790,8 +439,8 @@ function HowItWorks({ defaultExpanded }: { defaultExpanded: boolean }) {
         className="w-full flex items-center justify-between mb-3 group"
       >
         <div className="text-left">
-          <h2 className="text-base font-bold text-slate-900">How learning works</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Your path from new word to fluent use</p>
+          <h2 className="text-base font-bold text-slate-900">How it works</h2>
+          <p className="text-xs text-slate-500 mt-0.5">From new word to fluent, natural use</p>
         </div>
         <ChevronDown
           size={16}
@@ -847,8 +496,8 @@ function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
               <SlidersHorizontal size={16} className="text-brand-600" />
             </div>
             <div className="text-left">
-              <p className="text-sm font-semibold text-slate-800 leading-snug">Personalise my setup</p>
-              <p className="text-xs text-slate-400 mt-0.5">Set your learning goal and build a focus set</p>
+              <p className="text-sm font-semibold text-slate-800 leading-snug">Personalise my learning</p>
+              <p className="text-xs text-slate-400 mt-0.5">Your goals, your focus — adapted to you</p>
             </div>
           </div>
           <ChevronRight size={16} className="text-slate-300 group-hover:text-brand-400 transition-colors shrink-0" />
@@ -962,40 +611,25 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
   const navigate = useNavigate()
   const [showAdd, setShowAdd] = useState(false)
 
-  const items      = useVocabStore((s) => s.items)
-  const logUsage   = useVocabStore((s) => s.logUsage)
-  const focusItems = useWeeklyFocusItems()
-  // SRS review items (review.nextReviewAt, distinct from Challenge nextChallengeDate)
-  const dueItems   = useDueItems()
+  const items            = useVocabStore((s) => s.items)
+  const logUsage         = useVocabStore((s) => s.logUsage)
+  const setFocusThisWeek = useVocabStore((s) => s.setFocusThisWeek)
+  const focusItems       = useWeeklyFocusItems()
+  const dueItems         = useDueItems()
 
-  const { themes, addTheme }                                        = useThemesStore()
-  const { lastChallengeDate, challengeCompletions, streakDays }     = useGamificationStore()
-
-  // useThemeAutoAssign must remain at component level — React hook, not conditional
-  const { trigger, processingTheme } = useThemeAutoAssign()
-
-  /** Create theme then immediately run AI word assignment */
-  function handleActivateTheme(name: string) {
-    addTheme(name)
-    void trigger(name)
-  }
+  const { lastChallengeDate, challengeCompletions, streakDays } = useGamificationStore()
 
   // ── Derived values ──
 
-  const { dueForChallenge, sessionDoneToday, suggestedSize } = useMemo(
+  const { dueForChallenge, sessionDoneToday } = useMemo(
     () => getTodaySessionState(items, lastChallengeDate),
     [items, lastChallengeDate],
   )
 
-  // Capped count used consistently in CTA, health strip, and nudge (Fix 3)
   const visibleDueCount = Math.min(dueForChallenge, CHALLENGE_SESSION_CAP)
 
-  // True total — not capped by display limit (Fix 2)
   const almostMasteredCount = useMemo(() => getAlmostMasteredCount(items), [items])
-  // Display list — capped at 4 rows for the strip UI
   const almostMasteredItems = useMemo(() => getAlmostMasteredItems(items, 4), [items])
-
-  const focusConf = useMemo(() => getFocusConfidenceSummary(focusItems), [focusItems])
 
   const nudge = useMemo(
     () => getTodayNudge(focusItems, sessionDoneToday, visibleDueCount, almostMasteredCount),
@@ -1004,17 +638,9 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
 
   const { percentComplete } = useMemo(() => getGoalMomentum(items), [items])
 
-  const themeStats = useMemo<ThemeStat[]>(
-    () =>
-      themes.map((theme) => {
-        const themeItems = items.filter((i) => (i.themes ?? []).includes(theme))
-        return {
-          name:     theme,
-          total:    themeItems.length,
-          mastered: themeItems.filter((i) => getCanonicalLevel(i) >= 3).length,
-        }
-      }),
-    [themes, items],
+  const activelyLearningCount = useMemo(
+    () => items.filter((i) => (i.exposureCount ?? 0) > 0 && i.status !== 'mastered').length,
+    [items],
   )
 
   const isEmpty = items.length === 0
@@ -1022,12 +648,20 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
   // ── Handlers ──
 
   function handleLogUsed(id: string) {
-    // NO AI — direct store write
     void logUsage(id, {
       usedAt:  new Date().toISOString(),
       context: 'conversation',
-      note:    'Logged from Today page',
+      note:    'Logged from Main page',
     })
+  }
+
+  function handleQuickFillFocus() {
+    const notInFocus = items
+      .filter((i) => !i.inFocus && i.status !== 'mastered')
+      .sort((a, b) => (b.exposureCount ?? 0) - (a.exposureCount ?? 0))
+      .slice(0, 15)
+    notInFocus.forEach((i) => setFocusThisWeek(i.id, true))
+    navigate('/focus')
   }
 
   // ── Render ──
@@ -1041,7 +675,7 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         dateLabel={getTodayLabel()}
       />
 
-      {/* Quick-add shortcut row */}
+      {/* 2. Quick-action bar: Add Word + streak */}
       <div className="flex items-center gap-2 mb-5">
         <button
           onClick={() => setShowAdd(true)}
@@ -1050,14 +684,6 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
           <Plus size={14} />
           Add word
         </button>
-        <button
-          onClick={() => navigate('/themes')}
-          className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors"
-        >
-          <Layers size={14} />
-          Focus areas
-        </button>
-        {/* Streak — Fix 1: Flame icon, hidden when zero */}
         {streakDays > 0 && (
           <div className="flex items-center gap-1 ml-auto text-xs text-slate-500">
             <Flame size={12} className="text-amber-500" />
@@ -1066,71 +692,65 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         )}
       </div>
 
-      {/* 2. Challenge CTA */}
-      <TodaySessionCard
+      {/* 3. Challenge Launcher */}
+      <ChallengeLauncherSection
         dueCount={visibleDueCount}
         sessionDoneToday={sessionDoneToday}
-        redCount={focusConf.red}
-        suggestedSize={suggestedSize}
         onChallenge={(mode) => {
           localStorage.setItem(PRACTICE_MODE_KEY, mode)
           navigate('/challenge')
         }}
-        onFocus={() => navigate('/focus')}
       />
 
-      {/* 3. Subtle SRS review chip — Fix 5: restores the review path */}
+      {/* 4. Learning Snapshot — high-level stats */}
+      <LearningSnapshotStrip
+        librarySize={items.length}
+        activelyLearning={activelyLearningCount}
+        focusSize={focusItems.length}
+        percentComplete={percentComplete}
+        onLibrary={() => navigate('/library')}
+        onFocus={() => navigate('/focus')}
+        onProgress={() => navigate('/progress')}
+      />
+
+      {/* 5. Subtle SRS review chip */}
       <ReviewChip
         reviewCount={dueItems.length}
         onNavigate={() => navigate('/review')}
       />
 
-      {/* 4. Health strip */}
-      <TodayHealthStrip
-        dueCount={visibleDueCount}
-        redCount={focusConf.red}
-        almostCount={almostMasteredCount}
-        percentComplete={percentComplete}
-        onChallenge={() => navigate('/challenge')}
-        onFocus={() => navigate('/focus')}
-        onProgress={() => navigate('/progress')}
-      />
-
-      {/* 5. Nudge card */}
+      {/* 6. Nudge card */}
       <TodayNudgeCard
         text={nudge.text}
         action={nudge.action}
         actionLabel={nudge.actionLabel}
       />
 
+      {/* 7. Practice games (feature-flagged) */}
       <GamesSection />
 
-      {/* 6. Almost-mastered strip (conditional) */}
+      {/* 8. Almost-mastered strip (conditional) */}
       <AlmostMasteredStrip
         items={almostMasteredItems}
         onNavigate={() => navigate('/focus')}
         onLogUsed={handleLogUsed}
       />
 
-      {/* 7. My Current Focus preview */}
-      <TodayFocusPreview onNavigate={() => navigate('/focus')} />
+      {/* 9. Focus Portfolio builder */}
+      {!isEmpty && (
+        <FocusSetupSection
+          onQuickFill={handleQuickFillFocus}
+          onManageThemes={() => navigate('/themes')}
+        />
+      )}
 
-      {/* 8. Focus Areas (themes) */}
-      <FocusAreasPreview
-        themeStats={themeStats}
-        onNavigateToTheme={(theme) => navigate(`/library?theme=${encodeURIComponent(theme)}`)}
-        onManageThemes={() => navigate('/themes')}
-        onAddTheme={handleActivateTheme}
-        processingTheme={processingTheme}
-      />
-
-      {/* 9. Starter packs — only in empty / onboarding state */}
+      {/* 10. Starter packs — only in empty / onboarding state */}
       {isEmpty && <StarterPacksSection showAll={false} />}
 
-      {/* 10. How learning works — collapsed for experienced users */}
+      {/* 11. How it works — collapsed for experienced users */}
       <HowItWorks defaultExpanded={challengeCompletions < 3} />
 
-      {/* 11. Learning profile summary */}
+      {/* 12. Learning profile summary */}
       {onOpenOnboarding && (
         <LearningProfileCard onAdjust={onOpenOnboarding} />
       )}
