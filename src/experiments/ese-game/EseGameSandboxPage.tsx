@@ -27,6 +27,8 @@ import {
   MissionCategoryFilter,
   MissionDifficultyFilter,
   MissionStyle,
+  MissionSelectionContext,
+  normalizeMissionTerm,
   recordMissionAnswers,
   sampleRecallMissionPrompts,
   sampleMissionPrompts,
@@ -59,6 +61,7 @@ import {
   saveSentenceRepairProgress,
   SentenceRepairProgress,
 } from './storage'
+import type { VocabItem } from '@/types/vocabulary'
 
 const PROMPTS_PER_RUN = 6
 const RECALL_PROMPTS_PER_RUN = 5
@@ -213,6 +216,18 @@ function repairSentence(prompt: SentenceRepairPrompt): string {
   return prompt.sentence.replace(prompt.target, prompt.correctChoice)
 }
 
+function hasUsableGameData(item: VocabItem): boolean {
+  return Boolean(
+    item.definitionEn &&
+      (
+        item.exampleSentence ||
+        item.workSentence ||
+        item.collocations.length > 0 ||
+        item.sentenceFrames.length > 0
+      ),
+  )
+}
+
 export function EseGameSandboxPage() {
   const [mode, setMode] = useState<GameMode>('phrase-upgrade')
   const [screen, setScreen] = useState<Screen>('mission-control')
@@ -230,9 +245,52 @@ export function EseGameSandboxPage() {
   )
 
   // Production store hooks — used to record exposure/usage and game completions.
+  const liveVocabularyItems = useVocabStore((s) => s.items)
+  const vocabularyLoaded = useVocabStore((s) => s.loaded)
+  const loadVocabulary = useVocabStore((s) => s.load)
   const recordExposureFn   = useVocabStore((s) => s.recordExposure)
   const logUsageFn         = useVocabStore((s) => s.logUsage)
   const recordGameCompletion = useGamificationStore((s) => s.recordGameCompletion)
+
+  const liveVocabularyContext = useMemo(() => {
+    const eligibleItems = liveVocabularyItems.filter(
+      (item) => !item.archived && item.status !== 'mastered' && hasUsableGameData(item),
+    )
+    const focusItems = eligibleItems.filter((item) => item.inFocus || item.weeklyFocus)
+    const byTerm = new Map<string, VocabItem>()
+
+    for (const item of eligibleItems) {
+      const key = normalizeMissionTerm(item.term)
+      if (key && !byTerm.has(key)) {
+        byTerm.set(key, item)
+      }
+    }
+
+    return {
+      focusTermKeys: new Set(focusItems.map((item) => normalizeMissionTerm(item.term)).filter(Boolean)),
+      eligibleTermKeys: new Set(eligibleItems.map((item) => normalizeMissionTerm(item.term)).filter(Boolean)),
+      byTerm,
+    }
+  }, [liveVocabularyItems])
+
+  const missionSelectionContext = useMemo<MissionSelectionContext>(
+    () => ({
+      focusTermKeys: liveVocabularyContext.focusTermKeys,
+      eligibleTermKeys: liveVocabularyContext.eligibleTermKeys,
+    }),
+    [liveVocabularyContext],
+  )
+
+  const missionWordById = useMemo(
+    () => new Map(missionVocabulary.prompts.map((word) => [word.id, word])),
+    [missionVocabulary.prompts],
+  )
+
+  useEffect(() => {
+    if (!vocabularyLoaded) {
+      void loadVocabulary()
+    }
+  }, [loadVocabulary, vocabularyLoaded])
 
   useEffect(() => {
     let cancelled = false
@@ -254,8 +312,11 @@ export function EseGameSandboxPage() {
           if (current.activeMission) {
             return current
           }
+          if (!vocabularyLoaded) {
+            return current
+          }
 
-          const mission = createMission(source.words, current.filters, current.wordStats)
+          const mission = createMission(source.words, current.filters, current.wordStats, missionSelectionContext)
           const nextState = {
             ...current,
             activeMission: mission,
@@ -281,7 +342,7 @@ export function EseGameSandboxPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [missionSelectionContext, vocabularyLoaded])
 
   const missionThemes = useMemo(
     () => getMissionThemes(missionVocabulary.prompts),
@@ -302,7 +363,12 @@ export function EseGameSandboxPage() {
   }
 
   function updateMissionFilters(nextFilters: MissionControlState['filters']) {
-    const mission = createMission(missionVocabulary.prompts, nextFilters, missionState.wordStats)
+    const mission = createMission(
+      missionVocabulary.prompts,
+      nextFilters,
+      missionState.wordStats,
+      missionSelectionContext,
+    )
     saveMissionState({
       ...missionState,
       filters: nextFilters,
@@ -315,6 +381,7 @@ export function EseGameSandboxPage() {
       missionVocabulary.prompts,
       missionState.filters,
       missionState.wordStats,
+      missionSelectionContext,
     )
     saveMissionState({
       ...missionState,
@@ -328,6 +395,7 @@ export function EseGameSandboxPage() {
         missionVocabulary.prompts,
         missionState.filters,
         missionState.wordStats,
+        missionSelectionContext,
       )
       saveMissionState({
         ...missionState,
@@ -345,6 +413,7 @@ export function EseGameSandboxPage() {
         missionVocabulary.prompts,
         missionState.filters,
         missionState.wordStats,
+        missionSelectionContext,
       )
       saveMissionState({
         ...missionState,
@@ -370,6 +439,26 @@ export function EseGameSandboxPage() {
     const now = new Date().toISOString()
     let bestStreak = 0
     let currentStreak = 0
+    const resolveLiveItemId = (sourceWordId: string): string | null => {
+      const sourceTerm = missionWordById.get(sourceWordId)?.term
+      if (!sourceTerm) {
+        if (import.meta.env.DEV) {
+          console.warn('[Practice Games] Skipping progress write: source word not found', sourceWordId)
+        }
+        return null
+      }
+
+      const liveItem = liveVocabularyContext.byTerm.get(normalizeMissionTerm(sourceTerm))
+      if (!liveItem) {
+        if (import.meta.env.DEV) {
+          console.warn('[Practice Games] Skipping progress write: no live vocabulary match', sourceTerm)
+        }
+        return null
+      }
+
+      return liveItem.id
+    }
+
     for (const answer of answers) {
       if (answer.isCorrect) {
         currentStreak++
@@ -379,13 +468,14 @@ export function EseGameSandboxPage() {
       }
       // Cap at 3 unique source words per game/session to avoid inflating exposure.
       if (!answer.sourceWordId || seen.size >= 3) continue
-      if (seen.has(answer.sourceWordId)) continue
-      seen.add(answer.sourceWordId)
+      const liveItemId = resolveLiveItemId(answer.sourceWordId)
+      if (!liveItemId || seen.has(liveItemId)) continue
+      seen.add(liveItemId)
       if (modeId === 'phrase-upgrade') {
         // Phrase Upgrade: only log usage on a correct answer; incorrect answers
         // have no vocab-store effect (no SRS scheduling side-effect either).
         if (answer.isCorrect) {
-          logUsageFn(answer.sourceWordId, {
+          logUsageFn(liveItemId, {
             usedAt: now,
             context: 'conversation',
             note: 'Phrase upgrade game',
@@ -393,7 +483,7 @@ export function EseGameSandboxPage() {
         }
       } else {
         // Sentence Repair + Recall Challenge: record exposure on every answer.
-        recordExposureFn(answer.sourceWordId, answer.isCorrect)
+        recordExposureFn(liveItemId, answer.isCorrect)
       }
     }
     return bestStreak
@@ -451,7 +541,12 @@ export function EseGameSandboxPage() {
                 ESE Game Lab Beta
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300 sm:mt-3">
-                Experimental B2-C1 practice modes. Uses isolated local beta progress only: no production stores, APIs, or vocabulary writes.
+                Practice Games are lighter drills for the vocabulary you are actively learning. They reinforce Focus
+                words through recall, sentence repair, and phrase precision, while Challenges remain your main
+                structured learning path.
+              </p>
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-neutral-500">
+                Games lightly support progress with capped vocabulary updates; they do not replace Daily Challenges.
               </p>
             </div>
             <div className="w-fit max-w-full break-all rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">

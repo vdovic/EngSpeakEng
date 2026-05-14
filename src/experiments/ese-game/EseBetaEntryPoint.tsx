@@ -24,7 +24,8 @@ export function EseBetaEntryPoint() {
               </span>
             </div>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
-              Try the guided ESE game lab with isolated local progress. It does not write to your production vocabulary.
+              Try lighter drills that reinforce the vocabulary you are actively learning. Progress support is capped and
+              Daily Challenges remain the main structured path.
             </p>
           </div>
         </div>

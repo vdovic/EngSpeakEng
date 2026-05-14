@@ -196,6 +196,14 @@ function ChallengeLauncherSection({
 
   return (
     <section className="mb-5">
+      <div className="mb-3">
+        <h2 className="text-base font-bold text-slate-900">Daily Practice</h2>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+          Choose how to practise today. Challenges move your vocabulary through structured progression; games give
+          lighter reinforcement for the same active words.
+        </p>
+      </div>
+
       {hasResume && session && progress && (
         <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="mb-3">
@@ -252,6 +260,8 @@ function ChallengeLauncherSection({
           </button>
         </div>
       </div>
+
+      <GamesSection />
     </section>
   )
 }
@@ -535,35 +545,31 @@ function GamesSection() {
   if (!isEseGameExperimentEnabled) return null
 
   return (
-    <section className="mb-6">
-      <div className="mb-1.5 flex items-center gap-2">
-        <h2 className="text-base font-bold text-slate-900">Practice games</h2>
-        <BetaBadge />
-      </div>
-      <p className="mb-3 text-xs leading-relaxed text-slate-400">
-        Optional drills outside the main Challenge sessions.
-      </p>
+    <div className="mt-3">
       <a
         href={ESE_GAME_EXPERIMENT_ROUTE}
-        className="group flex min-h-[92px] flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-teal-200 hover:bg-teal-50/30 sm:flex-row sm:items-center sm:justify-between"
+        className="group flex min-h-[84px] flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-teal-200 hover:bg-teal-50/30 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="flex min-w-0 gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition-colors group-hover:bg-teal-100 group-hover:text-teal-700">
             <Gamepad2 size={18} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-bold text-slate-900">ESE Learning System</p>
-            <p className="mt-0.5 text-sm text-slate-600">
-              Sentence repair, phrase upgrade, and recall challenges.
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold text-slate-900">Practice Games</p>
+              <BetaBadge />
+            </div>
+            <p className="mt-0.5 text-sm leading-snug text-slate-600">
+              Optional drills for Focus words: recognition, recall, sentence repair, and phrase fluency.
             </p>
           </div>
         </div>
         <span className="inline-flex items-center gap-1 self-start text-xs font-semibold text-teal-700 sm:self-center">
-          Open
+          Open Practice Games
           <ChevronRight size={13} aria-hidden="true" />
         </span>
       </a>
-    </section>
+    </div>
   )
 }
 
@@ -725,8 +731,6 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
       <ReviewChip reviewCount={dueItems.length} onNavigate={() => navigate('/review')} />
 
       <TodayNudgeCard text={nudge.text} action={nudge.action} actionLabel={nudge.actionLabel} />
-
-      <GamesSection />
 
       <AlmostMasteredStrip
         items={almostMasteredItems}

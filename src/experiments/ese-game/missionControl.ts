@@ -75,6 +75,11 @@ export interface MissionAnswer {
   score?: number
 }
 
+export interface MissionSelectionContext {
+  focusTermKeys?: Set<string>
+  eligibleTermKeys?: Set<string>
+}
+
 export const DEFAULT_MISSION_FILTERS: MissionFilters = {
   theme: 'Any',
   difficulty: 'Any',
@@ -113,6 +118,17 @@ function shuffle<T>(items: T[]): T[] {
 
 function slug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
+export function normalizeMissionTerm(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9'\s-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function uniq(values: string[]): string[] {
@@ -157,11 +173,18 @@ function getWeightedScore(
   word: StarterPackMissionWord,
   filters: MissionFilters,
   stats: Record<string, MissionWordProgress>,
+  context: MissionSelectionContext = {},
 ): number {
   const progress = stats[word.id]
   const incorrect = progress ? progress.attempts - progress.correct : 0
   let score = Math.random()
+  const termKey = normalizeMissionTerm(word.term)
 
+  if (context.focusTermKeys?.has(termKey)) {
+    score += 20
+  } else if (context.eligibleTermKeys?.has(termKey)) {
+    score += 6
+  }
   if (filters.focusWeakAreas || filters.style === 'challenge') {
     score += isWeak(progress) ? 5 : 0
   }
@@ -226,6 +249,7 @@ function pickMissionWords(
   words: StarterPackMissionWord[],
   filters: MissionFilters,
   stats: Record<string, MissionWordProgress>,
+  context: MissionSelectionContext = {},
 ): StarterPackMissionWord[] {
   const filteredWords = words.filter((word) => canPractice(word) && matchesFilters(word, filters))
   const fallbackWords = words.filter(canPractice)
@@ -238,7 +262,7 @@ function pickMissionWords(
   const scoredWords = sourceWords
     .map((word) => ({
       word,
-      score: getWeightedScore(word, filters, stats),
+      score: getWeightedScore(word, filters, stats, context),
     }))
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.word)
@@ -309,8 +333,9 @@ export function createMission(
   words: StarterPackMissionWord[],
   filters: MissionFilters,
   stats: Record<string, MissionWordProgress> = {},
+  context: MissionSelectionContext = {},
 ): Mission | null {
-  const vocabulary = pickMissionWords(words, filters, stats)
+  const vocabulary = pickMissionWords(words, filters, stats, context)
 
   if (vocabulary.length < MIN_MISSION_WORDS) {
     return null

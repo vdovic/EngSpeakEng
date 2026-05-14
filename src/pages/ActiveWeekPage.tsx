@@ -26,7 +26,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Target, Plus, CheckCircle2, Info, X, Search,
-  ChevronDown, ChevronUp, ChevronRight, Lightbulb, GripVertical,
+  ChevronDown, ChevronUp, ChevronRight, Lightbulb, GripVertical, Gamepad2,
 } from 'lucide-react'
 import {
   DndContext,
@@ -65,6 +65,29 @@ import {
 const THEME_EMOJI_MAP: Record<string, string> = Object.fromEntries(
   SUGGESTED_THEMES.map((theme) => [theme.name, theme.emoji]),
 )
+const ESE_GAME_EXPERIMENT_ROUTE = '/__experiments/ese-game'
+const isEseGameExperimentEnabled = import.meta.env.VITE_ENABLE_ESE_GAME_EXPERIMENT === 'true'
+
+function FocusGamesBridge() {
+  if (!isEseGameExperimentEnabled) return null
+
+  return (
+    <a
+      href={ESE_GAME_EXPERIMENT_ROUTE}
+      className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-teal-100 bg-teal-50/60 px-4 py-3 transition-colors hover:border-teal-200 hover:bg-teal-50"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-teal-700">
+          <Gamepad2 size={15} aria-hidden="true" />
+        </div>
+        <p className="text-xs font-medium leading-snug text-teal-900">
+          Want a lighter drill? Practice these Focus words in games.
+        </p>
+      </div>
+      <span className="shrink-0 text-xs font-bold text-teal-700">Open Practice Games</span>
+    </a>
+  )
+}
 
 function FocusAreasSection({
   themeStats,
@@ -682,6 +705,8 @@ export function ActiveWeekPage() {
             The words you are actively developing now.
           </p>
         </div>
+
+        <FocusGamesBridge />
 
         {focusItems.length === 0 ? (
           /* ── Empty state ── */
