@@ -5,3 +5,4 @@ dist/
 
 # Migration resume file — regenerated automatically; no need to track
 data/migrations/migration-progress.json
+.vercel
