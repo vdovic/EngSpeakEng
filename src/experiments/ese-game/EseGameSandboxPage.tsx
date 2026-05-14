@@ -359,8 +359,14 @@ export function EseGameSandboxPage() {
     setScreen('mission-control')
   }
 
-  function applyGameAnswersToStore(modeId: GameMode, answers: RunAnswer[]) {
-    const seen = new Set<string>()
+  // Applies one stage's answers to the vocab store.
+  // seen: shared across stages so the 3-word cap is enforced per whole game/session.
+  // Returns the best consecutive-correct streak within this stage's answers.
+  function applyStageAnswersToStore(
+    modeId: GameMode,
+    answers: RunAnswer[],
+    seen: Set<string>,
+  ): number {
     const now = new Date().toISOString()
     let bestStreak = 0
     let currentStreak = 0
@@ -371,26 +377,34 @@ export function EseGameSandboxPage() {
       } else {
         currentStreak = 0
       }
-      // Cap at 3 unique source words per game to avoid inflating exposure.
+      // Cap at 3 unique source words per game/session to avoid inflating exposure.
       if (!answer.sourceWordId || seen.size >= 3) continue
       if (seen.has(answer.sourceWordId)) continue
       seen.add(answer.sourceWordId)
-      if (modeId === 'phrase-upgrade' && answer.isCorrect) {
-        logUsageFn(answer.sourceWordId, {
-          usedAt: now,
-          context: 'conversation',
-          note: 'Phrase upgrade game',
-        })
+      if (modeId === 'phrase-upgrade') {
+        // Phrase Upgrade: only log usage on a correct answer; incorrect answers
+        // have no vocab-store effect (no SRS scheduling side-effect either).
+        if (answer.isCorrect) {
+          logUsageFn(answer.sourceWordId, {
+            usedAt: now,
+            context: 'conversation',
+            note: 'Phrase upgrade game',
+          })
+        }
       } else {
+        // Sentence Repair + Recall Challenge: record exposure on every answer.
         recordExposureFn(answer.sourceWordId, answer.isCorrect)
       }
     }
-    recordGameCompletion(bestStreak)
+    return bestStreak
   }
 
   function updateMissionProgress(modeId: GameMode, answers: RunAnswer[]) {
     saveMissionState(recordMissionAnswers(missionState, modeId, answers))
-    applyGameAnswersToStore(modeId, answers)
+    // Standalone game = one game, one recordGameCompletion call.
+    const seen = new Set<string>()
+    const bestStreak = applyStageAnswersToStore(modeId, answers, seen)
+    recordGameCompletion(bestStreak)
   }
 
   function updateDailySessionProgress(
@@ -405,10 +419,15 @@ export function EseGameSandboxPage() {
       )
     saveMissionState(nextState)
     setLastDailySummary(saveDailyTrainingSessionSummary(summary))
-    // Wire daily session results into the production store.
+    // Daily session = one session, one recordGameCompletion call.
+    // One shared seen set enforces the 3-word cap across all stages.
+    const seen = new Set<string>()
+    let overallBestStreak = 0
     for (const [stageMode, answers] of Object.entries(stageAnswers) as [GameMode, RunAnswer[]][]) {
-      applyGameAnswersToStore(stageMode, answers)
+      const stageBest = applyStageAnswersToStore(stageMode, answers, seen)
+      overallBestStreak = Math.max(overallBestStreak, stageBest)
     }
+    recordGameCompletion(overallBestStreak)
   }
 
   return (
