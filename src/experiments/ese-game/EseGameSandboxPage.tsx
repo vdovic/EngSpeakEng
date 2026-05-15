@@ -2,14 +2,6 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import {
-  DAILY_TRAINING_SESSION_KEY,
-  ESE_GAME_EXPERIMENT_ROUTE,
-  MISSION_CONTROL_STATE_KEY,
-  PHRASE_UPGRADE_PROGRESS_KEY,
-  RECALL_CHALLENGE_PROGRESS_KEY,
-  SENTENCE_REPAIR_PROGRESS_KEY,
-} from './constants'
-import {
   PhraseUpgradePrompt,
   SentenceRepairPrompt,
 } from './sampleData'
@@ -65,9 +57,9 @@ import type { VocabItem } from '@/types/vocabulary'
 
 const PROMPTS_PER_RUN = 6
 const RECALL_PROMPTS_PER_RUN = 5
-const DAILY_SENTENCE_PROMPTS = 3
-const DAILY_PHRASE_PROMPTS = 4
-const DAILY_RECALL_PROMPTS = 3
+const DAILY_SENTENCE_PROMPTS = 5
+const DAILY_PHRASE_PROMPTS = 3
+const DAILY_RECALL_PROMPTS = 2
 const DAILY_TOTAL_PROMPTS = DAILY_SENTENCE_PROMPTS + DAILY_PHRASE_PROMPTS + DAILY_RECALL_PROMPTS
 
 type GameMode = 'sentence-repair' | 'phrase-upgrade' | 'recall-challenge'
@@ -229,7 +221,7 @@ function hasUsableGameData(item: VocabItem): boolean {
 }
 
 export function EseGameSandboxPage() {
-  const [mode, setMode] = useState<GameMode>('phrase-upgrade')
+  const [mode, setMode] = useState<GameMode>('sentence-repair')
   const [screen, setScreen] = useState<Screen>('mission-control')
   const [missionState, setMissionState] = useState<MissionControlState>(() =>
     loadMissionControlState(),
@@ -350,7 +342,7 @@ export function EseGameSandboxPage() {
           prompts: [],
           status: 'fallback',
           label: 'Full library unavailable',
-          detail: `${message}. Mission Control requires static vocabulary JSON.`,
+          detail: `${message}. Focus practice requires static vocabulary JSON.`,
         })
       })
 
@@ -388,6 +380,13 @@ export function EseGameSandboxPage() {
   const activeMissionWords = useMemo(
     () => getMissionVocabulary(missionState.activeMission, missionVocabulary.prompts),
     [missionState.activeMission, missionVocabulary.prompts],
+  )
+  const activeFocusItems = useMemo(
+    () =>
+      liveVocabularyItems
+        .filter((item) => !item.archived && item.status !== 'mastered' && (item.inFocus || item.weeklyFocus))
+        .sort((a, b) => (b.focusPriority ?? 0) - (a.focusPriority ?? 0)),
+    [liveVocabularyItems],
   )
   const categoryCounts = useMemo(
     () => getMissionCategoryCounts(missionVocabulary.prompts),
@@ -550,7 +549,7 @@ export function EseGameSandboxPage() {
         <header className="border-b border-neutral-800 pb-4 sm:pb-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">
-              Beta / experimental
+              Focus fluency practice
             </p>
             <a
               href="/"
@@ -562,22 +561,28 @@ export function EseGameSandboxPage() {
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl font-semibold tracking-normal text-white sm:text-3xl">
-                ESE Game Lab Beta
+                Practice Games
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300 sm:mt-3">
-                Practice Games are lighter drills for the vocabulary you are actively learning. They reinforce Focus
-                words through recall, sentence repair, and phrase precision, while Challenges remain your main
-                structured learning path.
+                Lighter fluency reinforcement for the vocabulary you are actively learning. Practice Games reuse your
+                Focus portfolio through sentence repair, recall, and phrase precision, while Challenges remain your
+                main structured learning path.
               </p>
               <p className="mt-2 max-w-2xl text-xs leading-5 text-neutral-500">
-                Games lightly support progress with capped vocabulary updates; they do not replace Daily Challenges.
+                Sentence Repair is the main mechanic: rebuild realistic English naturally, then reinforce it with short
+                recall and phrase-upgrade moments.
               </p>
             </div>
-            <div className="w-fit max-w-full break-all rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
-              {ESE_GAME_EXPERIMENT_ROUTE}
+            <div className="w-fit max-w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
+              Focus-linked reinforcement
             </div>
           </div>
           <div className="mt-4 grid gap-2 sm:inline-grid sm:grid-cols-3">
+            <ModeButton
+              active={mode === 'sentence-repair'}
+              label="Sentence Repair"
+              onClick={() => startMission('sentence-repair')}
+            />
             <ModeButton
               active={mode === 'phrase-upgrade'}
               label="Phrase Upgrade"
@@ -585,13 +590,8 @@ export function EseGameSandboxPage() {
             />
             <ModeButton
               active={mode === 'recall-challenge'}
-              label="Recall Challenge"
+              label="Recall"
               onClick={() => startMission('recall-challenge')}
-            />
-            <ModeButton
-              active={mode === 'sentence-repair'}
-              label="Sentence Repair"
-              onClick={() => startMission('sentence-repair')}
             />
           </div>
         </header>
@@ -602,6 +602,7 @@ export function EseGameSandboxPage() {
             filters={missionState.filters}
             missionVocabulary={missionVocabulary}
             missionWords={activeMissionWords}
+            activeFocusItems={activeFocusItems}
             themes={missionThemes}
             categoryCounts={categoryCounts}
             progressTrends={progressTrends}
@@ -672,6 +673,7 @@ function MissionControlPanel({
   filters,
   missionVocabulary,
   missionWords,
+  activeFocusItems,
   themes,
   categoryCounts,
   progressTrends,
@@ -686,6 +688,7 @@ function MissionControlPanel({
   filters: MissionControlState['filters']
   missionVocabulary: PromptLibraryState<StarterPackMissionWord>
   missionWords: StarterPackMissionWord[]
+  activeFocusItems: VocabItem[]
   themes: string[]
   categoryCounts: Record<string, number>
   progressTrends: {
@@ -705,53 +708,65 @@ function MissionControlPanel({
 }) {
   const progress = getMissionProgress(activeMission)
   const canStart = missionVocabulary.status === 'ready' && Boolean(activeMission)
+  const selectedFocusKeys = new Set(missionWords.map((word) => normalizeMissionTerm(word.term)))
+  const focusItemByTerm = new Map(activeFocusItems.map((item) => [normalizeMissionTerm(item.term), item]))
+  const selectedFocusItems = activeFocusItems.filter((item) =>
+    selectedFocusKeys.has(normalizeMissionTerm(item.term)),
+  )
+  const selectedFocusCount = selectedFocusItems.length
+  const exampleMissionWords = missionWords.slice(0, 10)
+  const missionReason = filters.focusWeakAreas
+    ? 'Selected from Focus words that need another pass, with Sentence Repair weighted first.'
+    : selectedFocusCount > 0
+      ? 'Selected from your active Focus words, balanced with nearby vocabulary when a prompt needs context.'
+      : 'Selected from the practice library while your Focus portfolio finishes loading or has no prompt match yet.'
 
   return (
     <section className="flex flex-1 flex-col justify-center py-4 sm:py-6">
       <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-teal-300">Mission Control</p>
+            <p className="text-sm font-medium text-teal-300">Built from your Focus portfolio</p>
             <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">
               {activeMission?.title ?? 'Build today\'s mission'}
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-300">
-              Daily Training Session turns the active vocabulary mission into a short learning
-              journey: repair, upgrade, recall, then review.
+              A guided mixed session for active fluency reinforcement. Sentence Repair leads the mission, then Recall
+              and Phrase Upgrade help the same vocabulary settle naturally.
             </p>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-neutral-500">{missionReason}</p>
           </div>
-          <div className="rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm">
-            <p className="text-xs uppercase tracking-[0.14em] text-neutral-500">Storage</p>
-            <p className="mt-1 break-all text-xs font-medium text-neutral-300">
-              {MISSION_CONTROL_STATE_KEY}
-            </p>
+          <div className="rounded-md border border-teal-400/30 bg-teal-400/10 px-4 py-3 text-sm">
+            <p className="text-xs uppercase tracking-[0.14em] text-teal-300">Practice mix</p>
+            <p className="mt-1 font-semibold text-white">Sentence Repair dominant</p>
+            <p className="mt-1 text-xs text-neutral-300">5 repair / 3 upgrade / 2 recall</p>
           </div>
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ResultMetric label="Mission type" value={activeMission?.style ?? filters.style} />
+          <ResultMetric label="Active Focus words" value={activeFocusItems.length.toString()} />
           <ResultMetric
-            label="Target words"
+            label="Mission vocabulary"
             value={(activeMission?.targetCount ?? 0).toString()}
           />
           <ResultMetric
-            label="Progress"
-            value={`${progress.masteredCount}/${activeMission?.targetCount ?? 0}`}
+            label="Selected Focus words"
+            value={selectedFocusCount.toString()}
           />
           <ResultMetric
-            label="Duration"
-            value={`${activeMission?.estimatedMinutes ?? 0} min`}
+            label="Words completed"
+            value={`${progress.masteredCount}/${activeMission?.targetCount ?? 0}`}
           />
         </div>
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <ResultMetric label="Library items" value={missionVocabulary.prompts.length.toString()} />
-          <ResultMetric label="Weak areas" value={progressTrends.weakCount.toString()} />
-          <ResultMetric label="Mastered" value={progressTrends.masteredCount.toString()} />
+          <ResultMetric label="Priority practice" value={progressTrends.weakCount.toString()} />
+          <ResultMetric label="Strengthened words" value={progressTrends.masteredCount.toString()} />
           <ResultMetric
-            label="Recent trend"
+            label="Current momentum"
             value={progressTrends.recentAverage ? `${progressTrends.recentAverage}%` : progressTrends.trendLabel}
           />
+          <ResultMetric label="Session length" value={`${activeMission?.estimatedMinutes ?? 0} min`} />
         </div>
 
         <div className="mt-5 h-2 overflow-hidden rounded-full bg-neutral-800">
@@ -761,136 +776,176 @@ function MissionControlPanel({
           />
         </div>
 
-        <div className="mt-6 grid gap-4 lg:grid-cols-4">
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-              Theme
-            </span>
-            <select
-              value={filters.theme}
-              onChange={(event) =>
-                onFiltersChange({
-                  ...filters,
-                  theme: event.target.value,
-                })
-              }
-              disabled={missionVocabulary.status !== 'ready'}
-              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+        <div className="mt-6 rounded-md border border-neutral-800 bg-neutral-950 p-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-300">
+                These are your words
+              </p>
+              <p className="mt-1 text-sm leading-6 text-neutral-200">
+                This mission uses {selectedFocusCount} selected Focus words from {activeFocusItems.length} active Focus
+                words. Example mission vocabulary is shown below.
+              </p>
+            </div>
+            <a
+              href="/focus"
+              className="rounded-md border border-teal-700/40 px-3 py-2 text-center text-xs font-semibold text-teal-300 transition hover:border-teal-500 hover:text-teal-200"
             >
-              {themes.map((theme) => (
-                <option key={theme} value={theme}>
-                  {theme}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-              Category
-            </span>
-            <select
-              value={filters.category}
-              onChange={(event) =>
-                onFiltersChange({
-                  ...filters,
-                  category: event.target.value as MissionCategoryFilter,
-                })
-              }
-              disabled={missionVocabulary.status !== 'ready'}
-              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
-            >
-              {MISSION_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {category === 'Any' ? 'Any' : `${category} (${categoryCounts[category] ?? 0})`}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-              Difficulty
-            </span>
-            <select
-              value={filters.difficulty}
-              onChange={(event) =>
-                onFiltersChange({
-                  ...filters,
-                  difficulty: event.target.value as MissionDifficultyFilter,
-                })
-              }
-              disabled={missionVocabulary.status !== 'ready'}
-              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
-            >
-              {(['Any', 'B2', 'C1'] as MissionDifficultyFilter[]).map((difficulty) => (
-                <option key={difficulty} value={difficulty}>
-                  {difficulty}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-              Mission
-            </span>
-            <select
-              value={filters.style}
-              onChange={(event) =>
-                onFiltersChange({
-                  ...filters,
-                  style: event.target.value as MissionStyle,
-                })
-              }
-              disabled={missionVocabulary.status !== 'ready'}
-              className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
-            >
-              {(['themed', 'mixed', 'challenge'] as MissionStyle[]).map((style) => (
-                <option key={style} value={style}>
-                  {style}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <label className="flex items-center gap-3 rounded-md border border-neutral-800 bg-neutral-950 px-3 py-3 text-sm text-neutral-200">
-            <input
-              type="checkbox"
-              checked={filters.focusWeakAreas}
-              onChange={(event) =>
-                onFiltersChange({
-                  ...filters,
-                  focusWeakAreas: event.target.checked,
-                })
-              }
-              disabled={missionVocabulary.status !== 'ready'}
-              className="h-4 w-4 accent-teal-400"
-            />
-            <span>Focus weak areas</span>
-          </label>
-
-          <div className="flex flex-col justify-end gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={onReshuffle}
-              disabled={missionVocabulary.status !== 'ready'}
-              className="rounded-md border border-neutral-700 px-4 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Reshuffle
-            </button>
-            <button
-              type="button"
-              onClick={onResetFilters}
-              disabled={missionVocabulary.status !== 'ready'}
-              className="rounded-md border border-neutral-800 px-4 py-3 text-sm font-semibold text-neutral-300 transition hover:border-neutral-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Reset
-            </button>
+              Open Focus
+            </a>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {exampleMissionWords.length ? (
+              exampleMissionWords.map((word) => (
+                <MissionWordChip
+                  key={word.id}
+                  word={word}
+                  focusItem={focusItemByTerm.get(normalizeMissionTerm(word.term))}
+                />
+              ))
+            ) : (
+              <span className="text-sm text-neutral-400">
+                Add words to Focus to make Practice Games more personal.
+              </span>
+            )}
           </div>
         </div>
+
+        <details className="mt-5 rounded-md border border-neutral-800 bg-neutral-950 p-4">
+          <summary className="cursor-pointer text-sm font-semibold text-neutral-100">
+            Adjust mission
+          </summary>
+          <div className="mt-4 grid gap-4 lg:grid-cols-4">
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Theme
+              </span>
+              <select
+                value={filters.theme}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    theme: event.target.value,
+                  })
+                }
+                disabled={missionVocabulary.status !== 'ready'}
+                className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+              >
+                {themes.map((theme) => (
+                  <option key={theme} value={theme}>
+                    {theme}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Practice area
+              </span>
+              <select
+                value={filters.category}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    category: event.target.value as MissionCategoryFilter,
+                  })
+                }
+                disabled={missionVocabulary.status !== 'ready'}
+                className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+              >
+                {MISSION_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category === 'Any' ? 'Any' : `${category} (${categoryCounts[category] ?? 0})`}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Level
+              </span>
+              <select
+                value={filters.difficulty}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    difficulty: event.target.value as MissionDifficultyFilter,
+                  })
+                }
+                disabled={missionVocabulary.status !== 'ready'}
+                className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+              >
+                {(['Any', 'B2', 'C1'] as MissionDifficultyFilter[]).map((difficulty) => (
+                  <option key={difficulty} value={difficulty}>
+                    {difficulty}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                Practice mix
+              </span>
+              <select
+                value={filters.style}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    style: event.target.value as MissionStyle,
+                  })
+                }
+                disabled={missionVocabulary.status !== 'ready'}
+                className="mt-2 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-3 text-sm text-white disabled:opacity-50"
+              >
+                {(['mixed', 'themed', 'challenge'] as MissionStyle[]).map((style) => (
+                  <option key={style} value={style}>
+                    {style === 'mixed' ? 'Mixed Focus' : style === 'themed' ? 'Themed focus' : 'C1 stretch'}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="flex items-center gap-3 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-3 text-sm text-neutral-200">
+              <input
+                type="checkbox"
+                checked={filters.focusWeakAreas}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    focusWeakAreas: event.target.checked,
+                  })
+                }
+                disabled={missionVocabulary.status !== 'ready'}
+                className="h-4 w-4 accent-teal-400"
+              />
+              <span>Prioritize unstable words</span>
+            </label>
+
+            <div className="flex flex-col justify-end gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={onReshuffle}
+                disabled={missionVocabulary.status !== 'ready'}
+                className="rounded-md border border-neutral-700 px-4 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Refresh words
+              </button>
+              <button
+                type="button"
+                onClick={onResetFilters}
+                disabled={missionVocabulary.status !== 'ready'}
+                className="rounded-md border border-neutral-800 px-4 py-3 text-sm font-semibold text-neutral-300 transition hover:border-neutral-600 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Guided default
+              </button>
+            </div>
+          </div>
+        </details>
 
         {activeMission && (
           <div className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
@@ -912,10 +967,10 @@ function MissionControlPanel({
             </div>
             <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Adaptation
+                Practice focus
               </p>
               <p className="mt-2 text-neutral-200">
-                {activeMission.composition.weak} weak / {activeMission.composition.migrationVocab} full-library
+                {activeMission.composition.weak} priority / {selectedFocusCount} from Focus
               </p>
             </div>
           </div>
@@ -948,7 +1003,7 @@ function MissionControlPanel({
             </div>
             <div className="rounded-md border border-neutral-800 bg-neutral-950 p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Progress trend
+                Current momentum
               </p>
               <p className="mt-2 text-neutral-200">
                 {progressTrends.trendLabel}
@@ -966,7 +1021,7 @@ function MissionControlPanel({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Vocabulary source
+                Mission vocabulary
               </p>
               <p className="mt-1 text-sm font-medium text-neutral-100">
                 {missionVocabulary.label}
@@ -976,7 +1031,7 @@ function MissionControlPanel({
               </p>
             </div>
             <p className="text-xs text-neutral-500">
-              Attempted {progress.attemptedCount} mission items / {progressTrends.totalAttempts} total answers
+              Completed {progress.attemptedCount} mission items / {progressTrends.totalAttempts} practice answers
             </p>
           </div>
 
@@ -1034,35 +1089,79 @@ function MissionControlPanel({
             disabled={!canStart}
             className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
           >
-            Start Daily Training Session
-          </button>
-          <button
-            type="button"
-            onClick={() => onStart('phrase-upgrade')}
-            disabled={!canStart}
-            className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Start Phrase Upgrade
-          </button>
-          <button
-            type="button"
-            onClick={() => onStart('recall-challenge')}
-            disabled={!canStart}
-            className="rounded-md border border-teal-400 px-5 py-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Start Recall Challenge
+            Start mixed Focus practice
           </button>
           <button
             type="button"
             onClick={() => onStart('sentence-repair')}
             disabled={!canStart}
+            className="rounded-md border border-teal-400 px-5 py-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Sentence Repair only
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('phrase-upgrade')}
+            disabled={!canStart}
+            className="rounded-md border border-teal-400 px-5 py-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Phrase Upgrade only
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('recall-challenge')}
+            disabled={!canStart}
             className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Start Sentence Repair
+            Recall only
           </button>
         </div>
       </div>
     </section>
+  )
+}
+
+function MissionWordChip({
+  word,
+  focusItem,
+}: {
+  word: StarterPackMissionWord
+  focusItem?: VocabItem
+}) {
+  const exposure = Math.min(focusItem?.exposureCount ?? 0, 8)
+  const confidence = focusItem?.activation?.confidenceLevel ?? 0
+  const confidenceLabel =
+    confidence >= 3 ? 'confident' : confidence === 2 ? 'building' : confidence === 1 ? 'unstable' : 'new'
+  const selected = Boolean(focusItem)
+
+  return (
+    <span
+      className={`inline-flex min-h-9 items-center gap-2 rounded border px-2.5 py-1.5 text-xs font-medium ${
+        selected
+          ? 'border-teal-300 bg-teal-300 text-neutral-950'
+          : 'border-neutral-700 bg-neutral-800 text-neutral-200'
+      }`}
+      title={selected ? `${exposure}/8 exposures, confidence ${confidenceLabel}` : 'Mission word matched from the practice library'}
+    >
+      <span>{word.term}</span>
+      {selected ? (
+        <>
+          <span className="text-neutral-800">{exposure}/8</span>
+          <span className="flex gap-0.5" aria-label={`confidence ${confidenceLabel}`}>
+            {[1, 2, 3].map((dot) => (
+              <span
+                key={dot}
+                className={`h-1.5 w-1.5 rounded-full ${
+                  dot <= confidence ? 'bg-neutral-950' : 'bg-neutral-950/25'
+                }`}
+              />
+            ))}
+          </span>
+        </>
+      ) : (
+        <span className="text-neutral-400">context</span>
+      )}
+    </span>
   )
 }
 
@@ -1090,7 +1189,7 @@ function DailyTrainingSession({
   }>>({
     prompts: [],
     status: 'loading',
-    label: 'Loading Daily Training Session',
+    label: 'Loading mixed Focus practice',
     detail: 'Reading static vocabulary JSON for repair, upgrade, and recall prompts only.',
   })
   const answerInputRef = useRef<HTMLInputElement | null>(null)
@@ -1131,7 +1230,7 @@ function DailyTrainingSession({
           prompts: [],
           status: 'fallback',
           label: 'Daily session unavailable',
-          detail: `${message}. Daily Training Session requires static vocabulary JSON.`,
+          detail: `${message}. Mixed Focus practice requires static vocabulary JSON.`,
         })
       })
 
@@ -1345,16 +1444,16 @@ function DailyTrainingSession({
       <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-3 shadow-2xl shadow-black/20 sm:p-6">
         <div className="flex flex-col gap-3 border-b border-neutral-800 pb-3 sm:flex-row sm:items-start sm:justify-between sm:pb-4">
           <div>
-            <p className="text-sm font-medium text-teal-300">Daily Training Session</p>
+            <p className="text-sm font-medium text-teal-300">Mixed Focus practice</p>
             <h2 className="mt-1 text-xl font-semibold text-white sm:mt-2 sm:text-2xl">
-              10-minute guided mission
+              Guided fluency mission
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-5 text-neutral-300 sm:mt-2 sm:leading-6">
-              Warm up with sentence repair, upgrade expression, then recall the vocabulary from memory.
+              Rebuild realistic English first, then reinforce the same Focus vocabulary through phrase choice and recall.
             </p>
           </div>
           <div className="hidden rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-400 sm:block">
-            {DAILY_TRAINING_SESSION_KEY}
+            Focus words first
           </div>
         </div>
 
@@ -1364,12 +1463,12 @@ function DailyTrainingSession({
 
         {session.status === 'intro' && (
           <StartPanel
-            eyebrow="Daily path"
-            title={`${DAILY_TOTAL_PROMPTS} prompts across 3 modes.`}
-            body="The session reuses your active Mission Control vocabulary and combines mode results into one learning summary."
+            eyebrow="Guided mission"
+            title={`${DAILY_TOTAL_PROMPTS} prompts from your Focus vocabulary.`}
+            body="Sentence Repair appears most often because realistic rebuilding is the strongest fluency practice here."
             promptLibrary={promptLibrary}
             mission={mission}
-            buttonLabel="Start Daily Session"
+            buttonLabel="Start mixed practice"
             onStart={startSession}
             onMissionControl={onMissionControl}
             promptCount={1}
@@ -1391,7 +1490,7 @@ function DailyTrainingSession({
               <div>
                 <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-950 p-3 sm:mt-5 sm:p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                    Warm-up: repair the highlighted phrase
+                    Sentence Repair: rebuild the natural version
                   </p>
                   <MetaTags prompt={currentSentencePrompt} />
                   <p className="mt-3 text-lg leading-7 text-white sm:mt-4 sm:text-2xl sm:leading-10">
@@ -1419,7 +1518,7 @@ function DailyTrainingSession({
               <div>
                 <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-950 p-3 sm:mt-5 sm:p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                    Upgrade: choose the stronger sentence
+                    Phrase Upgrade: choose the stronger sentence
                   </p>
                   <MetaTags prompt={currentPhrasePrompt} />
                   <p className="mt-3 text-lg leading-7 text-white sm:mt-4 sm:text-2xl sm:leading-10">
@@ -1440,7 +1539,7 @@ function DailyTrainingSession({
               <div>
                 <div className="mt-3 rounded-md border border-neutral-800 bg-neutral-950 p-3 sm:mt-5 sm:p-5">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                    Recall: produce the target vocabulary
+                    Recall: produce the Focus vocabulary
                   </p>
                   <MetaTags prompt={currentRecallPrompt} />
                   <p className="mt-3 text-lg leading-7 text-white sm:mt-4 sm:text-2xl sm:leading-10">
@@ -1518,7 +1617,7 @@ function DailyTrainingSession({
 
 function DailyStageTracker({ stage }: { stage: DailyStageId }) {
   const stages: { id: DailyStageId; label: string; detail: string }[] = [
-    { id: 'sentence-repair', label: 'Warm-up', detail: 'Repair' },
+    { id: 'sentence-repair', label: 'Rebuild', detail: 'Repair' },
     { id: 'phrase-upgrade', label: 'Upgrade', detail: 'Phrase' },
     { id: 'recall-challenge', label: 'Recall', detail: 'Memory' },
     { id: 'summary', label: 'Summary', detail: 'Review' },
@@ -1666,21 +1765,21 @@ function buildDailyTrainingSummary(
   ) ?? 0
   const recommendedNextMission =
     weakWords.length >= 3
-      ? `Focus Weak Areas: ${weakWords.slice(0, 3).join(', ')}`
+      ? `Priority practice: ${weakWords.slice(0, 3).join(', ')}`
       : totalScore >= DAILY_TOTAL_PROMPTS * 0.8
-        ? 'C1 Challenge Mission'
-        : 'Mixed Fluency Mission'
+        ? 'C1 stretch mission'
+        : 'Mixed Focus mission'
   const insight =
     recallScore < DAILY_RECALL_PROMPTS * 0.7
-      ? 'Recognition is ahead of recall today, so review the weak words out loud before the next mission.'
+      ? 'Recognition is ahead of recall today, so say the unstable words out loud before the next mission.'
       : phraseScore >= DAILY_PHRASE_PROMPTS * 0.75
-        ? 'Your upgrade choices were strong; keep transferring those phrases into recall.'
-        : 'You built useful contrast between similar choices, which is exactly how phrasing gets sharper.'
+        ? 'Your phrase choices were strong; keep transferring those Focus words into active recall.'
+        : 'Sentence rebuilding exposed which vocabulary is stable and which still needs another natural context.'
 
   return {
     completedAt: new Date().toISOString(),
     missionId: mission?.id ?? null,
-    missionTitle: mission?.title ?? 'Daily Training Session',
+    missionTitle: mission?.title ?? 'Mixed Focus practice',
     totalScore,
     totalPrompts: DAILY_TOTAL_PROMPTS,
     wordsPracticed: scoredWords.map((entry) => entry.term).slice(0, 12),
@@ -1702,18 +1801,18 @@ function DailySessionSummaryPanel({
 }) {
   return (
     <div className="pt-6">
-      <p className="text-sm font-medium text-teal-300">Session Summary</p>
+      <p className="text-sm font-medium text-teal-300">Mission summary</p>
       <h2 className="mt-2 text-3xl font-semibold text-white">
         {summary.totalScore} / {summary.totalPrompts}
       </h2>
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
-        <ResultMetric label="Total score" value={`${summary.totalScore}/${summary.totalPrompts}`} />
+        <ResultMetric label="Reinforcement" value={`${summary.totalScore}/${summary.totalPrompts}`} />
         <ResultMetric label="Words practiced" value={summary.wordsPracticed.length.toString()} />
-        <ResultMetric label="Next mission" value={summary.recommendedNextMission} />
+        <ResultMetric label="Next focus" value={summary.recommendedNextMission} />
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <WordListPanel title="Weak words" words={summary.weakWords} emptyLabel="No clear weak words" />
-        <WordListPanel title="Strongest words" words={summary.strongestWords} emptyLabel="No strongest word yet" />
+        <WordListPanel title="Unstable vocabulary" words={summary.weakWords} emptyLabel="No clear unstable words" />
+        <WordListPanel title="Strengthened vocabulary" words={summary.strongestWords} emptyLabel="No strongest word yet" />
       </div>
       <WordListPanel
         title="Words practiced"
@@ -1722,7 +1821,7 @@ function DailySessionSummaryPanel({
       />
       <div className="mt-5 rounded-md border border-teal-400/30 bg-teal-400/10 p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-300">
-          Learning insight
+          What changed
         </p>
         <p className="mt-2 text-sm leading-6 text-neutral-100">{summary.insight}</p>
       </div>
@@ -1732,14 +1831,14 @@ function DailySessionSummaryPanel({
           onClick={onRestart}
           className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300"
         >
-          Start another session
+          Start another mission
         </button>
         <button
           type="button"
           onClick={onMissionControl}
           className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500"
         >
-          Mission Control
+          Adjust mission
         </button>
         <a
           href="/focus"
@@ -1919,18 +2018,17 @@ function SentenceRepairMode({
   return (
     <ModeLayout
       progress={progress}
-      progressKey={SENTENCE_REPAIR_PROGRESS_KEY}
       promptLibraryLabel={promptLibrary.label}
     >
       <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
         {run.status === 'idle' && (
           <StartPanel
             eyebrow="Sentence Repair"
-            title="Fix 6 sentences before the run ends."
-            body="Choose the word or phrase that sounds most natural in context. Mission words appear first when available."
+            title="Rebuild realistic English naturally."
+            body="Choose the Focus word or phrase that makes the sentence sound natural in context. This is the primary Practice Games mechanic."
             promptLibrary={promptLibrary}
             mission={mission}
-            buttonLabel="Start run"
+            buttonLabel="Start Sentence Repair"
             onStart={startRun}
             onMissionControl={onMissionControl}
           />
@@ -2147,7 +2245,6 @@ function PhraseUpgradeMode({
   return (
     <ModeLayout
       progress={progress}
-      progressKey={PHRASE_UPGRADE_PROGRESS_KEY}
       promptLibraryLabel={promptLibrary.label}
     >
       <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
@@ -2155,7 +2252,7 @@ function PhraseUpgradeMode({
           <StartPanel
             eyebrow="Phrase Upgrade"
             title="Upgrade 6 basic sentences."
-            body="Pick the sentence that sounds natural, precise, and professional. Mission words appear first when available."
+            body="A secondary practice mode for sharpening expression after the Focus vocabulary has been rebuilt in context."
             promptLibrary={promptLibrary}
             mission={mission}
             buttonLabel="Start Phrase Upgrade"
@@ -2281,7 +2378,7 @@ function RecallChallengeMode({
           prompts: [],
           status: 'fallback',
           label: 'Recall library unavailable',
-          detail: `${message}. Recall Challenge requires static vocabulary JSON.`,
+          detail: `${message}. Recall practice requires static vocabulary JSON.`,
         })
       })
 
@@ -2383,19 +2480,18 @@ function RecallChallengeMode({
   return (
     <ModeLayout
       progress={progress}
-      progressKey={RECALL_CHALLENGE_PROGRESS_KEY}
       promptLibraryLabel={promptLibrary.label}
       promptCount={RECALL_PROMPTS_PER_RUN}
     >
       <div className="rounded-lg border border-neutral-800 bg-neutral-900 p-4 shadow-2xl shadow-black/20 sm:p-6">
         {run.status === 'idle' && (
           <StartPanel
-            eyebrow="Recall Challenge"
-            title="Type 5 target words or phrases."
-            body="Produce the missing B2-C1 vocabulary from meaning, register, and context hints. Mission words appear first when available."
+            eyebrow="Recall"
+            title="Type 5 mission words or phrases."
+            body="A secondary practice mode for pulling selected Focus vocabulary from memory after contextual repair."
             promptLibrary={promptLibrary}
             mission={mission}
-            buttonLabel="Start Recall Challenge"
+            buttonLabel="Start Recall"
             onStart={startRun}
             onMissionControl={onMissionControl}
             promptCount={RECALL_PROMPTS_PER_RUN}
@@ -2529,13 +2625,11 @@ function RecallChallengeMode({
 function ModeLayout({
   children,
   progress,
-  progressKey,
   promptLibraryLabel,
   promptCount = PROMPTS_PER_RUN,
 }: {
   children: ReactNode
   progress: SentenceRepairProgress | PhraseUpgradeProgress | RecallChallengeProgress
-  progressKey: string
   promptLibraryLabel: string
   promptCount?: number
 }) {
@@ -2546,8 +2640,8 @@ function ModeLayout({
         <ResultMetric label="Best score" value={`${progress.bestScore} / ${promptCount}`} />
         <ResultMetric label="Best streak" value={progress.bestStreak.toString()} />
         <div className="rounded-md border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-neutral-500">Storage / source</p>
-          <p className="mt-1 break-all text-xs font-medium text-neutral-300">{progressKey}</p>
+          <p className="text-neutral-500">Practice memory</p>
+          <p className="mt-1 text-xs font-medium text-neutral-300">Saved on this device</p>
           <p className="mt-2 text-xs text-neutral-500">{promptLibraryLabel}</p>
         </div>
       </aside>
@@ -2586,17 +2680,17 @@ function StartPanel<TPrompt>({
       {mission && (
         <div className="mx-auto mt-5 max-w-md rounded-md border border-teal-400/30 bg-teal-400/10 px-4 py-3 text-left">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-300">
-            Active mission
+            Active Focus mission
           </p>
           <p className="mt-1 text-sm font-medium text-white">{mission.title}</p>
           <p className="mt-1 text-xs leading-5 text-neutral-300">
-            {mission.targetCount} target words / {mission.estimatedMinutes} min / {mission.theme}
+            {mission.targetCount} mission vocabulary items / {mission.estimatedMinutes} min / {mission.theme}
           </p>
         </div>
       )}
       <div className="mx-auto mt-5 max-w-md rounded-md border border-neutral-800 bg-neutral-950 px-4 py-3 text-left">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-          Vocabulary source
+          Practice source
         </p>
         <p className="mt-1 text-sm font-medium text-neutral-100">{promptLibrary.label}</p>
         <p className="mt-1 text-xs leading-5 text-neutral-400">{promptLibrary.detail}</p>
@@ -2614,7 +2708,7 @@ function StartPanel<TPrompt>({
         onClick={onMissionControl}
         className="mt-3 w-full rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 sm:ml-3 sm:w-auto"
       >
-        Mission Control
+        Adjust mission
       </button>
     </div>
   )

@@ -84,7 +84,7 @@ export const DEFAULT_MISSION_FILTERS: MissionFilters = {
   theme: 'Any',
   difficulty: 'Any',
   category: 'Any',
-  style: 'themed',
+  style: 'mixed',
   focusWeakAreas: false,
 }
 
@@ -320,13 +320,13 @@ function titleForMission(
   filters: MissionFilters,
 ): string {
   if (filters.focusWeakAreas) {
-    return 'Weak Areas Mission'
+    return 'Priority Practice Mission'
   }
   if (filters.style === 'challenge') {
     return 'C1 Challenge Mission'
   }
   if (filters.style === 'mixed') {
-    return 'Mixed Fluency Mission'
+    return 'Mixed Focus Mission'
   }
 
   const label = filters.category !== 'Any'
