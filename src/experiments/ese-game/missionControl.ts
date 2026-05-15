@@ -173,18 +173,11 @@ function getWeightedScore(
   word: StarterPackMissionWord,
   filters: MissionFilters,
   stats: Record<string, MissionWordProgress>,
-  context: MissionSelectionContext = {},
 ): number {
   const progress = stats[word.id]
   const incorrect = progress ? progress.attempts - progress.correct : 0
   let score = Math.random()
-  const termKey = normalizeMissionTerm(word.term)
 
-  if (context.focusTermKeys?.has(termKey)) {
-    score += 20
-  } else if (context.eligibleTermKeys?.has(termKey)) {
-    score += 6
-  }
   if (filters.focusWeakAreas || filters.style === 'challenge') {
     score += isWeak(progress) ? 5 : 0
   }
@@ -207,6 +200,20 @@ function getWeightedScore(
   score += Math.min(word.qualityScore, 10) * 0.08
 
   return score
+}
+
+function scoreWords(
+  words: StarterPackMissionWord[],
+  filters: MissionFilters,
+  stats: Record<string, MissionWordProgress>,
+): StarterPackMissionWord[] {
+  return words
+    .map((word) => ({
+      word,
+      score: getWeightedScore(word, filters, stats),
+    }))
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.word)
 }
 
 function diversifyWords(words: StarterPackMissionWord[], targetCount: number): StarterPackMissionWord[] {
@@ -259,13 +266,28 @@ function pickMissionWords(
     Math.max(MIN_MISSION_WORDS, filters.style === 'challenge' ? 12 : DEFAULT_MISSION_WORDS),
   )
 
-  const scoredWords = sourceWords
-    .map((word) => ({
-      word,
-      score: getWeightedScore(word, filters, stats, context),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .map((entry) => entry.word)
+  const focusTermKeys = context.focusTermKeys ?? new Set<string>()
+  const eligibleTermKeys = context.eligibleTermKeys ?? new Set<string>()
+  const focusWords: StarterPackMissionWord[] = []
+  const eligibleWords: StarterPackMissionWord[] = []
+  const genericWords: StarterPackMissionWord[] = []
+
+  for (const word of sourceWords) {
+    const termKey = normalizeMissionTerm(word.term)
+    if (focusTermKeys.has(termKey)) {
+      focusWords.push(word)
+    } else if (eligibleTermKeys.has(termKey)) {
+      eligibleWords.push(word)
+    } else {
+      genericWords.push(word)
+    }
+  }
+
+  const scoredWords = [
+    ...scoreWords(focusWords, filters, stats),
+    ...scoreWords(eligibleWords, filters, stats),
+    ...scoreWords(genericWords, filters, stats),
+  ]
 
   return filters.style === 'mixed'
     ? diversifyWords(scoredWords, targetCount)

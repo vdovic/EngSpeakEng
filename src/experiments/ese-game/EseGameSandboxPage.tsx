@@ -249,8 +249,8 @@ export function EseGameSandboxPage() {
   const vocabularyLoaded = useVocabStore((s) => s.loaded)
   const loadVocabulary = useVocabStore((s) => s.load)
   const recordExposureFn   = useVocabStore((s) => s.recordExposure)
-  const logUsageFn         = useVocabStore((s) => s.logUsage)
   const recordGameCompletion = useGamificationStore((s) => s.recordGameCompletion)
+  const staleMissionCheckedRef = useRef(false)
 
   const liveVocabularyContext = useMemo(() => {
     const eligibleItems = liveVocabularyItems.filter(
@@ -285,6 +285,21 @@ export function EseGameSandboxPage() {
     () => new Map(missionVocabulary.prompts.map((word) => [word.id, word])),
     [missionVocabulary.prompts],
   )
+
+  function missionHasLiveContextMatch(mission: Mission | null): boolean {
+    if (!mission) return false
+
+    const relevantTermKeys = new Set([
+      ...liveVocabularyContext.focusTermKeys,
+      ...liveVocabularyContext.eligibleTermKeys,
+    ])
+    if (relevantTermKeys.size === 0) return true
+
+    return mission.vocabularyIds.some((id) => {
+      const sourceTerm = missionWordById.get(id)?.term
+      return Boolean(sourceTerm && relevantTermKeys.has(normalizeMissionTerm(sourceTerm)))
+    })
+  }
 
   useEffect(() => {
     if (!vocabularyLoaded) {
@@ -343,6 +358,28 @@ export function EseGameSandboxPage() {
       cancelled = true
     }
   }, [missionSelectionContext, vocabularyLoaded])
+
+  useEffect(() => {
+    if (staleMissionCheckedRef.current) return
+    if (!vocabularyLoaded || missionVocabulary.status !== 'ready') return
+    if (!missionState.activeMission) return
+
+    staleMissionCheckedRef.current = true
+    if (missionHasLiveContextMatch(missionState.activeMission)) return
+
+    const mission = createMission(
+      missionVocabulary.prompts,
+      missionState.filters,
+      missionState.wordStats,
+      missionSelectionContext,
+    )
+    if (!mission) return
+
+    saveMissionState({
+      ...missionState,
+      activeMission: mission,
+    })
+  }, [missionSelectionContext, missionState, missionVocabulary.prompts, missionVocabulary.status, vocabularyLoaded])
 
   const missionThemes = useMemo(
     () => getMissionThemes(missionVocabulary.prompts),
@@ -432,11 +469,9 @@ export function EseGameSandboxPage() {
   // seen: shared across stages so the 3-word cap is enforced per whole game/session.
   // Returns the best consecutive-correct streak within this stage's answers.
   function applyStageAnswersToStore(
-    modeId: GameMode,
     answers: RunAnswer[],
     seen: Set<string>,
   ): number {
-    const now = new Date().toISOString()
     let bestStreak = 0
     let currentStreak = 0
     const resolveLiveItemId = (sourceWordId: string): string | null => {
@@ -471,20 +506,9 @@ export function EseGameSandboxPage() {
       const liveItemId = resolveLiveItemId(answer.sourceWordId)
       if (!liveItemId || seen.has(liveItemId)) continue
       seen.add(liveItemId)
-      if (modeId === 'phrase-upgrade') {
-        // Phrase Upgrade: only log usage on a correct answer; incorrect answers
-        // have no vocab-store effect (no SRS scheduling side-effect either).
-        if (answer.isCorrect) {
-          logUsageFn(liveItemId, {
-            usedAt: now,
-            context: 'conversation',
-            note: 'Phrase upgrade game',
-          })
-        }
-      } else {
-        // Sentence Repair + Recall Challenge: record exposure on every answer.
-        recordExposureFn(liveItemId, answer.isCorrect)
-      }
+      // Games reinforce vocabulary through capped exposure. Real-life usage is
+      // reserved for explicit usage logging or Daily Challenge real-life checks.
+      recordExposureFn(liveItemId, answer.isCorrect)
     }
     return bestStreak
   }
@@ -493,7 +517,7 @@ export function EseGameSandboxPage() {
     saveMissionState(recordMissionAnswers(missionState, modeId, answers))
     // Standalone game = one game, one recordGameCompletion call.
     const seen = new Set<string>()
-    const bestStreak = applyStageAnswersToStore(modeId, answers, seen)
+    const bestStreak = applyStageAnswersToStore(answers, seen)
     recordGameCompletion(bestStreak)
   }
 
@@ -513,8 +537,8 @@ export function EseGameSandboxPage() {
     // One shared seen set enforces the 3-word cap across all stages.
     const seen = new Set<string>()
     let overallBestStreak = 0
-    for (const [stageMode, answers] of Object.entries(stageAnswers) as [GameMode, RunAnswer[]][]) {
-      const stageBest = applyStageAnswersToStore(stageMode, answers, seen)
+    for (const answers of Object.values(stageAnswers) as RunAnswer[][]) {
+      const stageBest = applyStageAnswersToStore(answers, seen)
       overallBestStreak = Math.max(overallBestStreak, stageBest)
     }
     recordGameCompletion(overallBestStreak)
