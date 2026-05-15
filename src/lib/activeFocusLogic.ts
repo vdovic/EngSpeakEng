@@ -24,6 +24,29 @@ import { isDueChallengeNow } from '@/lib/challengeSchedule'
 
 /** Target size of the Active Focus visible set. */
 export const ACTIVE_FOCUS_LIMIT = 25
+export const STARTER_FOCUS_MIN = 10
+
+export const STARTER_FOCUS_TERMS = [
+  'acknowledge',
+  'accommodate',
+  'ascertain',
+  'at stake',
+  'bolster',
+  'blueprint',
+  'branch out',
+  'bring about',
+  'brush up',
+  'collate',
+  'get across',
+  'rule out',
+  'set up',
+  'take over',
+  'work out',
+]
+
+function normalizeTerm(value: string): string {
+  return value.toLowerCase().trim()
+}
 
 // ── selectActiveFocusItems ────────────────────────────────────────────────────
 
@@ -97,6 +120,40 @@ export function selectActiveFocusItems(
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((s) => s.item)
+}
+
+// ── selectStarterFocusItems ───────────────────────────────────────────────────
+
+export function selectStarterFocusItems(
+  items: VocabItem[],
+  limit: number = STARTER_FOCUS_MIN,
+): VocabItem[] {
+  const usableItems = items.filter((item) => !item.archived && item.status !== 'mastered')
+  const byTerm = new Map(usableItems.map((item) => [normalizeTerm(item.term), item]))
+  const selected: VocabItem[] = []
+  const selectedIds = new Set<string>()
+
+  for (const term of STARTER_FOCUS_TERMS) {
+    const item = byTerm.get(normalizeTerm(term))
+    if (!item || selectedIds.has(item.id)) continue
+    selected.push(item)
+    selectedIds.add(item.id)
+    if (selected.length >= limit) return selected
+  }
+
+  const fallback = usableItems
+    .filter((item) => {
+      if (selectedIds.has(item.id)) return false
+      return Boolean(item.definitionEn && (item.exampleSentence || item.workSentence))
+    })
+    .sort((a, b) => {
+      const aScore = (a.workSentence ? 2 : 0) + (a.exampleSentence ? 1 : 0) + (a.realLifeTask ? 1 : 0)
+      const bScore = (b.workSentence ? 2 : 0) + (b.exampleSentence ? 1 : 0) + (b.realLifeTask ? 1 : 0)
+      if (bScore !== aScore) return bScore - aScore
+      return a.term.localeCompare(b.term)
+    })
+
+  return [...selected, ...fallback].slice(0, limit)
 }
 
 // ── getSuggestedUsagePrompt ───────────────────────────────────────────────────

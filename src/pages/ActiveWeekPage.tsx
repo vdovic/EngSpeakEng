@@ -56,6 +56,7 @@ import { generateCandidates } from '@/lib/candidateLogic'
 import {
   ACTIVE_FOCUS_LIMIT,
   selectActiveFocusItems,
+  selectStarterFocusItems,
   getSuggestedUsagePrompt,
   getFocusProgressSummary,
   getCandidateReasonBadge,
@@ -430,6 +431,57 @@ function CandidateRow({
 
 // ─── Portfolio overview panel ─────────────────────────────────────────────────
 
+function StarterFocusPortfolio({
+  items,
+  onAdd,
+  onNavigate,
+}: {
+  items: VocabItem[]
+  onAdd: (item: VocabItem) => void
+  onNavigate: (item: VocabItem) => void
+}) {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+      <div className="mb-3">
+        <p className="text-sm font-bold text-slate-800">Starter Focus Portfolio</p>
+        <p className="mt-1 text-xs leading-relaxed text-slate-500">
+          These temporary Focus words help you begin practising while you build your own active vocabulary system.
+        </p>
+      </div>
+      <div className="space-y-2">
+        {items.map((item) => (
+          <div key={item.id} className="rounded-xl border border-amber-100 bg-white px-3 py-2.5">
+            <div className="flex items-start gap-2">
+              <button onClick={() => onNavigate(item)} className="min-w-0 flex-1 text-left">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-sm font-semibold text-slate-900">{item.term}</span>
+                  <TypeBadge type={item.type} />
+                  <LevelBadge item={item} compact />
+                </div>
+                <p className="mt-1 truncate text-[11px] text-slate-400">
+                  {item.shortDefinition ?? item.definitionEn ?? ''}
+                </p>
+              </button>
+              <ExposureBar count={item.exposureCount ?? 0} />
+            </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-[11px] italic text-slate-500">
+                {getSuggestedUsagePrompt(item)}
+              </p>
+              <button
+                onClick={() => onAdd(item)}
+                className="shrink-0 rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100"
+              >
+                Add to Focus
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function PortfolioOverview({
   summary,
   onShowAll,
@@ -543,6 +595,10 @@ export function ActiveWeekPage() {
   const activeFocusItems = useMemo(
     () => selectActiveFocusItems(focusItems, ACTIVE_FOCUS_LIMIT, activeThemes),
     [focusItems, activeThemes],
+  )
+  const starterFocusItems = useMemo(
+    () => (focusItems.length === 0 ? selectStarterFocusItems(items) : []),
+    [focusItems.length, items],
   )
 
   const orderedActiveFocus = useMemo(() => {
@@ -709,12 +765,18 @@ export function ActiveWeekPage() {
         <FocusGamesBridge />
 
         {focusItems.length === 0 ? (
-          /* ── Empty state ── */
+          starterFocusItems.length >= 10 ? (
+            <StarterFocusPortfolio
+              items={starterFocusItems}
+              onAdd={(item) => setFocusThisWeek(item.id, true)}
+              onNavigate={(item) => navigate(`/item/${item.id}`)}
+            />
+          ) : (
           <div className="text-center py-10 bg-slate-50 rounded-2xl border border-slate-200">
             <Target size={32} className="mx-auto mb-2 text-slate-300" />
-            <p className="font-semibold text-slate-500 mb-1">Your Focus Portfolio is empty</p>
+            <p className="font-semibold text-slate-500 mb-1">Your Focus Portfolio is starting up</p>
             <p className="text-xs text-slate-400 max-w-xs mx-auto mb-4">
-              Start by adding a few suggested candidates below.
+              Add a few suggested candidates below to shape your first active vocabulary set.
             </p>
             <div className="flex flex-col items-center gap-2">
               <button
@@ -740,6 +802,7 @@ export function ActiveWeekPage() {
               </button>
             </div>
           </div>
+          )
         ) : (
           <>
             {dragTooltip && (
