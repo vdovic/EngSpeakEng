@@ -571,9 +571,9 @@ export function EseGameSandboxPage() {
                 Practice Games
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300 sm:mt-3">
-                Lighter fluency reinforcement for the vocabulary you are actively learning. Practice Games reuse your
-                Focus portfolio through sentence repair, recall, and phrase precision, while Challenges remain your
-                main structured learning path.
+                Practice Games are lighter fluency drills for your active vocabulary. They reinforce mission words
+                through sentence repair, recall, and phrase precision, while Challenges remain your main structured
+                learning path.
               </p>
               <p className="mt-2 max-w-2xl text-xs leading-5 text-neutral-500">
                 Sentence Repair is the main mechanic: rebuild realistic English naturally, then reinforce it with short
@@ -590,6 +590,7 @@ export function EseGameSandboxPage() {
             missionVocabulary={missionVocabulary}
             missionWords={activeMissionWords}
             activeFocusItems={activeFocusItems}
+            realActiveFocusCount={realActiveFocusItems.length}
             isUsingStarterFocus={isUsingStarterFocus}
             themes={missionThemes}
             categoryCounts={categoryCounts}
@@ -638,6 +639,7 @@ function MissionControlPanel({
   missionVocabulary,
   missionWords,
   activeFocusItems,
+  realActiveFocusCount,
   isUsingStarterFocus,
   themes,
   categoryCounts,
@@ -654,6 +656,7 @@ function MissionControlPanel({
   missionVocabulary: PromptLibraryState<StarterPackMissionWord>
   missionWords: StarterPackMissionWord[]
   activeFocusItems: VocabItem[]
+  realActiveFocusCount: number
   isUsingStarterFocus: boolean
   themes: string[]
   categoryCounts: Record<string, number>
@@ -679,22 +682,26 @@ function MissionControlPanel({
   const selectedFocusItems = activeFocusItems.filter((item) =>
     selectedFocusKeys.has(normalizeMissionTerm(item.term)),
   )
-  const selectedFocusCount = selectedFocusItems.length
-  const libraryReinforcementCount = Math.max(0, missionWords.length - selectedFocusCount)
+  const sourceMatchedCount = selectedFocusItems.length
+  const libraryReinforcementCount = Math.max(0, missionWords.length - sourceMatchedCount)
+  const realFocusWordsInMission = isUsingStarterFocus ? 0 : sourceMatchedCount
+  const starterWordsInMission = isUsingStarterFocus ? sourceMatchedCount : 0
   const vocabularySourceLabel = isUsingStarterFocus
-    ? 'Starter Focus vocabulary'
-    : selectedFocusCount > 0
-      ? 'Your active Focus portfolio'
+    ? 'Using starter vocabulary while you build your Focus portfolio'
+    : realFocusWordsInMission > 0 && libraryReinforcementCount === 0
+      ? 'Built from your Focus portfolio'
+      : realFocusWordsInMission > 0
+        ? 'Mixed Focus and library reinforcement vocabulary'
       : 'Library reinforcement vocabulary'
   const sourceBreakdown = isUsingStarterFocus
-    ? `${selectedFocusCount} Starter Focus words${libraryReinforcementCount ? ` - ${libraryReinforcementCount} library reinforcement words` : ''}`
-    : `${selectedFocusCount} Focus words${libraryReinforcementCount ? ` - ${libraryReinforcementCount} library reinforcement words` : ''}`
+    ? `${starterWordsInMission} starter words${libraryReinforcementCount ? ` - ${libraryReinforcementCount} library reinforcement words` : ''}`
+    : `${realFocusWordsInMission} Focus words${libraryReinforcementCount ? ` - ${libraryReinforcementCount} library reinforcement words` : ''}`
   const exampleMissionWords = missionWords.slice(0, 10)
   const missionReason = filters.focusWeakAreas
     ? 'Selected from priority vocabulary that needs another pass, with Sentence Repair weighted first.'
     : isUsingStarterFocus
-      ? 'This mission uses your Starter Focus vocabulary until you add your own active Focus words.'
-      : selectedFocusCount > 0
+      ? 'Starter mission vocabulary helps you begin practising while you build your own Focus portfolio.'
+      : realFocusWordsInMission > 0
         ? 'Selected from your active Focus words, with library reinforcement when a prompt needs context.'
         : 'Selected from the practice library while your Focus portfolio finishes loading or has no prompt match yet.'
 
@@ -731,6 +738,9 @@ function MissionControlPanel({
               </p>
               <p className="mt-1 text-sm font-semibold text-neutral-100">{vocabularySourceLabel}</p>
               <p className="mt-1 text-xs leading-5 text-neutral-400">{sourceBreakdown}</p>
+              <p className="mt-1 text-xs leading-5 text-neutral-500">
+                Focus portfolio size: {realActiveFocusCount} - Words in this mission: {missionWords.length}
+              </p>
               {isUsingStarterFocus && (
                 <p className="mt-2 text-xs leading-5 text-amber-200">
                   These temporary Focus words help you begin practising while you build your own active vocabulary system.
@@ -755,11 +765,18 @@ function MissionControlPanel({
               <div className="mt-3 flex flex-wrap gap-2">
                 {exampleMissionWords.length ? (
                   exampleMissionWords.map((word) => (
-                    <MissionWordChip
-                      key={word.id}
-                      word={word}
-                      focusItem={focusItemByTerm.get(normalizeMissionTerm(word.term))}
-                    />
+                  <MissionWordChip
+                    key={word.id}
+                    word={word}
+                    focusItem={focusItemByTerm.get(normalizeMissionTerm(word.term))}
+                    sourceKind={
+                      focusItemByTerm.has(normalizeMissionTerm(word.term))
+                        ? isUsingStarterFocus
+                          ? 'starter'
+                          : 'focus'
+                        : 'library'
+                    }
+                  />
                   ))
                 ) : (
                   <span className="text-sm text-neutral-400">
@@ -775,6 +792,41 @@ function MissionControlPanel({
               Open Focus
             </a>
           </div>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-[1.4fr_1fr_1fr_1fr]">
+          <button
+            type="button"
+            onClick={onStartDailySession}
+            disabled={!canStart}
+            className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Start mixed mission
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('sentence-repair')}
+            disabled={!canStart}
+            className="rounded-md border border-teal-400 px-5 py-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Sentence Repair only
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('recall-challenge')}
+            disabled={!canStart}
+            className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Recall only
+          </button>
+          <button
+            type="button"
+            onClick={() => onStart('phrase-upgrade')}
+            disabled={!canStart}
+            className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Phrase Upgrade only
+          </button>
         </div>
 
         <details className="mt-5 rounded-md border border-neutral-800 bg-neutral-950 p-4">
@@ -941,7 +993,7 @@ function MissionControlPanel({
                 Practice focus
               </p>
               <p className="mt-2 text-neutral-200">
-                {activeMission.composition.weak} priority / {selectedFocusCount} source-matched
+                {activeMission.composition.weak} priority / {sourceMatchedCount} source-matched
               </p>
             </div>
           </div>
@@ -1054,40 +1106,6 @@ function MissionControlPanel({
           </div>
         )}
 
-        <div className="mt-7 grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={onStartDailySession}
-            disabled={!canStart}
-            className="rounded-md bg-teal-400 px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
-          >
-            Start mixed Focus practice
-          </button>
-          <button
-            type="button"
-            onClick={() => onStart('sentence-repair')}
-            disabled={!canStart}
-            className="rounded-md border border-teal-400 px-5 py-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Sentence Repair only
-          </button>
-          <button
-            type="button"
-            onClick={() => onStart('phrase-upgrade')}
-            disabled={!canStart}
-            className="rounded-md border border-teal-400 px-5 py-3 text-sm font-semibold text-teal-200 transition hover:bg-teal-400 hover:text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Phrase Upgrade only
-          </button>
-          <button
-            type="button"
-            onClick={() => onStart('recall-challenge')}
-            disabled={!canStart}
-            className="rounded-md border border-neutral-700 px-5 py-3 text-sm font-semibold text-neutral-100 transition hover:border-neutral-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Recall only
-          </button>
-        </div>
       </div>
     </section>
   )
@@ -1096,27 +1114,32 @@ function MissionControlPanel({
 function MissionWordChip({
   word,
   focusItem,
+  sourceKind,
 }: {
   word: StarterPackMissionWord
   focusItem?: VocabItem
+  sourceKind: 'focus' | 'starter' | 'library'
 }) {
   const exposure = Math.min(focusItem?.exposureCount ?? 0, 8)
   const confidence = focusItem?.activation?.confidenceLevel ?? 0
   const confidenceLabel =
     confidence >= 3 ? 'confident' : confidence === 2 ? 'building' : confidence === 1 ? 'unstable' : 'new'
-  const selected = Boolean(focusItem)
+  const isSourceMatched = sourceKind !== 'library'
+  const sourceLabel = sourceKind === 'focus' ? 'Focus' : sourceKind === 'starter' ? 'starter' : 'library'
 
   return (
     <span
       className={`inline-flex min-h-9 items-center gap-2 rounded border px-2.5 py-1.5 text-xs font-medium ${
-        selected
+        sourceKind === 'focus'
           ? 'border-teal-300 bg-teal-300 text-neutral-950'
+          : sourceKind === 'starter'
+            ? 'border-amber-300 bg-amber-300 text-neutral-950'
           : 'border-neutral-700 bg-neutral-800 text-neutral-200'
       }`}
-      title={selected ? `${exposure}/8 exposures, confidence ${confidenceLabel}` : 'Mission word matched from the practice library'}
+      title={isSourceMatched ? `${exposure}/8 exposures, confidence ${confidenceLabel}` : 'Mission word matched from the practice library'}
     >
       <span>{word.term}</span>
-      {selected ? (
+      {isSourceMatched ? (
         <>
           <span className="text-neutral-800">{exposure}/8</span>
           <span className="flex gap-0.5" aria-label={`confidence ${confidenceLabel}`}>
@@ -1131,7 +1154,10 @@ function MissionWordChip({
           </span>
         </>
       ) : (
-        <span className="text-neutral-400">context</span>
+        <span className="text-neutral-400">{sourceLabel}</span>
+      )}
+      {isSourceMatched && (
+        <span className="text-neutral-800">{sourceLabel}</span>
       )}
     </span>
   )

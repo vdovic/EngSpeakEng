@@ -82,7 +82,7 @@ function FocusGamesBridge() {
           <Gamepad2 size={15} aria-hidden="true" />
         </div>
         <p className="text-xs font-medium leading-snug text-teal-900">
-          Want a lighter drill? Practice these Focus words in games.
+          Want a lighter drill? Practice mission vocabulary in Games.
         </p>
       </div>
       <span className="shrink-0 text-xs font-bold text-teal-700">Open Practice Games</span>

@@ -533,14 +533,6 @@ function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
   )
 }
 
-function BetaBadge() {
-  return (
-    <span className="inline-flex items-center rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-teal-700">
-      Beta
-    </span>
-  )
-}
-
 function GamesSection() {
   if (!isEseGameExperimentEnabled) return null
 
@@ -557,10 +549,9 @@ function GamesSection() {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <p className="text-sm font-bold text-slate-900">Practice Games</p>
-              <BetaBadge />
             </div>
             <p className="mt-0.5 text-sm leading-snug text-slate-600">
-              Optional drills for Focus words: recognition, recall, sentence repair, and phrase fluency.
+              Optional fluency drills for mission vocabulary: sentence repair, recall, and phrase precision.
             </p>
           </div>
         </div>
