@@ -580,26 +580,6 @@ export function EseGameSandboxPage() {
                 recall and phrase-upgrade moments.
               </p>
             </div>
-            <div className="w-fit max-w-full rounded-md border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-neutral-400">
-              Focus-linked reinforcement
-            </div>
-          </div>
-          <div className="mt-4 grid gap-2 sm:inline-grid sm:grid-cols-3">
-            <ModeButton
-              active={mode === 'sentence-repair'}
-              label="Sentence Repair"
-              onClick={() => startMission('sentence-repair')}
-            />
-            <ModeButton
-              active={mode === 'phrase-upgrade'}
-              label="Phrase Upgrade"
-              onClick={() => startMission('phrase-upgrade')}
-            />
-            <ModeButton
-              active={mode === 'recall-challenge'}
-              label="Recall"
-              onClick={() => startMission('recall-challenge')}
-            />
           </div>
         </header>
 
@@ -649,30 +629,6 @@ export function EseGameSandboxPage() {
         )}
       </div>
     </main>
-  )
-}
-
-function ModeButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-md border px-4 py-2 text-sm font-semibold transition ${
-        active
-          ? 'border-teal-300 bg-teal-300 text-neutral-950'
-          : 'border-neutral-700 bg-neutral-900 text-neutral-200 hover:border-neutral-500'
-      }`}
-    >
-      {label}
-    </button>
   )
 }
 
