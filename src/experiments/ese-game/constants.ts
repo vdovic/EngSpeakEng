@@ -18,3 +18,6 @@ export const MISSION_CONTROL_STATE_KEY =
 
 export const DAILY_TRAINING_SESSION_KEY =
   `${ESE_GAME_EXPERIMENT_LS_PREFIX}daily-training-session`
+
+export const CHALLENGE_GAME_HANDOFF_KEY =
+  `${ESE_GAME_EXPERIMENT_LS_PREFIX}challenge-game-handoff`

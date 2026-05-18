@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
-  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen, Info,
+  ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen, Info, Gamepad2,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -23,6 +23,10 @@ import {
   saveSession, loadTodaySession, clearSession, todayKey, getUniqueWordProgress,
   PRACTICE_MODE_KEY,
 } from '@/lib/challengeSession'
+import {
+  CHALLENGE_GAME_HANDOFF_KEY,
+  ESE_GAME_EXPERIMENT_ROUTE,
+} from '@/experiments/ese-game/constants'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -49,6 +53,7 @@ type FeedbackState = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const DEEP_TIMER_SECONDS = 60
+const isEseGameExperimentEnabled = import.meta.env.VITE_ENABLE_ESE_GAME_EXPERIMENT === 'true'
 
 const DEEP_PROMPTS: Partial<Record<ChallengeType | 'recognition', string>> = {
   'definition-choice': 'Read the definition and compare similar meanings.',
@@ -897,9 +902,26 @@ export function DailyChallengePage() {
     const totalPoints = results.reduce((s, r) => s + r.points, 0)
     const correctCount = results.filter((r) => r.correct).length
     const total = results.length
+    const completedChallengeItems = uniqueSlotsByItem(slots)
+      .map((slot) => allItems.find((i) => i.id === slot.item.id) ?? slot.item)
+      .filter((item) => !item.archived)
+    const canPlaySameWordsInGames = isEseGameExperimentEnabled && completedChallengeItems.length > 0
     const bonusAvailable = !isBonus && allItems.some(
       (i) => !usedItemIds.current.has(i.id) && !i.archived && i.definitionEn,
     )
+
+    function playSameWordsInGames() {
+      localStorage.setItem(
+        CHALLENGE_GAME_HANDOFF_KEY,
+        JSON.stringify({
+          createdAt: new Date().toISOString(),
+          source: 'daily-challenge',
+          itemIds: completedChallengeItems.map((item) => item.id),
+          terms: completedChallengeItems.map((item) => item.term),
+        }),
+      )
+      window.location.assign(`${ESE_GAME_EXPERIMENT_ROUTE}?source=challenge-complete`)
+    }
 
     return (
       <div className="max-w-md mx-auto px-4 py-10 pb-32 text-center">
@@ -1013,6 +1035,16 @@ export function DailyChallengePage() {
             >
               <RotateCcw size={15} />
               Same words again
+            </button>
+          )}
+
+          {canPlaySameWordsInGames && (
+            <button
+              onClick={playSameWordsInGames}
+              className="w-full py-3 border border-teal-200 bg-teal-50 text-teal-800 rounded-xl font-semibold hover:bg-teal-100 transition-colors flex items-center justify-center gap-2"
+            >
+              <Gamepad2 size={16} />
+              Play these words in Games
             </button>
           )}
 

@@ -54,6 +54,7 @@ import {
   saveSentenceRepairProgress,
   SentenceRepairProgress,
 } from './storage'
+import { CHALLENGE_GAME_HANDOFF_KEY } from './constants'
 import type { VocabItem } from '@/types/vocabulary'
 
 const PROMPTS_PER_RUN = 6
@@ -62,6 +63,13 @@ const DAILY_SENTENCE_PROMPTS = 5
 const DAILY_PHRASE_PROMPTS = 3
 const DAILY_RECALL_PROMPTS = 2
 const DAILY_TOTAL_PROMPTS = DAILY_SENTENCE_PROMPTS + DAILY_PHRASE_PROMPTS + DAILY_RECALL_PROMPTS
+
+interface ChallengeGameHandoff {
+  createdAt?: string
+  source?: string
+  itemIds?: string[]
+  terms?: string[]
+}
 
 type GameMode = 'sentence-repair' | 'phrase-upgrade' | 'recall-challenge'
 type Screen = 'mission-control' | 'game' | 'daily-session'
@@ -219,6 +227,59 @@ function hasUsableGameData(item: VocabItem): boolean {
         item.sentenceFrames.length > 0
       ),
   )
+}
+
+function buildChallengeHandoffMission(
+  payload: ChallengeGameHandoff,
+  words: StarterPackMissionWord[],
+  stats: MissionControlState['wordStats'],
+): Mission | null {
+  const termKeys = new Set((payload.terms ?? []).map(normalizeMissionTerm).filter(Boolean))
+  if (termKeys.size === 0) return null
+
+  const selectedWords: StarterPackMissionWord[] = []
+  const seenIds = new Set<string>()
+  for (const word of words) {
+    if (!termKeys.has(normalizeMissionTerm(word.term)) || seenIds.has(word.id)) {
+      continue
+    }
+    selectedWords.push(word)
+    seenIds.add(word.id)
+  }
+  if (selectedWords.length === 0) return null
+
+  const composition = {
+    b2: selectedWords.filter((word) => word.difficulty === 'B2').length,
+    c1: selectedWords.filter((word) => word.difficulty === 'C1').length,
+    words: selectedWords.filter((word) => word.type === 'word').length,
+    phrases: selectedWords.filter((word) => word.type === 'phrase').length,
+    chunks: selectedWords.filter((word) => word.type === 'chunk').length,
+    weak: 0,
+    business: selectedWords.filter((word) => word.categories.includes('business')).length,
+    meetings: selectedWords.filter((word) => word.categories.includes('meetings')).length,
+    email: selectedWords.filter((word) => word.categories.includes('email')).length,
+    fluency: selectedWords.filter((word) => word.categories.includes('fluency')).length,
+    phrasalVerbs: selectedWords.filter((word) => word.categories.includes('phrasal verbs')).length,
+    starterPack: selectedWords.filter((word) => word.source === 'starter-pack').length,
+    migrationVocab: selectedWords.filter((word) => word.source === 'migration-vocab').length,
+  }
+
+  return {
+    id: `mission-challenge-handoff-${Date.now()}`,
+    title: 'Daily Challenge Words',
+    theme: selectedWords[0]?.packTheme ?? 'Challenge Review',
+    difficulty: 'Any',
+    category: 'Any',
+    style: 'mixed',
+    targetCount: selectedWords.length,
+    estimatedMinutes: Math.max(3, Math.ceil(selectedWords.length * 0.7)),
+    vocabularyIds: selectedWords.map((word) => word.id),
+    createdAt: new Date().toISOString(),
+    composition,
+    progress: Object.fromEntries(
+      selectedWords.map((word) => [word.id, stats[word.id] ?? { attempts: 0, correct: 0, modes: {} }]),
+    ),
+  }
 }
 
 export function EseGameSandboxPage() {
@@ -386,6 +447,37 @@ export function EseGameSandboxPage() {
       activeMission: mission,
     })
   }, [missionSelectionContext, missionState, missionVocabulary.prompts, missionVocabulary.status, vocabularyLoaded])
+
+  useEffect(() => {
+    if (missionVocabulary.status !== 'ready') return
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('source') !== 'challenge-complete') return
+
+    const rawPayload = localStorage.getItem(CHALLENGE_GAME_HANDOFF_KEY)
+    if (!rawPayload) return
+
+    try {
+      const payload = JSON.parse(rawPayload) as ChallengeGameHandoff
+      const mission = buildChallengeHandoffMission(
+        payload,
+        missionVocabulary.prompts,
+        missionState.wordStats,
+      )
+      localStorage.removeItem(CHALLENGE_GAME_HANDOFF_KEY)
+      if (!mission) return
+
+      const nextState = {
+        ...missionState,
+        activeMission: mission,
+      }
+      setMissionState(saveMissionControlState(nextState))
+      setMode('sentence-repair')
+      setScreen('game')
+    } catch {
+      localStorage.removeItem(CHALLENGE_GAME_HANDOFF_KEY)
+    }
+  }, [missionState, missionVocabulary.prompts, missionVocabulary.status])
 
   const missionThemes = useMemo(
     () => getMissionThemes(missionVocabulary.prompts),
