@@ -238,6 +238,44 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       }
     }
 
+    // ── Translations backfill ────────────────────────────────────────────────
+    // When migration-vocab.json is updated with translations after an item was
+    // already written to IndexedDB, the top-up block above silently skips it
+    // (top-up only adds *new* items, never updates existing ones).
+    // This pass detects items with empty/missing translations and fills them
+    // from the seed.  Safe: touches only the `translations` field and only
+    // when it is currently blank.  Idempotent once translations are populated.
+    if (migrationSeed.length > 0) {
+      const seedById   = new Map(migrationSeed.map((s) => [s.id,                          s]))
+      const seedByTerm = new Map(migrationSeed.map((s) => [s.term.toLowerCase().trim(),   s]))
+
+      type TransPatch = { id: string; translations: NonNullable<VocabItem['translations']> }
+      const patches: TransPatch[] = []
+
+      for (const item of all) {
+        const t = item.translations
+        if (t && (t.uk || t.pl || t.ru)) continue   // already has translations
+
+        const seed = seedById.get(item.id) ?? seedByTerm.get(item.term.toLowerCase().trim())
+        const st   = seed?.translations
+        if (st && (st.uk || st.pl || st.ru)) {
+          patches.push({ id: item.id, translations: st })
+        }
+      }
+
+      if (patches.length > 0) {
+        const patchMap = new Map(patches.map((p) => [p.id, p.translations]))
+        await db.items
+          .where('id').anyOf([...patchMap.keys()])
+          .modify((item) => { item.translations = patchMap.get(item.id) })
+          .catch(() => { /* non-fatal */ })
+        all = (await db.items.filter((i) => !i.archived).toArray()).map((i) => ({
+          ...i,
+          themes: i.themes ?? [],
+        }))
+      }
+    }
+
     // ── My Current Focus weekly reset ─────────────────────────────────────────
     // If a new week has started since the last load, evict the lowest-priority
     // focus items (keep top 65%) to make room for fresh struggling/new words.
