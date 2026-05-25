@@ -405,8 +405,8 @@
     ],
     "translations": {
       "uk": "легке завдання",
-      "pl": "spacer w parku",
-      "ru": "легко как прогулка"
+      "pl": "łatwe zadanie / spacer w parku",
+      "ru": "простое дело / прогулка в парке"
     },
     "synonyms": [
       "a piece of cake",
@@ -2243,7 +2243,7 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "підйом / спиця",
+      "uk": "підйом / піднесення",
       "pl": "wzniesienie / wspinaczka",
       "ru": "подъем / восхождение"
     },
@@ -3882,9 +3882,9 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "нахабний / мідяний",
-      "pl": "bezczelny / mosiężny",
-      "ru": "наглый / медный"
+      "uk": "безсоромний / нахабний",
+      "pl": "bezczelny / bezwstydny",
+      "ru": "бесстыдный / наглый"
     },
     "synonyms": [
       "audacious",
@@ -4075,9 +4075,9 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "за імплікацією",
-      "pl": "przez implikację",
-      "ru": "по подразумеванию"
+      "uk": "непрямо / між рядків",
+      "pl": "przez implikację / pośrednio",
+      "ru": "косвенно / подразумевается"
     },
     "synonyms": [
       "implicitly",
@@ -4206,9 +4206,9 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "плавучий / веселий",
-      "pl": "pływający / wesoły",
-      "ru": "плавучий / веселый"
+      "uk": "жвавий / оптимістичний",
+      "pl": "dynamiczny / optymistyczny",
+      "ru": "динамичный / оптимистичный"
     },
     "synonyms": [
       "floating",
@@ -8324,7 +8324,7 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "спустошити / обезсилити",
+      "uk": "спустошити / зруйнувати",
       "pl": "zniszczyć / osłabić",
       "ru": "опустошить / ослабить"
     },
@@ -8523,8 +8523,8 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "перевтомлений / розвалюється",
-      "pl": "zniszczony / ropadający się",
+      "uk": "занедбаний / що розвалюється",
+      "pl": "zniszczony / rozpadający się",
       "ru": "обветшалый / разрушающийся"
     },
     "synonyms": [
@@ -10297,9 +10297,9 @@
       "phrasal-verb"
     ],
     "translations": {
-      "uk": "провалитися в щілину / залишитися без уваги",
-      "pl": "paść między kraje / zostać niezauważonym",
-      "ru": "провалиться в щель / остаться без внимания"
+      "uk": "залишитися без уваги / провалитися в щілину",
+      "pl": "umknąć uwadze / paść między kraje",
+      "ru": "остаться без внимания / провалиться в щель"
     },
     "synonyms": [
       "slip through the cracks",
@@ -11203,9 +11203,9 @@
       "phrasal-verb"
     ],
     "translations": {
-      "uk": "дійти до дна / дізнатися правду",
+      "uk": "докопатися до правди / з'ясувати суть",
       "pl": "dotrzeć do sedna / poznać prawdę",
-      "ru": "добраться до дна / узнать правду"
+      "ru": "докопаться до истины / разобраться"
     },
     "synonyms": [
       "uncover the root cause",
@@ -12051,9 +12051,9 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "мати в розпорядженні / бути зайнятим",
-      "pl": "mieć w głowie / być zajętym",
-      "ru": "иметь в виду / быть занятым"
+      "uk": "мати купу справ / бути завантаженим",
+      "pl": "mieć pełno na głowie / być zajętym",
+      "ru": "иметь много дел / быть загруженным"
     },
     "synonyms": [
       "have on your hands",
@@ -12965,7 +12965,7 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "неминучий / безмилосердний",
+      "uk": "невблаганний / безжалісний",
       "pl": "nieubłagany / bezlitosny",
       "ru": "неумолимый / беспощадный"
     },
@@ -14480,7 +14480,7 @@
     "translations": {
       "uk": "безтурботний / легкий",
       "pl": "beztroski / wesoły",
-      "ru": "беззаботный / легкомысленный"
+      "ru": "беззаботный / жизнерадостный"
     },
     "synonyms": [
       "cheerful",
@@ -16506,9 +16506,9 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "очевидний / удаваний",
+      "uk": "удаваний / позірний",
       "pl": "pozorny / rzekomy",
-      "ru": "очевидный / мнимый"
+      "ru": "мнимый / кажущийся"
     },
     "synonyms": [
       "apparent",
@@ -17798,7 +17798,7 @@
       "vocabulary"
     ],
     "translations": {
-      "uk": "увічнювати / продовжувати",
+      "uk": "зберігати / увічнювати",
       "pl": "utrwalać / podtrzymywać",
       "ru": "увековечивать / поддерживать"
     },
