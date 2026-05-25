@@ -13098,7 +13098,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "незрозумілий / невиясненний",
+      "pl": "niewyjaśniony / niezrozumiały",
+      "ru": "необъяснимый / непостижимый"
+    },
     "synonyms": [
       "unexplainable",
       "mysterious",
@@ -13160,7 +13164,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "безкарність",
+      "pl": "bezkarność",
+      "ru": "безнаказанность"
+    },
     "synonyms": [
       "immunity",
       "exemption",
@@ -13223,7 +13231,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "приплив / наплив",
+      "pl": "napływ / przypływ",
+      "ru": "наплыв / приток"
+    },
     "synonyms": [
       "inflow",
       "flood",
@@ -13285,7 +13297,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "наповнювати / насичувати",
+      "pl": "nasycać / przepajać",
+      "ru": "наполнять / насыщать"
+    },
     "synonyms": [
       "imbue",
       "permeate",
@@ -13347,7 +13363,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "підбурювати / провокувати",
+      "pl": "podżegać / prowokować",
+      "ru": "подстрекать / провоцировать"
+    },
     "synonyms": [
       "provoke",
       "incite",
@@ -13409,7 +13429,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "складний / деталізований",
+      "pl": "skomplikowany / misterny",
+      "ru": "замысловатый / сложный"
+    },
     "synonyms": [
       "complex",
       "complicated",
@@ -13471,7 +13495,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "ізоляція / утеплення",
+      "pl": "izolacja / ocieplenie",
+      "ru": "изоляция / утепление"
+    },
     "synonyms": [
       "protection",
       "barrier",
@@ -13531,7 +13559,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "непереможний / нездоланний",
+      "pl": "niezwyciężony / niepokonany",
+      "ru": "непобедимый / непреодолимый"
+    },
     "synonyms": [
       "unbeatable",
       "unconquerable",
@@ -13593,7 +13625,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "повстання / заколот",
+      "pl": "powstanie / bunt",
+      "ru": "восстание / мятеж"
+    },
     "synonyms": [
       "rebellion",
       "uprising",
@@ -13655,7 +13691,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "вирішити / залагодити",
+      "pl": "wygładzić / rozwiązać",
+      "ru": "уладить / сгладить"
+    },
     "synonyms": [
       "resolve",
       "settle",
@@ -13716,7 +13756,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "зрошувати / поливати",
+      "pl": "nawadniać / irygować",
+      "ru": "орошать / ирригировать"
+    },
     "synonyms": [
       "water",
       "hydrate",
@@ -13777,7 +13821,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "нетерплячий / сверблячий",
+      "pl": "niecierpliwy / swędzący",
+      "ru": "нетерпеливый / зудящий"
+    },
     "synonyms": [
       "scratchy",
       "tingling",
@@ -13839,7 +13887,11 @@
     "tags": [
       "phrasal-verb"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "тримати на відстані / стримувати",
+      "pl": "trzymać na dystans / powstrzymywać",
+      "ru": "держать на расстоянии / сдерживать"
+    },
     "synonyms": [
       "keep at arm's length",
       "hold back",
@@ -13901,7 +13953,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "затримка / латентність",
+      "pl": "opóźnienie / latencja",
+      "ru": "задержка / латентность"
+    },
     "synonyms": [
       "delay",
       "lag",
@@ -13962,7 +14018,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "оплакувати / жалкувати",
+      "pl": "lamentować / opłakiwać",
+      "ru": "сожалеть / оплакивать"
+    },
     "synonyms": [
       "mourn",
       "grieve",
@@ -14024,7 +14084,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "комора / продуктова комора",
+      "pl": "spiżarnia / kredens",
+      "ru": "кладовая / провизионная"
+    },
     "synonyms": [
       "pantry",
       "storage cupboard",
@@ -14081,7 +14145,11 @@
     "tags": [
       "phrasal-verb"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "вирівнюватися / стабілізуватися",
+      "pl": "wyrównywać się / stabilizować się",
+      "ru": "выравниваться / стабилизироваться"
+    },
     "synonyms": [
       "plateau",
       "stabilize",
@@ -14144,7 +14212,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "імпульсивний / рефлекторний",
+      "pl": "odruchowy / impulsywny",
+      "ru": "рефлекторный / импульсивный"
+    },
     "synonyms": [
       "reflexive",
       "automatic",
@@ -14207,7 +14279,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "поблажливість / поблажка",
+      "pl": "pobłażliwość / łagodność",
+      "ru": "снисходительность / мягкость"
+    },
     "synonyms": [
       "clemency",
       "mercy",
@@ -14269,7 +14345,11 @@
     "tags": [
       "phrasal-verb"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "не відставати / встигати",
+      "pl": "nadążać / dotrzymywać kroku",
+      "ru": "не отставать / успевать"
+    },
     "synonyms": [
       "stay abreast of",
       "keep pace with",
@@ -14331,7 +14411,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "неохочий / небажаючий",
+      "pl": "niechętny / oporny",
+      "ru": "нежелающий / противящийся"
+    },
     "synonyms": [
       "reluctant",
       "unwilling",
@@ -14393,7 +14477,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "безтурботний / легкий",
+      "pl": "beztroski / wesoły",
+      "ru": "беззаботный / легкомысленный"
+    },
     "synonyms": [
       "cheerful",
       "playful",
@@ -14456,7 +14544,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "жадання / пристрасть",
+      "pl": "żądza / namiętność",
+      "ru": "жажда / страсть"
+    },
     "synonyms": [
       "craving",
       "yearning",
@@ -14518,7 +14610,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "підтримувати / зберігати",
+      "pl": "utrzymywać / podtrzymywać",
+      "ru": "поддерживать / сохранять"
+    },
     "synonyms": [
       "preserve",
       "sustain",
@@ -14580,7 +14676,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "перший / дебютний",
+      "pl": "pierwszy / debiutancki",
+      "ru": "первый / дебютный"
+    },
     "synonyms": [
       "young woman",
       "girl",
@@ -14638,7 +14738,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "принаджувати / заманювати",
+      "pl": "nęcić / wabić",
+      "ru": "приманивать / заманивать"
+    },
     "synonyms": [
       "entice",
       "tempt",
@@ -14700,7 +14804,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "зловмисність / злий умисел",
+      "pl": "złośliwość / złe intencje",
+      "ru": "злой умысел / злоба"
+    },
     "synonyms": [
       "spite",
       "venom",
@@ -14762,7 +14870,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "недуга / хвороба",
+      "pl": "choroba / dolegliwość",
+      "ru": "недуг / болезнь"
+    },
     "synonyms": [
       "ailment",
       "illness",
@@ -14823,7 +14935,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "тим часом / а поки що",
+      "pl": "w międzyczasie / tymczasem",
+      "ru": "тем временем / пока что"
+    },
     "synonyms": [
       "meanwhile",
       "in the interim",
@@ -14880,7 +14996,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "водночас / тим часом",
+      "pl": "tymczasem / jednocześnie",
+      "ru": "между тем / одновременно"
+    },
     "synonyms": [
       "in the meantime",
       "at the same time",
@@ -14937,7 +15057,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "нудотно-сентиментальний / солодкуватий",
+      "pl": "ckliwy / mdły",
+      "ru": "слащавый / приторный"
+    },
     "synonyms": [
       "saccharine",
       "maudlin",
@@ -15000,7 +15124,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "крихта / мінімум",
+      "pl": "odrobina / minimum",
+      "ru": "крупица / толика"
+    },
     "synonyms": [
       "smidgen",
       "trace",
@@ -15062,7 +15190,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "міністр / обслуговувати",
+      "pl": "minister / służyć",
+      "ru": "министр / обслуживать"
+    },
     "synonyms": [
       "official",
       "cabinet member",
@@ -15121,7 +15253,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "різноманітний / різний",
+      "pl": "różnorodny / różny",
+      "ru": "разнообразный / разный"
+    },
     "synonyms": [
       "assorted",
       "mixed",
@@ -15183,7 +15319,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "метод роботи / принцип дії",
+      "pl": "modus operandi / metoda działania",
+      "ru": "modus operandi / метод работы"
+    },
     "synonyms": [
       "method",
       "approach",
@@ -15242,7 +15382,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "страждання / злидні",
+      "pl": "nędza / cierpienie",
+      "ru": "страдание / мука"
+    },
     "synonyms": [
       "suffering",
       "anguish",
@@ -15305,7 +15449,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "сучасні зручності / сучасна інфраструктура",
+      "pl": "nowoczesne udogodnienia / współczesne wygody",
+      "ru": "современные удобства / современная инфраструктура"
+    },
     "synonyms": [
       "contemporary conveniences",
       "current facilities",
@@ -15365,7 +15513,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "швабра / мити підлогу",
+      "pl": "mop / myć podłogę",
+      "ru": "швабра / мыть пол"
+    },
     "synonyms": [
       "swab",
       "wipe",
@@ -15427,7 +15579,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "нудьгувати / киснути",
+      "pl": "snuć się / marudzić",
+      "ru": "уныло бродить / киснуть"
+    },
     "synonyms": [
       "languishing",
       "sulking",
@@ -15489,7 +15645,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "сформований / відлитий",
+      "pl": "uformowany / ukształtowany",
+      "ru": "сформированный / вылепленный"
+    },
     "synonyms": [
       "shaped",
       "formed",
@@ -15550,7 +15710,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "шкідливий / отруйний",
+      "pl": "szkodliwy / trujący",
+      "ru": "вредный / ядовитый"
+    },
     "synonyms": [
       "toxic",
       "poisonous",
@@ -15612,7 +15776,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "несвідомий / нечутливий",
+      "pl": "nieświadomy / obojętny",
+      "ru": "несведущий / не осознающий"
+    },
     "synonyms": [
       "unaware",
       "unconscious",
@@ -15675,7 +15843,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "кочівники / мандрівники",
+      "pl": "nomadzi / koczownicy",
+      "ru": "кочевники / номады"
+    },
     "synonyms": [
       "wanderers",
       "travelers",
@@ -15737,7 +15909,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "основи / суть справи",
+      "pl": "podstawy / szczegóły praktyczne",
+      "ru": "суть дела / практические основы"
+    },
     "synonyms": [
       "basics",
       "fundamentals",
@@ -15799,7 +15975,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "неслухняний / непристойний",
+      "pl": "niegrzeczny / nieprzyzwoity",
+      "ru": "непослушный / неприличный"
+    },
     "synonyms": [
       "mischievous",
       "disobedient",
@@ -15861,7 +16041,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "незрозумілий / туманний",
+      "pl": "niejasny / mętny",
+      "ru": "неясный / туманный"
+    },
     "synonyms": [
       "unclear",
       "vague",
@@ -15925,7 +16109,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "безтурботний / незворушний",
+      "pl": "nonszalancki / obojętny",
+      "ru": "беспечный / нарочито спокойный"
+    },
     "synonyms": [
       "casual",
       "unbothered",
@@ -15988,7 +16176,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "оніміти / заціпеніти",
+      "pl": "zdrętwiały / otępiały",
+      "ru": "онемевший / оцепеневший"
+    },
     "synonyms": [
       "insensitive",
       "unfeeling",
@@ -16051,7 +16243,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "невідомість / туманність",
+      "pl": "nieznajomość / niejasność",
+      "ru": "безвестность / неизвестность"
+    },
     "synonyms": [
       "anonymity",
       "obscureness",
@@ -16114,7 +16310,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "обурливий / обурений",
+      "pl": "oburzający / skandaliczny",
+      "ru": "возмутительный / скандальный"
+    },
     "synonyms": [
       "scandalous",
       "egregious",
@@ -16176,7 +16376,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "ізгой / відкинутий",
+      "pl": "wygnaniec / wyrzutek",
+      "ru": "изгой / отверженный"
+    },
     "synonyms": [
       "pariah",
       "exile",
@@ -16238,7 +16442,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "перспектива / прогноз",
+      "pl": "perspektywa / prognoza",
+      "ru": "перспектива / прогноз"
+    },
     "synonyms": [
       "perspective",
       "viewpoint",
@@ -16297,7 +16505,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "очевидний / удаваний",
+      "pl": "pozorny / rzekomy",
+      "ru": "очевидный / мнимый"
+    },
     "synonyms": [
       "apparent",
       "seeming",
@@ -16359,7 +16571,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "не в настрої / знервований",
+      "pl": "nie w humorze / rozdrażniony",
+      "ru": "не в духе / раздраженный"
+    },
     "synonyms": [
       "under the weather",
       "out of humor",
@@ -16421,7 +16637,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "зловісний / загрозливий",
+      "pl": "złowieszczy / niepokojący",
+      "ru": "зловещий / угрожающий"
+    },
     "synonyms": [
       "threatening",
       "foreboding",
@@ -16483,7 +16703,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "враження / публічний імідж",
+      "pl": "wizerunek / odbiór publiczny",
+      "ru": "имидж / публичное восприятие"
+    },
     "synonyms": [
       "appearance",
       "perception",
@@ -16545,7 +16769,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "точка входу / шлях адаптації",
+      "pl": "punkt wejścia / ścieżka wdrożenia",
+      "ru": "точка входа / путь адаптации"
+    },
     "synonyms": [
       "entry point",
       "gateway",
@@ -16606,7 +16834,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "тяжке випробування / каторга",
+      "pl": "ciężka próba / katorga",
+      "ru": "тяжкое испытание / мучение"
+    },
     "synonyms": [
       "trial",
       "tribulation",
@@ -16668,7 +16900,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "вийти за межі / перевищити бюджет",
+      "pl": "przekroczyć / wyjść poza budżet",
+      "ru": "выйти за рамки / превысить бюджет"
+    },
     "synonyms": [
       "exceed",
       "overflow",
@@ -16730,7 +16966,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "віл",
+      "pl": "wół",
+      "ru": "вол"
+    },
     "synonyms": [
       "bull",
       "bovine",
@@ -16787,7 +17027,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "відтінок / підтекст",
+      "pl": "podtekst / ton",
+      "ru": "оттенок / подтекст"
+    },
     "synonyms": [
       "undertone",
       "implication",
@@ -16845,7 +17089,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "понаднормовий час / надурочні",
+      "pl": "nadgodziny / praca po godzinach",
+      "ru": "сверхурочные / переработка"
+    },
     "synonyms": [
       "extra hours",
       "extended hours",
@@ -16902,7 +17150,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "відхилити / скасувати",
+      "pl": "uchylić / unieważnić",
+      "ru": "отменить / отклонить"
+    },
     "synonyms": [
       "override",
       "overturn",
@@ -16964,7 +17216,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "через край / надмірний",
+      "pl": "przesadny / na wyrost",
+      "ru": "чрезмерный / через край"
+    },
     "synonyms": [
       "excessive",
       "extravagant",
@@ -17027,7 +17283,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "у вищому сенсі / найкращий у своєму роді",
+      "pl": "par excellence / najlepszy z możliwych",
+      "ru": "par excellence / непревзойденный"
+    },
     "synonyms": [
       "par excellence",
       "quintessentially",
@@ -17085,7 +17345,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "переступити межу / перегнути палку",
+      "pl": "przekroczyć granicę / przegiąć",
+      "ru": "переступить черту / перегнуть палку"
+    },
     "synonyms": [
       "cross the line",
       "go too far",
@@ -17146,7 +17410,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "притча / повчальна оповідь",
+      "pl": "przypowieść / moralna historia",
+      "ru": "притча / поучительная история"
+    },
     "synonyms": [
       "allegory",
       "fable",
@@ -17204,7 +17472,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "подолати / перемогти",
+      "pl": "przezwyciężyć / pokonać",
+      "ru": "преодолеть / победить"
+    },
     "synonyms": [
       "surmount",
       "conquer",
@@ -17265,7 +17537,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "наполегливий / невідступний",
+      "pl": "wytrwały / uparty",
+      "ru": "настойчивый / упорный"
+    },
     "synonyms": [
       "tenacious",
       "determined",
@@ -17327,7 +17603,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "родовід / репутація",
+      "pl": "rodowód / doświadczenie",
+      "ru": "родословная / репутация"
+    },
     "synonyms": [
       "lineage",
       "ancestry",
@@ -17385,7 +17665,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "викривляти / спотворювати",
+      "pl": "wypaczać / zniekształcać",
+      "ru": "искажать / извращать"
+    },
     "synonyms": [
       "distort",
       "corrupt",
@@ -17447,7 +17731,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "говорити для виду / робити вигляд",
+      "pl": "robić coś pro forma / pozorować wsparcie",
+      "ru": "делать вид / кормить обещаниями"
+    },
     "synonyms": [
       "give mere words to",
       "profess without commitment",
@@ -17509,7 +17797,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "увічнювати / продовжувати",
+      "pl": "utrwalać / podtrzymywać",
+      "ru": "увековечивать / поддерживать"
+    },
     "synonyms": [
       "sustain",
       "maintain",
@@ -17572,7 +17864,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "загинути / зіпсуватися",
+      "pl": "zginąć / zepsuć się",
+      "ru": "погибнуть / испортиться"
+    },
     "synonyms": [
       "die",
       "expire",
@@ -17634,7 +17930,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "попередньо запланований / внесений олівцем",
+      "pl": "zaplanowany wstępnie / zapisany ołówkiem",
+      "ru": "предварительно запланированный / записанный карандашом"
+    },
     "synonyms": [
       "sketched",
       "outlined",
@@ -17696,7 +17996,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "скам'яніти / заціпеніти від страху",
+      "pl": "sparaliżować ze strachu / przerażać do granic",
+      "ru": "цепенеть от страха / оцепенеть"
+    },
     "synonyms": [
       "terrify",
       "horrify",
@@ -17757,7 +18061,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "побожність / благочестя",
+      "pl": "pobożność / bogobojność",
+      "ru": "благочестие / набожность"
+    },
     "synonyms": [
       "devotion",
       "religiousness",
@@ -17819,7 +18127,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "пірнати / різко падати",
+      "pl": "nurkować / gwałtownie spadać",
+      "ru": "нырять / резко падать"
+    },
     "synonyms": [
       "dive",
       "immerse",
@@ -17883,7 +18195,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "благання / прохання",
+      "pl": "błaganie / apel",
+      "ru": "мольба / призыв"
+    },
     "synonyms": [
       "appeal",
       "request",
@@ -17944,7 +18260,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "благати / просити",
+      "pl": "błagać / prosić",
+      "ru": "умолять / просить"
+    },
     "synonyms": [
       "beg",
       "beseech",
@@ -18005,7 +18325,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "зворушливий / гіркий",
+      "pl": "poruszający / gorzki",
+      "ru": "трогательный / горький"
+    },
     "synonyms": [
       "moving",
       "touching",
@@ -18067,7 +18391,11 @@
     "tags": [
       "phrasal-verb"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "вказати / звернути увагу",
+      "pl": "wskazać / zwrócić uwagę",
+      "ru": "указать / обратить внимание"
+    },
     "synonyms": [
       "highlight",
       "identify",
@@ -18129,7 +18457,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "що різко падає / пірнаючий",
+      "pl": "gwałtownie spadający / nurkujący",
+      "ru": "стремительно падающий / ныряющий"
+    },
     "synonyms": [
       "diving",
       "falling",
@@ -18191,7 +18523,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "мужність / відвага",
+      "pl": "odwaga / hart ducha",
+      "ru": "смелость / решительность"
+    },
     "synonyms": [
       "pull",
       "pick",
@@ -18252,7 +18588,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "витриманість / самовладання",
+      "pl": "opanowanie / elegancja",
+      "ru": "самообладание / выдержка"
+    },
     "synonyms": [
       "composure",
       "equilibrium",
@@ -18314,7 +18654,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "різко впасти / обвалитися",
+      "pl": "gwałtownie spaść / runąć",
+      "ru": "резко упасть / обвалиться"
+    },
     "synonyms": [
       "plunge",
       "nosedive",
@@ -18377,7 +18721,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "глибоко / докорінно",
+      "pl": "głęboko / dogłębnie",
+      "ru": "глубоко / коренным образом"
+    },
     "synonyms": [
       "deeply",
       "significantly",
@@ -18439,7 +18787,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "загальновідомий / так би мовити",
+      "pl": "przysłowiowy / tak zwany",
+      "ru": "пресловутый / так называемый"
+    },
     "synonyms": [
       "legendary",
       "famous",
@@ -18500,7 +18852,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "пуританський / надмірно суворий",
+      "pl": "purytański / nadmiernie rygorystyczny",
+      "ru": "пуританский / чрезмерно строгий"
+    },
     "synonyms": [
       "prudish",
       "strait-laced",
@@ -18562,7 +18918,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "розповсюдження / проліферація",
+      "pl": "proliferacja / rozprzestrzenianie się",
+      "ru": "распространение / пролиферация"
+    },
     "synonyms": [
       "expansion",
       "spread",
@@ -18625,7 +18985,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "проповідник / моралізатор",
+      "pl": "kaznodzieja / moralizator",
+      "ru": "проповедник / моралист"
+    },
     "synonyms": [
       "cleric",
       "minister",
@@ -18686,7 +19050,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "навмисний / заздалегідь спланований",
+      "pl": "premedytowany / zaplanowany z góry",
+      "ru": "преднамеренный / заранее спланированный"
+    },
     "synonyms": [
       "deliberate",
       "intentional",
@@ -18748,7 +19116,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "присудок / базуватися на",
+      "pl": "orzeczenie / opierać się na",
+      "ru": "сказуемое / основываться на"
+    },
     "synonyms": [
       "assert",
       "affirm",
@@ -18806,7 +19178,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "хиткий / ненадійний",
+      "pl": "niepewny / chwiejny",
+      "ru": "шаткий / ненадежный"
+    },
     "synonyms": [
       "unstable",
       "uncertain",
@@ -18869,7 +19245,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "проколоти / вколоти",
+      "pl": "nakłuć / wbić",
+      "ru": "проколоть / вколоть"
+    },
     "synonyms": [
       "pierce, puncture, jab, sting, irritate"
     ],
@@ -18922,7 +19302,11 @@
     "tags": [
       "phrasal-verb"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "продовжувати рухатись / іти вперед",
+      "pl": "iść naprzód / kontynuować mimo trudności",
+      "ru": "двигаться вперед / продолжать несмотря ни на что"
+    },
     "synonyms": [
       "press on",
       "forge ahead",
@@ -18985,7 +19369,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "пристань / набережна",
+      "pl": "nabrzeże / keja",
+      "ru": "причал / набережная"
+    },
     "synonyms": [
       "wharf",
       "dock",
@@ -19043,7 +19431,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "зближення / нормалізація відносин",
+      "pl": "zbliżenie / normalizacja stosunków",
+      "ru": "сближение / нормализация отношений"
+    },
     "synonyms": [
       "reconciliation",
       "détente",
@@ -19105,7 +19497,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "зрівняний із землею / знищений",
+      "pl": "zrównany z ziemią / zniszczony",
+      "ru": "снесенный до основания / уничтоженный"
+    },
     "synonyms": [
       "demolished",
       "destroyed",
@@ -19166,7 +19562,11 @@
     "tags": [
       "vocabulary"
     ],
-    "translations": {},
+    "translations": {
+      "uk": "тремтіти / дрижати",
+      "pl": "drżeć / trząść się",
+      "ru": "дрожать / трепетать"
+    },
     "synonyms": [
       "tremble",
       "shake",
