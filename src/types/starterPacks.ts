@@ -15,6 +15,7 @@ export interface StarterPackWord {
   realLifeTask?: string
   tags: string[]
   themes: string[]
+  translations?: { uk?: string; pl?: string; ru?: string }
 }
 
 export type PackDifficulty = 'B2' | 'C1' | 'Mixed'

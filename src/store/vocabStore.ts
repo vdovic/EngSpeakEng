@@ -832,7 +832,7 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         tags: word.tags ?? [],
         themes: word.themes ?? [],
         definitionEn: word.definitionEn,
-        translations: {},
+        translations: word.translations ?? {},
         exampleSentence: word.exampleSentence,
         synonyms: word.synonyms ?? [],
         antonyms: word.antonyms ?? [],
