@@ -16,13 +16,33 @@
       "definitionEn": "To perform or complete a task, plan, or instruction.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "We need to carry out a full audit before the end of the quarter.",
-      "synonyms": ["perform", "execute", "implement", "conduct"],
-      "antonyms": ["abandon", "neglect", "drop"],
+      "synonyms": [
+        "perform",
+        "execute",
+        "implement",
+        "conduct"
+      ],
+      "antonyms": [
+        "abandon",
+        "neglect",
+        "drop"
+      ],
       "nuance": "More formal than 'do' — preferred in written reports and formal instructions.",
       "register": "neutral",
       "realLifeTask": "Replace 'do' with 'carry out' in formal reports: 'carry out an investigation'.",
-      "tags": ["action", "execution", "formal"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "action",
+        "execution",
+        "formal"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "виконувати / здійснювати",
+        "pl": "wykonywać / przeprowadzać",
+        "ru": "выполнять / осуществлять"
+      }
     },
     {
       "term": "set up",
@@ -30,13 +50,33 @@
       "definitionEn": "To arrange, organise, or establish something — a system, meeting, or process.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Can you set up a call with the client for Thursday?",
-      "synonyms": ["arrange", "organise", "establish", "create"],
-      "antonyms": ["close down", "dismantle", "cancel"],
+      "synonyms": [
+        "arrange",
+        "organise",
+        "establish",
+        "create"
+      ],
+      "antonyms": [
+        "close down",
+        "dismantle",
+        "cancel"
+      ],
       "nuance": "Very versatile — use for meetings, systems, companies, or equipment.",
       "register": "neutral",
       "realLifeTask": "Use 'set up' in emails: 'I'll set up a time for us to connect this week.'",
-      "tags": ["organising", "versatile", "everyday"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "organising",
+        "versatile",
+        "everyday"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "налаштовувати / організовувати",
+        "pl": "konfigurować / ustawiać",
+        "ru": "настраивать / организовывать"
+      }
     },
     {
       "term": "put off",
@@ -44,13 +84,33 @@
       "definitionEn": "To delay or postpone something to a later time.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "We can't put off this decision any longer.",
-      "synonyms": ["postpone", "delay", "defer", "push back"],
-      "antonyms": ["bring forward", "advance", "prioritise"],
+      "synonyms": [
+        "postpone",
+        "delay",
+        "defer",
+        "push back"
+      ],
+      "antonyms": [
+        "bring forward",
+        "advance",
+        "prioritise"
+      ],
       "nuance": "Slightly negative connotation — implies reluctance or avoidance.",
       "register": "neutral",
       "realLifeTask": "Say 'I'd rather not put this off — can we decide today?' to drive decisions.",
-      "tags": ["time", "decisions", "delays"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "time",
+        "decisions",
+        "delays"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "відкладати / переносити",
+        "pl": "odkładać / odraczać",
+        "ru": "откладывать / переносить"
+      }
     },
     {
       "term": "take on",
@@ -58,13 +118,33 @@
       "definitionEn": "To accept a new responsibility, challenge, task, or employee.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "She took on the project manager role despite having a full workload.",
-      "synonyms": ["accept", "assume", "tackle", "hire"],
-      "antonyms": ["decline", "reject", "turn down"],
+      "synonyms": [
+        "accept",
+        "assume",
+        "tackle",
+        "hire"
+      ],
+      "antonyms": [
+        "decline",
+        "reject",
+        "turn down"
+      ],
       "nuance": "Can mean both accepting work and hiring people: 'take on a project' / 'take on new staff'.",
       "register": "neutral",
       "realLifeTask": "Say 'I'm happy to take this on' to volunteer for a task professionally.",
-      "tags": ["responsibility", "hiring", "challenges"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "responsibility",
+        "hiring",
+        "challenges"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "брати на себе / приймати (завдання)",
+        "pl": "podejmować się / przyjmować (zadanie)",
+        "ru": "брать на себя / принимать (задачу)"
+      }
     },
     {
       "term": "hand over",
@@ -72,13 +152,33 @@
       "definitionEn": "To pass responsibility, a document, or a task to someone else.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "She handed over the project to her colleague before going on leave.",
-      "synonyms": ["transfer", "pass on", "delegate", "pass over"],
-      "antonyms": ["take over", "retain", "keep"],
+      "synonyms": [
+        "transfer",
+        "pass on",
+        "delegate",
+        "pass over"
+      ],
+      "antonyms": [
+        "take over",
+        "retain",
+        "keep"
+      ],
       "nuance": "Often used for formal transfers — especially before leave or role changes.",
       "register": "neutral",
       "realLifeTask": "Prepare a 'handover document' when handing over projects or responsibilities.",
-      "tags": ["responsibility", "delegation", "transitions"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "responsibility",
+        "delegation",
+        "transitions"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "передавати / здавати",
+        "pl": "przekazywać",
+        "ru": "передавать / сдавать"
+      }
     },
     {
       "term": "bring forward",
@@ -86,13 +186,32 @@
       "definitionEn": "To move a meeting, deadline, or event to an earlier time.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Can we bring the deadline forward by two days?",
-      "synonyms": ["advance", "move up", "reschedule earlier"],
-      "antonyms": ["push back", "postpone", "defer"],
+      "synonyms": [
+        "advance",
+        "move up",
+        "reschedule earlier"
+      ],
+      "antonyms": [
+        "push back",
+        "postpone",
+        "defer"
+      ],
       "nuance": "Opposite of 'push back' — used when you need things done sooner.",
       "register": "neutral",
       "realLifeTask": "Use 'bring forward' when requesting an earlier meeting: 'Could we bring this forward to Monday?'",
-      "tags": ["time", "scheduling", "deadlines"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "time",
+        "scheduling",
+        "deadlines"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "переносити на раніший термін",
+        "pl": "przesunąć (termin) do przodu",
+        "ru": "переносить на более ранний срок"
+      }
     },
     {
       "term": "push back",
@@ -100,13 +219,33 @@
       "definitionEn": "To move a deadline or event later; or to resist/object to a suggestion.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The client is pushing back on the proposed timeline.",
-      "synonyms": ["postpone", "resist", "object", "challenge"],
-      "antonyms": ["bring forward", "accept", "agree"],
+      "synonyms": [
+        "postpone",
+        "resist",
+        "object",
+        "challenge"
+      ],
+      "antonyms": [
+        "bring forward",
+        "accept",
+        "agree"
+      ],
       "nuance": "Dual meaning: reschedule later OR express disagreement — context makes it clear.",
       "register": "neutral",
       "realLifeTask": "Use 'pushing back' diplomatically: 'I want to push back slightly on that assumption.'",
-      "tags": ["scheduling", "disagreement", "negotiation"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "scheduling",
+        "disagreement",
+        "negotiation"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "відкладати / заперечувати",
+        "pl": "odraczać / sprzeciwiać się",
+        "ru": "откладывать / возражать"
+      }
     },
     {
       "term": "scale up",
@@ -114,13 +253,33 @@
       "definitionEn": "To increase the size, scope, or capacity of something.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "We're planning to scale up operations in the Asia-Pacific region.",
-      "synonyms": ["expand", "grow", "increase", "ramp up"],
-      "antonyms": ["scale down", "reduce", "shrink"],
+      "synonyms": [
+        "expand",
+        "grow",
+        "increase",
+        "ramp up"
+      ],
+      "antonyms": [
+        "scale down",
+        "reduce",
+        "shrink"
+      ],
       "nuance": "Common in startup and growth contexts — implies planned, strategic expansion.",
       "register": "neutral",
       "realLifeTask": "Use 'scale up' in strategy presentations when discussing growth plans.",
-      "tags": ["growth", "strategy", "operations"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "growth",
+        "strategy",
+        "operations"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "масштабувати (збільшувати)",
+        "pl": "skalować w górę / zwiększać",
+        "ru": "масштабировать (увеличивать)"
+      }
     },
     {
       "term": "scale down",
@@ -128,13 +287,33 @@
       "definitionEn": "To reduce the size, scope, or level of something.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Due to budget cuts, we'll have to scale down the campaign.",
-      "synonyms": ["reduce", "cut back", "downsize", "shrink"],
-      "antonyms": ["scale up", "expand", "grow"],
+      "synonyms": [
+        "reduce",
+        "cut back",
+        "downsize",
+        "shrink"
+      ],
+      "antonyms": [
+        "scale up",
+        "expand",
+        "grow"
+      ],
       "nuance": "More neutral than 'cut' — softer language for reducing without alarm.",
       "register": "neutral",
       "realLifeTask": "Use 'scale down' to frame budget cuts diplomatically in presentations.",
-      "tags": ["reduction", "budget", "restructuring"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "reduction",
+        "budget",
+        "restructuring"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "скорочувати / зменшувати масштаб",
+        "pl": "zmniejszać / ograniczać",
+        "ru": "сокращать / уменьшать масштаб"
+      }
     },
     {
       "term": "phase in",
@@ -142,13 +321,32 @@
       "definitionEn": "To introduce something gradually over time, in stages.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The new software will be phased in over the next three months.",
-      "synonyms": ["introduce gradually", "roll out", "implement in stages"],
-      "antonyms": ["phase out", "discontinue", "remove"],
+      "synonyms": [
+        "introduce gradually",
+        "roll out",
+        "implement in stages"
+      ],
+      "antonyms": [
+        "phase out",
+        "discontinue",
+        "remove"
+      ],
       "nuance": "Implies a carefully managed transition — often used for systems, policies, or changes.",
       "register": "neutral",
       "realLifeTask": "Use 'phase in' in project plans when outlining a gradual implementation approach.",
-      "tags": ["change management", "implementation", "planning"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "change management",
+        "implementation",
+        "planning"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "поступово впроваджувати",
+        "pl": "wprowadzać stopniowo",
+        "ru": "поэтапно вводить"
+      }
     },
     {
       "term": "phase out",
@@ -156,13 +354,33 @@
       "definitionEn": "To gradually discontinue or eliminate something over time.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The legacy system will be phased out by the end of the year.",
-      "synonyms": ["discontinue", "wind down", "retire", "eliminate"],
-      "antonyms": ["phase in", "introduce", "adopt"],
+      "synonyms": [
+        "discontinue",
+        "wind down",
+        "retire",
+        "eliminate"
+      ],
+      "antonyms": [
+        "phase in",
+        "introduce",
+        "adopt"
+      ],
       "nuance": "Gradual and planned — less abrupt than 'stop' or 'cancel'.",
       "register": "neutral",
       "realLifeTask": "Use 'phase out' to communicate product or system retirement to stakeholders.",
-      "tags": ["change management", "discontinuation", "planning"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "change management",
+        "discontinuation",
+        "planning"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "поступово виводити з використання",
+        "pl": "stopniowo wycofywać",
+        "ru": "поэтапно выводить / отменять"
+      }
     },
     {
       "term": "lay out",
@@ -170,13 +388,33 @@
       "definitionEn": "To present information clearly and in an organised way.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Let me lay out the options so we can compare them fairly.",
-      "synonyms": ["present", "outline", "explain", "set out"],
-      "antonyms": ["conceal", "obscure", "muddle"],
+      "synonyms": [
+        "present",
+        "outline",
+        "explain",
+        "set out"
+      ],
+      "antonyms": [
+        "conceal",
+        "obscure",
+        "muddle"
+      ],
       "nuance": "Implies clarity and structure — a well-laid-out argument is easy to follow.",
       "register": "neutral",
       "realLifeTask": "Use 'lay out' in emails: 'I've laid out three options for your consideration.'",
-      "tags": ["communication", "structure", "clarity"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "communication",
+        "structure",
+        "clarity"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "викладати / пояснювати (план)",
+        "pl": "przedstawiać / nakreślać (plan)",
+        "ru": "излагать / объяснять (план)"
+      }
     },
     {
       "term": "lay off",
@@ -184,13 +422,33 @@
       "definitionEn": "To dismiss employees, typically due to economic reasons or restructuring.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The company laid off 200 staff following the merger.",
-      "synonyms": ["make redundant", "dismiss", "let go", "release"],
-      "antonyms": ["hire", "recruit", "take on"],
+      "synonyms": [
+        "make redundant",
+        "dismiss",
+        "let go",
+        "release"
+      ],
+      "antonyms": [
+        "hire",
+        "recruit",
+        "take on"
+      ],
       "nuance": "Specifically about job cuts — not the same as firing for misconduct.",
       "register": "neutral",
       "realLifeTask": "Use 'laid off' correctly — it implies economic cause, not performance issues.",
-      "tags": ["HR", "redundancy", "restructuring"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "HR",
+        "redundancy",
+        "restructuring"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "звільняти (скорочення штату)",
+        "pl": "zwalniać (redukcja etatów)",
+        "ru": "увольнять (сокращение штата)"
+      }
     },
     {
       "term": "step up",
@@ -198,13 +456,33 @@
       "definitionEn": "To take on more responsibility or perform better, especially in a challenging situation.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "When the manager left, James really stepped up and led the team.",
-      "synonyms": ["rise to the challenge", "take charge", "perform better", "increase effort"],
-      "antonyms": ["step back", "withdraw", "underperform"],
+      "synonyms": [
+        "rise to the challenge",
+        "take charge",
+        "perform better",
+        "increase effort"
+      ],
+      "antonyms": [
+        "step back",
+        "withdraw",
+        "underperform"
+      ],
       "nuance": "Positive connotation — often used in performance reviews and motivational contexts.",
       "register": "neutral",
       "realLifeTask": "Praise team members by saying 'You really stepped up during that project.'",
-      "tags": ["performance", "leadership", "responsibility"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "performance",
+        "leadership",
+        "responsibility"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "брати ініціативу / підвищувати зусилля",
+        "pl": "podejmować inicjatywę / zwiększać wysiłki",
+        "ru": "брать инициативу / усиливать усилия"
+      }
     },
     {
       "term": "step down",
@@ -212,13 +490,33 @@
       "definitionEn": "To resign from a position or role, usually voluntarily.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The CEO stepped down after 12 years with the company.",
-      "synonyms": ["resign", "stand down", "retire", "quit"],
-      "antonyms": ["take up", "assume", "take over"],
+      "synonyms": [
+        "resign",
+        "stand down",
+        "retire",
+        "quit"
+      ],
+      "antonyms": [
+        "take up",
+        "assume",
+        "take over"
+      ],
       "nuance": "More dignified than 'quit' — implies a planned, voluntary departure.",
       "register": "neutral",
       "realLifeTask": "Use 'stepping down' in official announcements to signal a respectful departure.",
-      "tags": ["leadership", "career", "transitions"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "leadership",
+        "career",
+        "transitions"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "іти у відставку / покидати посаду",
+        "pl": "rezygnować / ustępować ze stanowiska",
+        "ru": "уходить в отставку / покидать должность"
+      }
     },
     {
       "term": "back up",
@@ -226,13 +524,33 @@
       "definitionEn": "To support someone or something with evidence, resources, or assistance; or to save data.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Do you have data to back up that claim?",
-      "synonyms": ["support", "substantiate", "confirm", "corroborate"],
-      "antonyms": ["undermine", "contradict", "refute"],
+      "synonyms": [
+        "support",
+        "substantiate",
+        "confirm",
+        "corroborate"
+      ],
+      "antonyms": [
+        "undermine",
+        "contradict",
+        "refute"
+      ],
       "nuance": "In professional contexts: 'back up with data' means provide evidence. Also means save files.",
       "register": "neutral",
       "realLifeTask": "Always back up your claims in presentations with data or case studies.",
-      "tags": ["evidence", "support", "communication"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "evidence",
+        "support",
+        "communication"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "підтримувати / робити резервну копію",
+        "pl": "popierać / robić kopię zapasową",
+        "ru": "поддерживать / делать резервную копию"
+      }
     },
     {
       "term": "stand out",
@@ -240,13 +558,33 @@
       "definitionEn": "To be noticeably better or more distinctive than others.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Her proposal really stood out because of the detailed financial projections.",
-      "synonyms": ["distinguish yourself", "excel", "be conspicuous", "be noticeable"],
-      "antonyms": ["blend in", "go unnoticed", "be average"],
+      "synonyms": [
+        "distinguish yourself",
+        "excel",
+        "be conspicuous",
+        "be noticeable"
+      ],
+      "antonyms": [
+        "blend in",
+        "go unnoticed",
+        "be average"
+      ],
       "nuance": "Positive in professional contexts — standing out shows you've exceeded expectations.",
       "register": "neutral",
       "realLifeTask": "Make your CV and pitches 'stand out' by leading with specific achievements.",
-      "tags": ["performance", "differentiation", "career"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "performance",
+        "differentiation",
+        "career"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "виділятися / вирізнятися",
+        "pl": "wyróżniać się",
+        "ru": "выделяться"
+      }
     },
     {
       "term": "stand in for",
@@ -254,13 +592,32 @@
       "definitionEn": "To temporarily replace or substitute for someone else.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Can you stand in for me at tomorrow's client call?",
-      "synonyms": ["substitute for", "cover for", "replace", "deputise for"],
-      "antonyms": ["be replaced by", "step aside"],
+      "synonyms": [
+        "substitute for",
+        "cover for",
+        "replace",
+        "deputise for"
+      ],
+      "antonyms": [
+        "be replaced by",
+        "step aside"
+      ],
       "nuance": "Implies temporary cover — the original person will return.",
       "register": "neutral",
       "realLifeTask": "Email: 'I'll be out — could you stand in for me at the 3pm meeting?'",
-      "tags": ["cover", "delegation", "teamwork"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "cover",
+        "delegation",
+        "teamwork"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "заміщати / замінювати когось",
+        "pl": "zastępować kogoś",
+        "ru": "замещать / заменять кого-то"
+      }
     },
     {
       "term": "follow through",
@@ -268,13 +625,33 @@
       "definitionEn": "To complete an action or commitment that was started or promised.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "He's great at coming up with ideas but struggles to follow through.",
-      "synonyms": ["complete", "deliver", "fulfil", "see through"],
-      "antonyms": ["abandon", "give up", "drop"],
+      "synonyms": [
+        "complete",
+        "deliver",
+        "fulfil",
+        "see through"
+      ],
+      "antonyms": [
+        "abandon",
+        "give up",
+        "drop"
+      ],
       "nuance": "Critical professional quality — 'following through' builds trust and credibility.",
       "register": "neutral",
       "realLifeTask": "Use in performance feedback: 'I was impressed by how you followed through on every commitment.'",
-      "tags": ["reliability", "completion", "professionalism"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "reliability",
+        "completion",
+        "professionalism"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "доводити до кінця / виконувати обіцяне",
+        "pl": "doprowadzać do końca / realizować obietnice",
+        "ru": "доводить до конца / выполнять обещанное"
+      }
     },
     {
       "term": "see through",
@@ -282,13 +659,33 @@
       "definitionEn": "To continue with something to its completion despite difficulties.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "It was a tough project, but the team saw it through to the end.",
-      "synonyms": ["complete", "persist with", "finish", "follow through"],
-      "antonyms": ["abandon", "give up", "quit"],
+      "synonyms": [
+        "complete",
+        "persist with",
+        "finish",
+        "follow through"
+      ],
+      "antonyms": [
+        "abandon",
+        "give up",
+        "quit"
+      ],
       "nuance": "Emphasises perseverance in the face of difficulty — stronger than just 'finish'.",
       "register": "neutral",
       "realLifeTask": "Show resilience with 'We'll see this through regardless of the obstacles.'",
-      "tags": ["perseverance", "completion", "resilience"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "perseverance",
+        "completion",
+        "resilience"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "доводити до кінця / розпізнати обман",
+        "pl": "doprowadzić do końca / przejrzeć",
+        "ru": "доводить до конца / распознать обман"
+      }
     },
     {
       "term": "look into",
@@ -296,13 +693,33 @@
       "definitionEn": "To investigate or examine something more carefully.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "I'll look into the discrepancy in the figures and get back to you.",
-      "synonyms": ["investigate", "examine", "research", "check out"],
-      "antonyms": ["ignore", "overlook", "dismiss"],
+      "synonyms": [
+        "investigate",
+        "examine",
+        "research",
+        "check out"
+      ],
+      "antonyms": [
+        "ignore",
+        "overlook",
+        "dismiss"
+      ],
       "nuance": "Useful in meetings — a professional way to say you'll investigate before committing.",
       "register": "neutral",
       "realLifeTask": "Use 'I'll look into this and get back to you by end of day' to buy time professionally.",
-      "tags": ["investigation", "problem-solving", "communication"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "investigation",
+        "problem-solving",
+        "communication"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "розслідувати / вивчати",
+        "pl": "sprawdzać / badać",
+        "ru": "расследовать / изучать"
+      }
     },
     {
       "term": "look over",
@@ -310,13 +727,33 @@
       "definitionEn": "To review or check something carefully, often before approving or submitting.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Could you look over this report before it goes to the client?",
-      "synonyms": ["review", "check", "proofread", "examine"],
-      "antonyms": ["ignore", "skip", "overlook"],
+      "synonyms": [
+        "review",
+        "check",
+        "proofread",
+        "examine"
+      ],
+      "antonyms": [
+        "ignore",
+        "skip",
+        "overlook"
+      ],
       "nuance": "Implies a careful, deliberate check — not just a quick glance.",
       "register": "neutral",
       "realLifeTask": "Ask 'Could you look this over?' before sending important documents.",
-      "tags": ["review", "quality control", "communication"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "review",
+        "quality control",
+        "communication"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "переглядати / перевіряти",
+        "pl": "przeglądać / sprawdzać",
+        "ru": "просматривать / проверять"
+      }
     },
     {
       "term": "draw up",
@@ -324,13 +761,33 @@
       "definitionEn": "To prepare or write a formal document such as a plan, contract, or agreement.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The legal team will draw up the contract by Friday.",
-      "synonyms": ["prepare", "draft", "write up", "compose"],
-      "antonyms": ["scrap", "discard", "reject"],
+      "synonyms": [
+        "prepare",
+        "draft",
+        "write up",
+        "compose"
+      ],
+      "antonyms": [
+        "scrap",
+        "discard",
+        "reject"
+      ],
       "nuance": "Specifically for formal written documents — plans, contracts, proposals.",
       "register": "neutral",
       "realLifeTask": "Use 'draw up' when referring to formal documents: 'Can you draw up an NDA?'",
-      "tags": ["documentation", "formal", "contracts"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "documentation",
+        "formal",
+        "contracts"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "складати (документ) / розробляти",
+        "pl": "sporządzać / opracowywać (dokument)",
+        "ru": "составлять (документ) / разрабатывать"
+      }
     },
     {
       "term": "draw on",
@@ -338,13 +795,33 @@
       "definitionEn": "To use or rely on existing knowledge, experience, or resources.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "She drew on her ten years of experience to solve the problem quickly.",
-      "synonyms": ["use", "rely on", "leverage", "tap into"],
-      "antonyms": ["ignore", "overlook", "disregard"],
+      "synonyms": [
+        "use",
+        "rely on",
+        "leverage",
+        "tap into"
+      ],
+      "antonyms": [
+        "ignore",
+        "overlook",
+        "disregard"
+      ],
       "nuance": "Implies using existing assets wisely — professional and impressive in presentations.",
       "register": "neutral",
       "realLifeTask": "Say 'drawing on our previous research' to show expertise in proposals.",
-      "tags": ["expertise", "resources", "strategy"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "expertise",
+        "resources",
+        "strategy"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "спиратися на / використовувати (досвід)",
+        "pl": "opierać się na / korzystać z (doświadczenia)",
+        "ru": "опираться на / использовать (опыт)"
+      }
     },
     {
       "term": "fall through",
@@ -352,13 +829,33 @@
       "definitionEn": "To fail to happen, especially after being planned.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The deal fell through at the last minute due to financing issues.",
-      "synonyms": ["fail", "collapse", "not happen", "be unsuccessful"],
-      "antonyms": ["succeed", "go through", "close"],
+      "synonyms": [
+        "fail",
+        "collapse",
+        "not happen",
+        "be unsuccessful"
+      ],
+      "antonyms": [
+        "succeed",
+        "go through",
+        "close"
+      ],
       "nuance": "Specifically about plans or deals not materialising — often disappointing.",
       "register": "neutral",
       "realLifeTask": "Report 'the partnership fell through' rather than 'failed' for a softer tone.",
-      "tags": ["failure", "deals", "plans"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "failure",
+        "deals",
+        "plans"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "зриватися / не відбутися",
+        "pl": "nie dojść do skutku",
+        "ru": "сорваться / не состояться"
+      }
     },
     {
       "term": "fall behind",
@@ -366,13 +863,33 @@
       "definitionEn": "To make less progress than expected, resulting in a schedule or payment delay.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "We've fallen behind on the development schedule and need to catch up.",
-      "synonyms": ["lag", "get delayed", "be behind schedule", "miss targets"],
-      "antonyms": ["catch up", "keep pace", "be ahead"],
+      "synonyms": [
+        "lag",
+        "get delayed",
+        "be behind schedule",
+        "miss targets"
+      ],
+      "antonyms": [
+        "catch up",
+        "keep pace",
+        "be ahead"
+      ],
       "nuance": "Implies a gap that needs to be closed — often requires explanation and a recovery plan.",
       "register": "neutral",
       "realLifeTask": "Be transparent: 'We've fallen behind — here's our plan to get back on track.'",
-      "tags": ["delays", "performance", "planning"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "delays",
+        "performance",
+        "planning"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "відставати",
+        "pl": "zostawać w tyle",
+        "ru": "отставать"
+      }
     },
     {
       "term": "catch up",
@@ -380,13 +897,33 @@
       "definitionEn": "To reach the same level as others after being behind; or to update someone on information.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Let's catch up next week to review progress on the project.",
-      "synonyms": ["reconnect", "get up to speed", "close the gap", "sync"],
-      "antonyms": ["fall behind", "miss out", "lose ground"],
+      "synonyms": [
+        "reconnect",
+        "get up to speed",
+        "close the gap",
+        "sync"
+      ],
+      "antonyms": [
+        "fall behind",
+        "miss out",
+        "lose ground"
+      ],
       "nuance": "Can mean a catch-up meeting OR closing a performance gap — context clarifies.",
       "register": "neutral",
       "realLifeTask": "Use 'catch-up call' or 'quick catch-up' to schedule informal progress meetings.",
-      "tags": ["meetings", "updates", "progress"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "meetings",
+        "updates",
+        "progress"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "надолужувати / наздоганяти",
+        "pl": "nadrabiać / doganiać",
+        "ru": "наверстывать / догонять"
+      }
     },
     {
       "term": "come up with",
@@ -394,13 +931,32 @@
       "definitionEn": "To produce, think of, or generate an idea, solution, or plan.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "The team came up with three viable solutions by end of day.",
-      "synonyms": ["generate", "produce", "devise", "create"],
-      "antonyms": ["fail to think of", "draw a blank"],
+      "synonyms": [
+        "generate",
+        "produce",
+        "devise",
+        "create"
+      ],
+      "antonyms": [
+        "fail to think of",
+        "draw a blank"
+      ],
       "nuance": "Implies creativity and problem-solving — valued in brainstorming and innovation.",
       "register": "neutral",
       "realLifeTask": "Praise colleagues with 'I love that you came up with this approach under pressure.'",
-      "tags": ["creativity", "problem-solving", "innovation"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "creativity",
+        "problem-solving",
+        "innovation"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "придумувати / пропонувати (ідею)",
+        "pl": "wymyślać / wpaść na (pomysł)",
+        "ru": "придумывать / предлагать (идею)"
+      }
     },
     {
       "term": "put forward",
@@ -408,13 +964,33 @@
       "definitionEn": "To formally suggest an idea, proposal, or candidate for consideration.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "I'd like to put forward a proposal for restructuring the team.",
-      "synonyms": ["propose", "suggest", "nominate", "present"],
-      "antonyms": ["withdraw", "retract", "reject"],
+      "synonyms": [
+        "propose",
+        "suggest",
+        "nominate",
+        "present"
+      ],
+      "antonyms": [
+        "withdraw",
+        "retract",
+        "reject"
+      ],
       "nuance": "Formal and deliberate — use when making official suggestions in meetings.",
       "register": "formal",
       "realLifeTask": "Use 'I'd like to put forward…' to introduce formal proposals in meetings.",
-      "tags": ["proposals", "formal", "meetings"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "proposals",
+        "formal",
+        "meetings"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "пропонувати / висувати (ідею)",
+        "pl": "przedstawiać / proponować (pomysł)",
+        "ru": "предлагать / выдвигать (идею)"
+      }
     },
     {
       "term": "put across",
@@ -422,13 +998,33 @@
       "definitionEn": "To communicate an idea or message effectively so others understand it.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "She struggled to put her ideas across during the presentation.",
-      "synonyms": ["communicate", "convey", "express", "get across"],
-      "antonyms": ["confuse", "obscure", "fail to communicate"],
+      "synonyms": [
+        "communicate",
+        "convey",
+        "express",
+        "get across"
+      ],
+      "antonyms": [
+        "confuse",
+        "obscure",
+        "fail to communicate"
+      ],
       "nuance": "Focus is on effectiveness of communication — putting it across means the message landed.",
       "register": "neutral",
       "realLifeTask": "Reflect on how to put your ideas across more clearly in your next pitch.",
-      "tags": ["communication", "presentations", "clarity"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "communication",
+        "presentations",
+        "clarity"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "донести / передати (думку)",
+        "pl": "przekazywać / przedstawiać (myśl)",
+        "ru": "донести / передать (мысль)"
+      }
     },
     {
       "term": "take up",
@@ -436,13 +1032,33 @@
       "definitionEn": "To accept an offer or opportunity; or to occupy time or space.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "I'd like to take you up on your offer to review the draft.",
-      "synonyms": ["accept", "adopt", "pursue", "use"],
-      "antonyms": ["decline", "refuse", "turn down"],
+      "synonyms": [
+        "accept",
+        "adopt",
+        "pursue",
+        "use"
+      ],
+      "antonyms": [
+        "decline",
+        "refuse",
+        "turn down"
+      ],
       "nuance": "'Take you up on it' = accept someone's specific offer — useful and precise.",
       "register": "neutral",
       "realLifeTask": "Reply to offers with 'I'd love to take you up on that — thank you.'",
-      "tags": ["offers", "opportunities", "communication"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "offers",
+        "opportunities",
+        "communication"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "займатися / займати (час або місце)",
+        "pl": "zajmować się / zająć (czas/miejsce)",
+        "ru": "заниматься / занимать (время или место)"
+      }
     },
     {
       "term": "take over",
@@ -450,13 +1066,33 @@
       "definitionEn": "To assume control or responsibility for something from someone else.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Can you take over the account while I'm on leave?",
-      "synonyms": ["assume control", "take charge of", "replace", "inherit"],
-      "antonyms": ["hand over", "relinquish", "step down from"],
+      "synonyms": [
+        "assume control",
+        "take charge of",
+        "replace",
+        "inherit"
+      ],
+      "antonyms": [
+        "hand over",
+        "relinquish",
+        "step down from"
+      ],
       "nuance": "Can imply a planned transition or a more sudden acquisition of control.",
       "register": "neutral",
       "realLifeTask": "Plan takeovers carefully — document everything before the handover.",
-      "tags": ["responsibility", "leadership", "transitions"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "responsibility",
+        "leadership",
+        "transitions"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "брати під контроль / перебирати обов'язки",
+        "pl": "przejąć kontrolę / obowiązki",
+        "ru": "брать под контроль / перенимать обязанности"
+      }
     },
     {
       "term": "run into",
@@ -464,13 +1100,33 @@
       "definitionEn": "To encounter an unexpected problem or difficulty.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "We've run into a few technical issues with the integration.",
-      "synonyms": ["encounter", "face", "hit", "come up against"],
-      "antonyms": ["avoid", "prevent", "overcome"],
+      "synonyms": [
+        "encounter",
+        "face",
+        "hit",
+        "come up against"
+      ],
+      "antonyms": [
+        "avoid",
+        "prevent",
+        "overcome"
+      ],
       "nuance": "Implies the problem was unexpected — professional way to report obstacles.",
       "register": "neutral",
       "realLifeTask": "Report problems with 'We've run into an issue — here's how we're addressing it.'",
-      "tags": ["problems", "obstacles", "reporting"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "problems",
+        "obstacles",
+        "reporting"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "стикатися з (проблемою)",
+        "pl": "napotykać / trafić na (problem)",
+        "ru": "столкнуться с (проблемой)"
+      }
     },
     {
       "term": "sort out",
@@ -478,13 +1134,33 @@
       "definitionEn": "To resolve a problem, misunderstanding, or difficult situation.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Let me sort out the scheduling conflict before we confirm.",
-      "synonyms": ["resolve", "fix", "deal with", "settle"],
-      "antonyms": ["complicate", "ignore", "leave unresolved"],
+      "synonyms": [
+        "resolve",
+        "fix",
+        "deal with",
+        "settle"
+      ],
+      "antonyms": [
+        "complicate",
+        "ignore",
+        "leave unresolved"
+      ],
       "nuance": "Informal but common in professional British English — more casual than 'resolve'.",
       "register": "neutral",
       "realLifeTask": "Say 'I'll sort it out and get back to you' to take ownership of a problem.",
-      "tags": ["problem-solving", "responsibility", "communication"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "problem-solving",
+        "responsibility",
+        "communication"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "розбиратися / вирішувати",
+        "pl": "rozwiązywać / porządkować",
+        "ru": "разбираться / решать"
+      }
     },
     {
       "term": "work out",
@@ -492,13 +1168,33 @@
       "definitionEn": "To calculate or figure something out; or for a plan/situation to develop successfully.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Can you work out the total cost including VAT?",
-      "synonyms": ["calculate", "figure out", "resolve", "succeed"],
-      "antonyms": ["fail", "not work", "fall apart"],
+      "synonyms": [
+        "calculate",
+        "figure out",
+        "resolve",
+        "succeed"
+      ],
+      "antonyms": [
+        "fail",
+        "not work",
+        "fall apart"
+      ],
       "nuance": "Dual meaning: work out (calculate) vs. work out (succeed) — context clarifies.",
       "register": "neutral",
       "realLifeTask": "Use 'work out the numbers' when asking someone to do financial calculations.",
-      "tags": ["calculations", "problem-solving", "outcomes"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "calculations",
+        "problem-solving",
+        "outcomes"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "вирішувати / підраховувати / тренуватися",
+        "pl": "rozwiązywać / obliczać / ćwiczyć",
+        "ru": "решать / подсчитывать / тренироваться"
+      }
     },
     {
       "term": "go over",
@@ -506,13 +1202,33 @@
       "definitionEn": "To review or examine something carefully, often before a decision or submission.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Let's go over the contract terms one more time before signing.",
-      "synonyms": ["review", "examine", "check", "look over"],
-      "antonyms": ["skip", "ignore", "rush through"],
+      "synonyms": [
+        "review",
+        "examine",
+        "check",
+        "look over"
+      ],
+      "antonyms": [
+        "skip",
+        "ignore",
+        "rush through"
+      ],
       "nuance": "Implies thorough review — 'going over' something means checking every detail.",
       "register": "neutral",
       "realLifeTask": "Always go over important documents before finalising — 'Let's go over this together.'",
-      "tags": ["review", "quality control", "meetings"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "review",
+        "quality control",
+        "meetings"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "переглядати / розбирати",
+        "pl": "przeglądać / omawiać",
+        "ru": "просматривать / разбирать"
+      }
     },
     {
       "term": "move forward",
@@ -520,13 +1236,33 @@
       "definitionEn": "To proceed with a plan or project, typically after a decision has been made.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Are we all agreed? Great — let's move forward with option B.",
-      "synonyms": ["proceed", "progress", "advance", "go ahead"],
-      "antonyms": ["stall", "delay", "hold back"],
+      "synonyms": [
+        "proceed",
+        "progress",
+        "advance",
+        "go ahead"
+      ],
+      "antonyms": [
+        "stall",
+        "delay",
+        "hold back"
+      ],
       "nuance": "Common closing phrase in business meetings — signals a decision has been made.",
       "register": "neutral",
       "realLifeTask": "Use 'moving forward' to signal decision closure: 'Moving forward, here's the plan.'",
-      "tags": ["decisions", "progress", "meetings"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "decisions",
+        "progress",
+        "meetings"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "рухатися вперед / просуватися",
+        "pl": "posuwać się naprzód",
+        "ru": "двигаться вперёд / продвигаться"
+      }
     },
     {
       "term": "tie up",
@@ -534,13 +1270,33 @@
       "definitionEn": "To complete final details or loose ends of something; or to occupy someone's time.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "I just need to tie up a few loose ends before I can close the project.",
-      "synonyms": ["finalise", "complete", "wrap up", "finish off"],
-      "antonyms": ["leave open", "delay", "abandon"],
+      "synonyms": [
+        "finalise",
+        "complete",
+        "wrap up",
+        "finish off"
+      ],
+      "antonyms": [
+        "leave open",
+        "delay",
+        "abandon"
+      ],
       "nuance": "'Tie up loose ends' is an idiom meaning to deal with remaining small tasks.",
       "register": "neutral",
       "realLifeTask": "Use 'tying up loose ends' when explaining final stages of a project.",
-      "tags": ["completion", "finalising", "projects"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "completion",
+        "finalising",
+        "projects"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "завершувати / зав'язувати",
+        "pl": "kończyć / wiązać",
+        "ru": "завершать / связывать"
+      }
     },
     {
       "term": "wrap up",
@@ -548,13 +1304,33 @@
       "definitionEn": "To bring something to a conclusion; to finish a meeting, project, or presentation.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "We're running short on time, so let's wrap up this discussion.",
-      "synonyms": ["conclude", "finish", "close", "end"],
-      "antonyms": ["open", "begin", "start"],
+      "synonyms": [
+        "conclude",
+        "finish",
+        "close",
+        "end"
+      ],
+      "antonyms": [
+        "open",
+        "begin",
+        "start"
+      ],
       "nuance": "Common in meetings — signals you're about to close: 'Let's wrap up with action points.'",
       "register": "neutral",
       "realLifeTask": "Use 'Can we start wrapping up?' to signal the end of a meeting running over time.",
-      "tags": ["meetings", "closure", "presentations"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "meetings",
+        "closure",
+        "presentations"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "завершувати / підбивати підсумки",
+        "pl": "kończyć / podsumowywać",
+        "ru": "завершать / подводить итоги"
+      }
     },
     {
       "term": "reach out",
@@ -562,13 +1338,33 @@
       "definitionEn": "To contact someone, especially to initiate communication or seek help.",
       "partOfSpeech": "verb phrase",
       "exampleSentence": "Please reach out to me if you have any questions.",
-      "synonyms": ["contact", "get in touch", "connect", "approach"],
-      "antonyms": ["ignore", "avoid", "disconnect"],
+      "synonyms": [
+        "contact",
+        "get in touch",
+        "connect",
+        "approach"
+      ],
+      "antonyms": [
+        "ignore",
+        "avoid",
+        "disconnect"
+      ],
       "nuance": "Ubiquitous in business English — slightly informal but widely accepted professionally.",
       "register": "neutral",
       "realLifeTask": "Use 'reach out' in email sign-offs: 'Don't hesitate to reach out if you need anything.'",
-      "tags": ["communication", "networking", "emails"],
-      "themes": ["Phrasal Verbs"]
+      "tags": [
+        "communication",
+        "networking",
+        "emails"
+      ],
+      "themes": [
+        "Phrasal Verbs"
+      ],
+      "translations": {
+        "uk": "зв'язуватися / виходити на контакт",
+        "pl": "skontaktować się / nawiązać kontakt",
+        "ru": "связываться / выходить на контакт"
+      }
     }
   ]
 }

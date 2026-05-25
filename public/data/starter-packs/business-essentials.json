@@ -16,13 +16,31 @@
       "definitionEn": "To use something to maximum advantage in a given situation.",
       "partOfSpeech": "verb",
       "exampleSentence": "We can leverage our existing customer relationships to expand into new markets.",
-      "synonyms": ["utilise", "harness", "exploit", "capitalise on"],
-      "antonyms": ["waste", "squander"],
+      "synonyms": [
+        "utilise",
+        "harness",
+        "exploit",
+        "capitalise on"
+      ],
+      "antonyms": [
+        "waste",
+        "squander"
+      ],
       "nuance": "More strategic and intentional than simply 'use' — implies smart deployment of an existing advantage.",
       "register": "neutral",
       "realLifeTask": "In your next status update, replace 'use' with 'leverage' when describing how your team is applying a resource.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "використовувати / задіяти",
+        "pl": "wykorzystywać / dźwignia",
+        "ru": "использовать / рычаг"
+      }
     },
     {
       "term": "benchmark",
@@ -30,13 +48,28 @@
       "definitionEn": "A standard or point of reference against which performance or quality is measured.",
       "partOfSpeech": "noun / verb",
       "exampleSentence": "We need to benchmark our onboarding process against industry leaders.",
-      "synonyms": ["standard", "yardstick", "reference point", "measure"],
+      "synonyms": [
+        "standard",
+        "yardstick",
+        "reference point",
+        "measure"
+      ],
       "antonyms": [],
       "nuance": "Used both as a noun (set a benchmark) and a verb (to benchmark something). Common in performance reviews and product strategy.",
       "register": "neutral",
       "realLifeTask": "Mention a benchmark in your next report: 'Our NPS is 42, which benchmarks well against the industry average of 35.'",
-      "tags": ["#business", "#metrics"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#metrics"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "орієнтир / еталон",
+        "pl": "punkt odniesienia / benchmark",
+        "ru": "ориентир / эталон"
+      }
     },
     {
       "term": "stakeholder",
@@ -44,13 +77,28 @@
       "definitionEn": "A person or group with an interest in, or affected by, a business decision or project.",
       "partOfSpeech": "noun",
       "exampleSentence": "We need to align all key stakeholders before moving to the next phase.",
-      "synonyms": ["interested party", "participant", "shareholder", "decision-maker"],
+      "synonyms": [
+        "interested party",
+        "participant",
+        "shareholder",
+        "decision-maker"
+      ],
       "antonyms": [],
       "nuance": "Broader than 'shareholder' — includes clients, employees, managers, and external partners. Essential in project and product language.",
       "register": "formal",
       "realLifeTask": "In your next project doc, list three stakeholders and their interests in one sentence each.",
-      "tags": ["#business", "#project-management"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#project-management"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "зацікавлена сторона",
+        "pl": "interesariusz",
+        "ru": "заинтересованная сторона"
+      }
     },
     {
       "term": "facilitate",
@@ -58,13 +106,32 @@
       "definitionEn": "To make a process easier or more likely to happen; to help something run smoothly.",
       "partOfSpeech": "verb",
       "exampleSentence": "The new platform will facilitate collaboration across remote teams.",
-      "synonyms": ["enable", "assist", "support", "streamline"],
-      "antonyms": ["hinder", "obstruct", "impede"],
+      "synonyms": [
+        "enable",
+        "assist",
+        "support",
+        "streamline"
+      ],
+      "antonyms": [
+        "hinder",
+        "obstruct",
+        "impede"
+      ],
       "nuance": "More formal and professional than 'help'. Often used for systems, processes, or meetings: 'facilitate a workshop', 'facilitate change'.",
       "register": "formal",
       "realLifeTask": "Use 'facilitate' in a sentence about your next meeting or project: 'This tool will facilitate faster decision-making.'",
-      "tags": ["#business", "#formal"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#formal"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "сприяти / полегшувати",
+        "pl": "ułatwiać / facylitować",
+        "ru": "содействовать / облегчать"
+      }
     },
     {
       "term": "implement",
@@ -72,13 +139,33 @@
       "definitionEn": "To put a decision, plan, or system into effect; to execute something that has been planned.",
       "partOfSpeech": "verb",
       "exampleSentence": "The team will implement the new feedback process starting next quarter.",
-      "synonyms": ["execute", "apply", "carry out", "put in place", "roll out"],
-      "antonyms": ["abandon", "cancel", "scrap"],
+      "synonyms": [
+        "execute",
+        "apply",
+        "carry out",
+        "put in place",
+        "roll out"
+      ],
+      "antonyms": [
+        "abandon",
+        "cancel",
+        "scrap"
+      ],
       "nuance": "Implies that planning is complete and action is now being taken. More formal than 'do' or 'start'.",
       "register": "neutral",
       "realLifeTask": "Describe one thing you are currently implementing at work in a sentence.",
-      "tags": ["#business", "#execution"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#execution"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "впроваджувати / реалізовувати",
+        "pl": "wdrażać",
+        "ru": "внедрять / реализовывать"
+      }
     },
     {
       "term": "deliverable",
@@ -86,13 +173,29 @@
       "definitionEn": "A concrete output, result, or product that must be produced as part of a project.",
       "partOfSpeech": "noun",
       "exampleSentence": "The main deliverables for Q3 are the redesigned onboarding flow and the updated pricing page.",
-      "synonyms": ["output", "result", "product", "outcome", "artefact"],
+      "synonyms": [
+        "output",
+        "result",
+        "product",
+        "outcome",
+        "artefact"
+      ],
       "antonyms": [],
       "nuance": "Specific to project management language — a deliverable is tangible and has a deadline, unlike a vague 'goal'.",
       "register": "neutral",
       "realLifeTask": "List two deliverables for your current project in one sentence each.",
-      "tags": ["#business", "#project-management"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#project-management"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "результат / підсумковий продукт",
+        "pl": "produkt do dostarczenia",
+        "ru": "результат / deliverable"
+      }
     },
     {
       "term": "scalable",
@@ -100,13 +203,33 @@
       "definitionEn": "Able to be expanded or adapted to handle greater volume, complexity, or growth without loss of quality.",
       "partOfSpeech": "adjective",
       "exampleSentence": "We need a scalable solution that can handle ten times our current user base.",
-      "synonyms": ["expandable", "adaptable", "flexible", "extensible"],
-      "antonyms": ["rigid", "fixed", "limited"],
+      "synonyms": [
+        "expandable",
+        "adaptable",
+        "flexible",
+        "extensible"
+      ],
+      "antonyms": [
+        "rigid",
+        "fixed",
+        "limited"
+      ],
       "nuance": "A key word in tech, product, and startup environments. Often contrasted with solutions that work now but break under growth.",
       "register": "neutral",
       "realLifeTask": "Describe one aspect of your current work or product as 'scalable' or 'not yet scalable' in a sentence.",
-      "tags": ["#business", "#tech", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#tech",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "масштабований",
+        "pl": "skalowalny",
+        "ru": "масштабируемый"
+      }
     },
     {
       "term": "prioritise",
@@ -114,13 +237,32 @@
       "definitionEn": "To arrange tasks or goals in order of importance so that the most critical ones are addressed first.",
       "partOfSpeech": "verb",
       "exampleSentence": "We need to prioritise customer retention over acquiring new users this quarter.",
-      "synonyms": ["rank", "order", "focus on", "put first"],
-      "antonyms": ["deprioritise", "ignore", "neglect"],
+      "synonyms": [
+        "rank",
+        "order",
+        "focus on",
+        "put first"
+      ],
+      "antonyms": [
+        "deprioritise",
+        "ignore",
+        "neglect"
+      ],
       "nuance": "Common in any planning or decision-making context. Note: 'prioritize' is American English; 'prioritise' is British English.",
       "register": "neutral",
       "realLifeTask": "In your next planning meeting, say: 'Let's prioritise [X] because [reason].'",
-      "tags": ["#business", "#planning"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#planning"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "визначати пріоритети",
+        "pl": "ustalać priorytety",
+        "ru": "расставлять приоритеты"
+      }
     },
     {
       "term": "align",
@@ -128,13 +270,32 @@
       "definitionEn": "To bring different people, teams, or goals into agreement or coordination with each other.",
       "partOfSpeech": "verb",
       "exampleSentence": "Before we proceed, we need to align with the marketing team on the messaging.",
-      "synonyms": ["coordinate", "synchronise", "agree", "unify"],
-      "antonyms": ["misalign", "disagree", "diverge"],
+      "synonyms": [
+        "coordinate",
+        "synchronise",
+        "agree",
+        "unify"
+      ],
+      "antonyms": [
+        "misalign",
+        "disagree",
+        "diverge"
+      ],
       "nuance": "Very common in business. 'Are we aligned?' is a quick way to ask if everyone agrees. Overused in some environments — use with awareness.",
       "register": "neutral",
       "realLifeTask": "Ask a colleague: 'Are we aligned on the timeline for this?' and notice their reaction.",
-      "tags": ["#business", "#communication"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#communication"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "узгоджувати / вирівнювати",
+        "pl": "uzgadniać / wyrównywać",
+        "ru": "согласовывать / выравнивать"
+      }
     },
     {
       "term": "pivot",
@@ -142,13 +303,31 @@
       "definitionEn": "To make a significant change in strategy, direction, or approach while keeping the core goal.",
       "partOfSpeech": "verb / noun",
       "exampleSentence": "After losing the key contract, we had to pivot our entire sales strategy.",
-      "synonyms": ["shift", "change course", "redirect", "adapt"],
-      "antonyms": ["stay the course", "persist"],
+      "synonyms": [
+        "shift",
+        "change course",
+        "redirect",
+        "adapt"
+      ],
+      "antonyms": [
+        "stay the course",
+        "persist"
+      ],
       "nuance": "Popularised by startup culture. Can sound overused in some contexts, but remains standard vocabulary for describing strategic changes.",
       "register": "neutral",
       "realLifeTask": "Describe a time your team had to pivot on a project in two or three sentences.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "змінити стратегічний напрямок",
+        "pl": "zmienić kierunek / pivot",
+        "ru": "сменить стратегическое направление"
+      }
     },
     {
       "term": "bottleneck",
@@ -156,13 +335,31 @@
       "definitionEn": "A point in a process that is slower than the rest and causes delays or congestion.",
       "partOfSpeech": "noun",
       "exampleSentence": "The bottleneck in our pipeline is the manual approval step — it delays releases by three days.",
-      "synonyms": ["constraint", "obstacle", "chokepoint", "blockage"],
-      "antonyms": ["throughput", "flow"],
+      "synonyms": [
+        "constraint",
+        "obstacle",
+        "chokepoint",
+        "blockage"
+      ],
+      "antonyms": [
+        "throughput",
+        "flow"
+      ],
       "nuance": "From manufacturing (a narrow bottle neck slows liquid flow). Now universal in project management, product development, and operations.",
       "register": "neutral",
       "realLifeTask": "Identify one bottleneck in your current workflow and describe it in a sentence.",
-      "tags": ["#business", "#operations"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#operations"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "вузьке місце",
+        "pl": "wąskie gardło",
+        "ru": "узкое место"
+      }
     },
     {
       "term": "proactive",
@@ -170,13 +367,31 @@
       "definitionEn": "Taking action to prevent problems before they occur, rather than reacting after the fact.",
       "partOfSpeech": "adjective",
       "exampleSentence": "A proactive approach to customer service means anticipating issues before users report them.",
-      "synonyms": ["forward-thinking", "anticipatory", "initiative-driven", "preventative"],
-      "antonyms": ["reactive", "passive"],
+      "synonyms": [
+        "forward-thinking",
+        "anticipatory",
+        "initiative-driven",
+        "preventative"
+      ],
+      "antonyms": [
+        "reactive",
+        "passive"
+      ],
       "nuance": "Contrasted with 'reactive'. Very common in performance reviews and leadership discussions. Becoming slightly overused but still essential vocabulary.",
       "register": "neutral",
       "realLifeTask": "Describe one proactive step you took this week at work.",
-      "tags": ["#business", "#leadership"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#leadership"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "проактивний",
+        "pl": "proaktywny",
+        "ru": "проактивный"
+      }
     },
     {
       "term": "streamline",
@@ -184,13 +399,32 @@
       "definitionEn": "To make a process more efficient and effective by simplifying or removing unnecessary steps.",
       "partOfSpeech": "verb",
       "exampleSentence": "The new tool will streamline our reporting process and save the team five hours per week.",
-      "synonyms": ["simplify", "optimise", "improve", "cut waste from"],
-      "antonyms": ["complicate", "slow down", "encumber"],
+      "synonyms": [
+        "simplify",
+        "optimise",
+        "improve",
+        "cut waste from"
+      ],
+      "antonyms": [
+        "complicate",
+        "slow down",
+        "encumber"
+      ],
       "nuance": "Implies both simplification and speed improvement. Often used in operations, HR, and product contexts.",
       "register": "neutral",
       "realLifeTask": "Identify one process you could streamline at work and explain how in two sentences.",
-      "tags": ["#business", "#efficiency"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#efficiency"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "оптимізувати / спрощувати",
+        "pl": "usprawnić / optymalizować",
+        "ru": "оптимизировать / упрощать"
+      }
     },
     {
       "term": "milestone",
@@ -198,13 +432,28 @@
       "definitionEn": "A significant stage or point of achievement in the progress of a project or goal.",
       "partOfSpeech": "noun",
       "exampleSentence": "Reaching 10,000 active users was a major milestone for our product team.",
-      "synonyms": ["checkpoint", "marker", "landmark", "key stage"],
+      "synonyms": [
+        "checkpoint",
+        "marker",
+        "landmark",
+        "key stage"
+      ],
       "antonyms": [],
       "nuance": "Different from a deadline (which is time-based) or a task (which is small). A milestone marks a significant achievement or decision point.",
       "register": "neutral",
       "realLifeTask": "Name three milestones in your current project in a short list.",
-      "tags": ["#business", "#project-management"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#project-management"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "контрольна точка / віха",
+        "pl": "kamień milowy",
+        "ru": "веха / контрольная точка"
+      }
     },
     {
       "term": "escalate",
@@ -212,13 +461,32 @@
       "definitionEn": "To refer an issue to a higher authority for resolution; or to increase in intensity.",
       "partOfSpeech": "verb",
       "exampleSentence": "If the client doesn't respond within 48 hours, please escalate this to the account director.",
-      "synonyms": ["refer up", "elevate", "pass on", "intensify"],
-      "antonyms": ["resolve", "de-escalate", "contain"],
+      "synonyms": [
+        "refer up",
+        "elevate",
+        "pass on",
+        "intensify"
+      ],
+      "antonyms": [
+        "resolve",
+        "de-escalate",
+        "contain"
+      ],
       "nuance": "Has two common uses: (1) moving an issue upward in an organisation, (2) a situation getting more serious. The first is the professional standard use.",
       "register": "neutral",
       "realLifeTask": "Practise saying: 'I'll need to escalate this if we don't have a resolution by Friday.'",
-      "tags": ["#business", "#communication"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#communication"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "ескалювати / передавати на вищий рівень",
+        "pl": "eskalować",
+        "ru": "эскалировать / передавать на более высокий уровень"
+      }
     },
     {
       "term": "takeaway",
@@ -226,13 +494,28 @@
       "definitionEn": "The key point, lesson, or conclusion that you want an audience to remember from a meeting or presentation.",
       "partOfSpeech": "noun",
       "exampleSentence": "The main takeaway from today's retrospective is that we need clearer ownership of tasks.",
-      "synonyms": ["key point", "main message", "conclusion", "headline"],
+      "synonyms": [
+        "key point",
+        "main message",
+        "conclusion",
+        "headline"
+      ],
       "antonyms": [],
       "nuance": "Common in business communication. Often used at the end of a presentation or meeting: 'The key takeaways are...'",
       "register": "neutral",
       "realLifeTask": "After your next meeting, write down the three main takeaways in bullet points.",
-      "tags": ["#business", "#communication"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#communication"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "ключовий висновок",
+        "pl": "wniosek / kluczowy punkt",
+        "ru": "ключевой вывод"
+      }
     },
     {
       "term": "tangible",
@@ -240,13 +523,33 @@
       "definitionEn": "Clear, definite, and able to be measured or demonstrated — not vague or abstract.",
       "partOfSpeech": "adjective",
       "exampleSentence": "We need tangible results by the end of the quarter, not just progress reports.",
-      "synonyms": ["concrete", "measurable", "real", "definite"],
-      "antonyms": ["intangible", "abstract", "vague", "theoretical"],
+      "synonyms": [
+        "concrete",
+        "measurable",
+        "real",
+        "definite"
+      ],
+      "antonyms": [
+        "intangible",
+        "abstract",
+        "vague",
+        "theoretical"
+      ],
       "nuance": "Often contrasted with 'intangible' benefits. Used to demand or demonstrate results that can actually be seen or measured.",
       "register": "neutral",
       "realLifeTask": "Describe one tangible outcome from your last project in one sentence.",
-      "tags": ["#business", "#professional"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#professional"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "відчутний / конкретний",
+        "pl": "namacalny / konkretny",
+        "ru": "ощутимый / конкретный"
+      }
     },
     {
       "term": "transparency",
@@ -254,13 +557,32 @@
       "definitionEn": "Openness and honesty about decisions, processes, and information within an organisation.",
       "partOfSpeech": "noun",
       "exampleSentence": "The team appreciated the leadership's transparency about the restructuring plans.",
-      "synonyms": ["openness", "honesty", "clarity", "visibility"],
-      "antonyms": ["opacity", "secrecy", "concealment"],
+      "synonyms": [
+        "openness",
+        "honesty",
+        "clarity",
+        "visibility"
+      ],
+      "antonyms": [
+        "opacity",
+        "secrecy",
+        "concealment"
+      ],
       "nuance": "A value frequently cited in company cultures. Can also refer to being transparent with data (visibility) or process (no hidden steps).",
       "register": "neutral",
       "realLifeTask": "Use 'transparency' in a sentence about communication in your workplace.",
-      "tags": ["#business", "#leadership"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#leadership"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "прозорість",
+        "pl": "przejrzystość / transparentność",
+        "ru": "прозрачность"
+      }
     },
     {
       "term": "accountability",
@@ -268,13 +590,31 @@
       "definitionEn": "The obligation to take responsibility for one's actions and the outcomes they produce.",
       "partOfSpeech": "noun",
       "exampleSentence": "Creating a culture of accountability means that everyone knows what they own and follows through.",
-      "synonyms": ["responsibility", "ownership", "answerability", "commitment"],
-      "antonyms": ["irresponsibility", "blame-shifting"],
+      "synonyms": [
+        "responsibility",
+        "ownership",
+        "answerability",
+        "commitment"
+      ],
+      "antonyms": [
+        "irresponsibility",
+        "blame-shifting"
+      ],
       "nuance": "Different from 'responsibility' — accountability implies being answerable to others, not just to yourself. Often paired with 'ownership'.",
       "register": "neutral",
       "realLifeTask": "In your next 1:1, clarify who has accountability for one open action item.",
-      "tags": ["#business", "#leadership"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#leadership"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "відповідальність / підзвітність",
+        "pl": "odpowiedzialność / rozliczalność",
+        "ru": "ответственность / подотчётность"
+      }
     },
     {
       "term": "initiative",
@@ -282,13 +622,29 @@
       "definitionEn": "A new plan or programme designed to solve a problem or achieve a goal; also the ability to act independently.",
       "partOfSpeech": "noun",
       "exampleSentence": "The company launched a new initiative to improve internal knowledge sharing.",
-      "synonyms": ["programme", "project", "scheme", "effort", "drive"],
+      "synonyms": [
+        "programme",
+        "project",
+        "scheme",
+        "effort",
+        "drive"
+      ],
       "antonyms": [],
       "nuance": "Can mean a specific project ('a new initiative') or a personal quality ('she shows great initiative'). Context makes the meaning clear.",
       "register": "neutral",
       "realLifeTask": "Describe a current initiative at your company in two sentences.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "ініціатива",
+        "pl": "inicjatywa",
+        "ru": "инициатива"
+      }
     },
     {
       "term": "consensus",
@@ -296,13 +652,32 @@
       "definitionEn": "General agreement among a group of people, especially after discussion.",
       "partOfSpeech": "noun",
       "exampleSentence": "After an hour of debate, the team reached a consensus on the product roadmap.",
-      "synonyms": ["agreement", "accord", "unity", "alignment"],
-      "antonyms": ["disagreement", "conflict", "division"],
+      "synonyms": [
+        "agreement",
+        "accord",
+        "unity",
+        "alignment"
+      ],
+      "antonyms": [
+        "disagreement",
+        "conflict",
+        "division"
+      ],
       "nuance": "Not unanimous agreement — consensus means most people agree enough to move forward. Common in decision-making contexts.",
       "register": "neutral",
       "realLifeTask": "In your next meeting, ask: 'Do we have consensus on this, or are there concerns we should address first?'",
-      "tags": ["#business", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "консенсус / згода",
+        "pl": "konsensus",
+        "ru": "консенсус"
+      }
     },
     {
       "term": "robust",
@@ -310,13 +685,34 @@
       "definitionEn": "Strong, effective, and able to perform well even under pressure or in difficult conditions.",
       "partOfSpeech": "adjective",
       "exampleSentence": "We need a more robust process for handling customer complaints at scale.",
-      "synonyms": ["strong", "solid", "reliable", "resilient", "sound"],
-      "antonyms": ["fragile", "weak", "flawed", "unstable"],
+      "synonyms": [
+        "strong",
+        "solid",
+        "reliable",
+        "resilient",
+        "sound"
+      ],
+      "antonyms": [
+        "fragile",
+        "weak",
+        "flawed",
+        "unstable"
+      ],
       "nuance": "Frequently used in business to describe systems, plans, or frameworks that are well-built and won't break under stress.",
       "register": "neutral",
       "realLifeTask": "Describe one robust and one fragile process at your workplace in a sentence each.",
-      "tags": ["#business", "#quality"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#quality"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "надійний / стійкий",
+        "pl": "solidny / niezawodny",
+        "ru": "надёжный / устойчивый"
+      }
     },
     {
       "term": "viable",
@@ -324,13 +720,32 @@
       "definitionEn": "Capable of working successfully; practical and realistic given available resources.",
       "partOfSpeech": "adjective",
       "exampleSentence": "Building a custom solution in-house isn't viable given our current budget and timeline.",
-      "synonyms": ["feasible", "workable", "practical", "achievable"],
-      "antonyms": ["unviable", "impractical", "unfeasible"],
+      "synonyms": [
+        "feasible",
+        "workable",
+        "practical",
+        "achievable"
+      ],
+      "antonyms": [
+        "unviable",
+        "impractical",
+        "unfeasible"
+      ],
       "nuance": "Often used in phrases like 'viable option', 'commercially viable', 'minimum viable product (MVP)'.",
       "register": "neutral",
       "realLifeTask": "Assess one option for a current project: 'This approach is/isn't viable because…'",
-      "tags": ["#business", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "життєздатний / здійсненний",
+        "pl": "wykonalny / realny",
+        "ru": "жизнеспособный / реальный"
+      }
     },
     {
       "term": "traction",
@@ -338,13 +753,31 @@
       "definitionEn": "Progress or momentum, especially the early signs that a product, idea, or project is succeeding.",
       "partOfSpeech": "noun",
       "exampleSentence": "The new feature has been gaining traction with our enterprise clients.",
-      "synonyms": ["momentum", "progress", "uptake", "adoption"],
-      "antonyms": ["stagnation", "resistance"],
+      "synonyms": [
+        "momentum",
+        "progress",
+        "uptake",
+        "adoption"
+      ],
+      "antonyms": [
+        "stagnation",
+        "resistance"
+      ],
       "nuance": "Common in startup and product language. 'Gaining traction' means things are starting to work and grow.",
       "register": "neutral",
       "realLifeTask": "Describe one area of your work that is gaining traction this month.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "просування / динаміка",
+        "pl": "przyczepność / dynamika",
+        "ru": "продвижение / динамика"
+      }
     },
     {
       "term": "granular",
@@ -352,13 +785,32 @@
       "definitionEn": "Detailed and specific, involving examination at the level of small individual elements.",
       "partOfSpeech": "adjective",
       "exampleSentence": "Can we get more granular data on which user segments are churning?",
-      "synonyms": ["detailed", "specific", "fine-grained", "precise"],
-      "antonyms": ["high-level", "broad", "general"],
+      "synonyms": [
+        "detailed",
+        "specific",
+        "fine-grained",
+        "precise"
+      ],
+      "antonyms": [
+        "high-level",
+        "broad",
+        "general"
+      ],
       "nuance": "Common in data, analytics, and strategy conversations. 'Getting granular' means diving into the details. Use when asking for more depth.",
       "register": "neutral",
       "realLifeTask": "Ask for granular information in your next data review: 'Can we break this down at a more granular level?'",
-      "tags": ["#business", "#data"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#data"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "деталізований / докладний",
+        "pl": "szczegółowy / granularny",
+        "ru": "детализированный / подробный"
+      }
     },
     {
       "term": "holistic",
@@ -366,13 +818,32 @@
       "definitionEn": "Considering the whole system or situation rather than focusing on individual parts in isolation.",
       "partOfSpeech": "adjective",
       "exampleSentence": "We need a holistic view of the customer journey, not just the conversion funnel.",
-      "synonyms": ["comprehensive", "integrated", "whole-system", "end-to-end"],
-      "antonyms": ["narrow", "siloed", "piecemeal"],
+      "synonyms": [
+        "comprehensive",
+        "integrated",
+        "whole-system",
+        "end-to-end"
+      ],
+      "antonyms": [
+        "narrow",
+        "siloed",
+        "piecemeal"
+      ],
       "nuance": "Often used to advocate for a broader view in discussions where people are too focused on one metric or process.",
       "register": "neutral",
       "realLifeTask": "Describe a problem at work from a holistic perspective, connecting at least two different departments or factors.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "цілісний / комплексний",
+        "pl": "holistyczny / całościowy",
+        "ru": "целостный / комплексный"
+      }
     },
     {
       "term": "actionable",
@@ -380,13 +851,32 @@
       "definitionEn": "Practical and specific enough to be acted upon immediately; ready to be turned into concrete steps.",
       "partOfSpeech": "adjective",
       "exampleSentence": "The report needs to end with actionable recommendations, not just observations.",
-      "synonyms": ["practical", "concrete", "implementable", "workable"],
-      "antonyms": ["vague", "theoretical", "abstract"],
+      "synonyms": [
+        "practical",
+        "concrete",
+        "implementable",
+        "workable"
+      ],
+      "antonyms": [
+        "vague",
+        "theoretical",
+        "abstract"
+      ],
       "nuance": "Key word in business communication — distinguishes useful information from information that doesn't lead anywhere. 'Make it actionable' is a common request.",
       "register": "neutral",
       "realLifeTask": "Turn one vague goal into an actionable next step: 'Instead of improve NPS, we will call 5 detractors this week.'",
-      "tags": ["#business", "#communication"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#communication"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "дієвий / конкретний",
+        "pl": "wykonalny / możliwy do wdrożenia",
+        "ru": "действенный / конкретный"
+      }
     },
     {
       "term": "iterate",
@@ -394,13 +884,32 @@
       "definitionEn": "To repeat and refine a process or design through multiple cycles, improving with each round.",
       "partOfSpeech": "verb",
       "exampleSentence": "We'll launch a basic version first and iterate based on user feedback.",
-      "synonyms": ["refine", "improve", "cycle through", "develop progressively"],
-      "antonyms": ["finalise immediately", "ship without testing"],
+      "synonyms": [
+        "refine",
+        "improve",
+        "cycle through",
+        "develop progressively"
+      ],
+      "antonyms": [
+        "finalise immediately",
+        "ship without testing"
+      ],
       "nuance": "Central to agile and product development thinking. Implies that perfection isn't the first goal — learning and improving is.",
       "register": "neutral",
       "realLifeTask": "Describe a process at work that you iterate on regularly.",
-      "tags": ["#business", "#product", "#agile"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product",
+        "#agile"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "ітерувати / повторювати цикл",
+        "pl": "iterować",
+        "ru": "итерировать"
+      }
     },
     {
       "term": "onboard",
@@ -408,13 +917,30 @@
       "definitionEn": "To integrate a new employee, client, or user into a system or organisation.",
       "partOfSpeech": "verb",
       "exampleSentence": "It takes about six weeks to fully onboard a new enterprise client.",
-      "synonyms": ["integrate", "induct", "introduce", "orient"],
-      "antonyms": ["offboard"],
+      "synonyms": [
+        "integrate",
+        "induct",
+        "introduce",
+        "orient"
+      ],
+      "antonyms": [
+        "offboard"
+      ],
       "nuance": "Used for both employees (HR onboarding) and customers (product onboarding). As a noun: 'onboarding process', 'onboarding flow'.",
       "register": "neutral",
       "realLifeTask": "Describe one improvement you would make to your current onboarding process in two sentences.",
-      "tags": ["#business", "#HR"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#HR"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "адаптувати нового співробітника",
+        "pl": "wdrażać / onboardować",
+        "ru": "адаптировать нового сотрудника"
+      }
     },
     {
       "term": "bandwidth",
@@ -422,13 +948,28 @@
       "definitionEn": "The available capacity a person or team has to take on additional work or responsibilities.",
       "partOfSpeech": "noun",
       "exampleSentence": "I don't have the bandwidth to take on a new project before the end of the month.",
-      "synonyms": ["capacity", "availability", "headroom", "resource"],
+      "synonyms": [
+        "capacity",
+        "availability",
+        "headroom",
+        "resource"
+      ],
       "antonyms": [],
       "nuance": "A metaphor from network technology — now standard in workplace language. Saying you lack bandwidth politely signals you are at capacity without saying 'I'm too busy'.",
       "register": "neutral",
       "realLifeTask": "Use 'bandwidth' this week when discussing your workload: 'Do we have the bandwidth to take this on?'",
-      "tags": ["#business", "#workload"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#workload"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "ресурси / можливості",
+        "pl": "możliwości / przepustowość",
+        "ru": "ресурсы / пропускная способность"
+      }
     },
     {
       "term": "framework",
@@ -436,13 +977,29 @@
       "definitionEn": "A structured system, set of principles, or approach used to guide decisions or organise work.",
       "partOfSpeech": "noun",
       "exampleSentence": "We use the RICE framework to score and prioritise features on our roadmap.",
-      "synonyms": ["structure", "model", "system", "methodology", "approach"],
+      "synonyms": [
+        "structure",
+        "model",
+        "system",
+        "methodology",
+        "approach"
+      ],
       "antonyms": [],
       "nuance": "Can refer to a methodology (Agile framework), a mental model, or a document structure. Very flexible term in professional language.",
       "register": "neutral",
       "realLifeTask": "Mention a framework you use at work in a sentence: 'We use [X] framework to help us make decisions about [Y].'",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "система / концепція / фреймворк",
+        "pl": "framework / ramy",
+        "ru": "система / концепция / фреймворк"
+      }
     },
     {
       "term": "rollout",
@@ -450,13 +1007,31 @@
       "definitionEn": "The process of gradually introducing or deploying a new product, feature, or change.",
       "partOfSpeech": "noun",
       "exampleSentence": "The feature rollout will start with 10% of users and scale to 100% over two weeks.",
-      "synonyms": ["launch", "deployment", "release", "introduction"],
-      "antonyms": ["rollback", "withdrawal"],
+      "synonyms": [
+        "launch",
+        "deployment",
+        "release",
+        "introduction"
+      ],
+      "antonyms": [
+        "rollback",
+        "withdrawal"
+      ],
       "nuance": "Implies phased or staged introduction rather than an instant switch. Common in product, IT, and marketing contexts.",
       "register": "neutral",
       "realLifeTask": "Describe the rollout plan for something you are currently working on.",
-      "tags": ["#business", "#product"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "запуск / розгортання",
+        "pl": "wdrożenie / rollout",
+        "ru": "запуск / развёртывание"
+      }
     },
     {
       "term": "pain point",
@@ -464,13 +1039,29 @@
       "definitionEn": "A persistent or recurring problem that causes difficulty for customers, clients, or team members.",
       "partOfSpeech": "noun phrase",
       "exampleSentence": "The biggest pain point for enterprise clients is the complexity of the current integration process.",
-      "synonyms": ["problem area", "friction", "challenge", "complaint"],
+      "synonyms": [
+        "problem area",
+        "friction",
+        "challenge",
+        "complaint"
+      ],
       "antonyms": [],
       "nuance": "Widely used in sales, customer research, and product development. Identifying pain points is the first step to solving problems.",
       "register": "neutral",
       "realLifeTask": "Name three pain points your users or clients experience with your current product or service.",
-      "tags": ["#business", "#product", "#sales"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product",
+        "#sales"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "больова точка / проблема",
+        "pl": "punkt bólu / problem",
+        "ru": "болевая точка / проблема"
+      }
     },
     {
       "term": "value proposition",
@@ -478,13 +1069,29 @@
       "definitionEn": "A clear statement of the specific benefit a product or service delivers to its users or customers.",
       "partOfSpeech": "noun phrase",
       "exampleSentence": "Our value proposition is simple: save users three hours a week on manual reporting.",
-      "synonyms": ["benefit statement", "unique selling point", "offering", "pitch"],
+      "synonyms": [
+        "benefit statement",
+        "unique selling point",
+        "offering",
+        "pitch"
+      ],
       "antonyms": [],
       "nuance": "More specific and outcome-focused than a general description. A strong value proposition answers: 'Why should I choose you over alternatives?'",
       "register": "neutral",
       "realLifeTask": "Write your product or team's value proposition in one sentence.",
-      "tags": ["#business", "#strategy", "#marketing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy",
+        "#marketing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "ціннісна пропозиція",
+        "pl": "propozycja wartości",
+        "ru": "ценностное предложение"
+      }
     },
     {
       "term": "roadmap",
@@ -492,13 +1099,28 @@
       "definitionEn": "A strategic plan showing the goals, milestones, and timeline for achieving a product or business objective.",
       "partOfSpeech": "noun",
       "exampleSentence": "The product roadmap for H2 focuses on enterprise integrations and mobile performance.",
-      "synonyms": ["plan", "strategy", "timeline", "blueprint"],
+      "synonyms": [
+        "plan",
+        "strategy",
+        "timeline",
+        "blueprint"
+      ],
       "antonyms": [],
       "nuance": "Widely used in product management and engineering. A roadmap is directional, not a fixed contract — it changes based on new information.",
       "register": "neutral",
       "realLifeTask": "Describe one item on your current roadmap and why it was prioritised.",
-      "tags": ["#business", "#product"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "дорожня карта",
+        "pl": "roadmap / plan działania",
+        "ru": "дорожная карта"
+      }
     },
     {
       "term": "workaround",
@@ -506,13 +1128,31 @@
       "definitionEn": "A method of solving a problem by bypassing the root cause rather than fixing it directly.",
       "partOfSpeech": "noun",
       "exampleSentence": "Until the bug is fixed, we've implemented a workaround that manually resets the sync every hour.",
-      "synonyms": ["temporary fix", "patch", "band-aid solution", "bypass"],
-      "antonyms": ["root cause solution", "permanent fix"],
+      "synonyms": [
+        "temporary fix",
+        "patch",
+        "band-aid solution",
+        "bypass"
+      ],
+      "antonyms": [
+        "root cause solution",
+        "permanent fix"
+      ],
       "nuance": "Implies a pragmatic but imperfect solution. Useful for acknowledging constraints while still moving forward. Not a long-term strategy.",
       "register": "neutral",
       "realLifeTask": "Describe a workaround currently in use in your work and what the permanent fix would look like.",
-      "tags": ["#business", "#tech"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#tech"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "обхідний шлях / тимчасове рішення",
+        "pl": "obejście / rozwiązanie zastępcze",
+        "ru": "обходное решение"
+      }
     },
     {
       "term": "sign-off",
@@ -520,13 +1160,31 @@
       "definitionEn": "Formal approval given by someone with authority before a project, document, or decision moves forward.",
       "partOfSpeech": "noun",
       "exampleSentence": "We're waiting for sign-off from legal before we can launch the campaign.",
-      "synonyms": ["approval", "authorisation", "green light", "clearance"],
-      "antonyms": ["rejection", "veto"],
+      "synonyms": [
+        "approval",
+        "authorisation",
+        "green light",
+        "clearance"
+      ],
+      "antonyms": [
+        "rejection",
+        "veto"
+      ],
       "nuance": "Signals the end of a review cycle and the beginning of execution. 'Who needs to sign off on this?' is a key governance question.",
       "register": "neutral",
       "realLifeTask": "Identify who needs to sign off on your next deliverable and what they typically need to see before approving.",
-      "tags": ["#business", "#governance"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#governance"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "затвердження / схвалення",
+        "pl": "zatwierdzenie / akceptacja",
+        "ru": "утверждение / одобрение"
+      }
     },
     {
       "term": "heads-up",
@@ -534,13 +1192,28 @@
       "definitionEn": "An advance warning or early notice about something that is going to happen.",
       "partOfSpeech": "noun",
       "exampleSentence": "Just a heads-up: the client is visiting on Thursday, so the office should be ready.",
-      "synonyms": ["early warning", "advance notice", "alert", "tip-off"],
+      "synonyms": [
+        "early warning",
+        "advance notice",
+        "alert",
+        "tip-off"
+      ],
       "antonyms": [],
       "nuance": "Informal but very common in workplace communication. Usually given out of courtesy or to allow the recipient time to prepare.",
       "register": "conversational",
       "realLifeTask": "Give someone at work a heads-up today: 'Just wanted to give you a heads-up that [X] is happening.'",
-      "tags": ["#business", "#communication"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#communication"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "попередження / завчасне сповіщення",
+        "pl": "ostrzeżenie / uprzedzenie",
+        "ru": "предупреждение / заблаговременное уведомление"
+      }
     },
     {
       "term": "flag",
@@ -548,13 +1221,32 @@
       "definitionEn": "To draw attention to something important that needs to be noticed, discussed, or addressed.",
       "partOfSpeech": "verb",
       "exampleSentence": "I wanted to flag a potential risk before it becomes a problem for the team.",
-      "synonyms": ["highlight", "raise", "draw attention to", "signal", "mark"],
-      "antonyms": ["ignore", "overlook"],
+      "synonyms": [
+        "highlight",
+        "raise",
+        "draw attention to",
+        "signal",
+        "mark"
+      ],
+      "antonyms": [
+        "ignore",
+        "overlook"
+      ],
       "nuance": "Common in business communication for raising concerns in a polite, non-confrontational way. 'I just wanted to flag this' is softer than 'This is a problem'.",
       "register": "neutral",
       "realLifeTask": "Practise flagging an issue in your next team meeting: 'I wanted to flag a concern about [X].'",
-      "tags": ["#business", "#communication"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#communication"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "позначати / звертати увагу",
+        "pl": "zaznaczać / sygnalizować",
+        "ru": "отмечать / сигнализировать"
+      }
     },
     {
       "term": "turnaround",
@@ -562,13 +1254,28 @@
       "definitionEn": "The time required to complete a task and return a result; or a complete reversal of a negative situation.",
       "partOfSpeech": "noun",
       "exampleSentence": "We guarantee a 48-hour turnaround on all client feedback requests.",
-      "synonyms": ["processing time", "response time", "recovery", "reversal"],
+      "synonyms": [
+        "processing time",
+        "response time",
+        "recovery",
+        "reversal"
+      ],
       "antonyms": [],
       "nuance": "Has two distinct meanings: (1) time to complete (turnaround time), (2) a company or situation recovering from failure (business turnaround).",
       "register": "neutral",
       "realLifeTask": "What is the typical turnaround time for one key task in your role? State it in a sentence.",
-      "tags": ["#business", "#operations"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#operations"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "виконання в стислі терміни",
+        "pl": "czas realizacji / zwrot",
+        "ru": "время выполнения / переломный момент"
+      }
     },
     {
       "term": "calibrate",
@@ -576,13 +1283,31 @@
       "definitionEn": "To carefully adjust or fine-tune an approach, expectation, or process to ensure accuracy.",
       "partOfSpeech": "verb",
       "exampleSentence": "We need to calibrate our targets for Q4 based on the slower-than-expected H1 growth.",
-      "synonyms": ["adjust", "fine-tune", "align", "set accurately"],
-      "antonyms": ["guess", "estimate wildly"],
+      "synonyms": [
+        "adjust",
+        "fine-tune",
+        "align",
+        "set accurately"
+      ],
+      "antonyms": [
+        "guess",
+        "estimate wildly"
+      ],
       "nuance": "Originally a scientific term (calibrating instruments). Now widely used in business for adjusting expectations, goals, and messages.",
       "register": "formal",
       "realLifeTask": "Use 'calibrate' in a sentence about adjusting a goal or expectation at work.",
-      "tags": ["#business", "#planning"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#planning"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "калібрувати / налаштовувати",
+        "pl": "kalibrować / dostosowywać",
+        "ru": "калибровать / настраивать"
+      }
     },
     {
       "term": "circulate",
@@ -590,13 +1315,31 @@
       "definitionEn": "To distribute or send a document, message, or information to a group of people.",
       "partOfSpeech": "verb",
       "exampleSentence": "Could you circulate the meeting agenda at least 24 hours in advance?",
-      "synonyms": ["distribute", "share", "send around", "disseminate"],
-      "antonyms": ["withhold", "keep private"],
+      "synonyms": [
+        "distribute",
+        "share",
+        "send around",
+        "disseminate"
+      ],
+      "antonyms": [
+        "withhold",
+        "keep private"
+      ],
       "nuance": "More formal than 'share' or 'send'. Implies structured distribution to a defined group. Often used for formal documents.",
       "register": "formal",
       "realLifeTask": "Circulate a document or agenda for your next meeting and mention that you have done so.",
-      "tags": ["#business", "#communication"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#communication"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "розповсюджувати / розсилати",
+        "pl": "rozesłać / rozpowszechniać",
+        "ru": "распространять / рассылать"
+      }
     },
     {
       "term": "drill down",
@@ -604,13 +1347,32 @@
       "definitionEn": "To examine something in progressively greater detail; to move from a high-level view into specifics.",
       "partOfSpeech": "phrasal verb",
       "exampleSentence": "The overall numbers look healthy, but let's drill down into the regional data.",
-      "synonyms": ["dig deeper", "analyse in detail", "zoom in", "investigate further"],
-      "antonyms": ["zoom out", "take a high-level view"],
+      "synonyms": [
+        "dig deeper",
+        "analyse in detail",
+        "zoom in",
+        "investigate further"
+      ],
+      "antonyms": [
+        "zoom out",
+        "take a high-level view"
+      ],
       "nuance": "Common in data, analytics, and business intelligence contexts. Suggests going beyond surface-level information to understand the cause.",
       "register": "neutral",
       "realLifeTask": "In your next data review, say: 'Let's drill down into [specific metric] to understand what's driving this.'",
-      "tags": ["#business", "#data", "#analysis"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#data",
+        "#analysis"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "деталізувати / заглиблюватися",
+        "pl": "zagłębiać się / drążyć",
+        "ru": "детализировать / углубляться"
+      }
     },
     {
       "term": "synergy",
@@ -618,13 +1380,31 @@
       "definitionEn": "The combined effect of two or more things working together that is greater than the sum of individual parts.",
       "partOfSpeech": "noun",
       "exampleSentence": "The merger will create significant synergies between the two product lines.",
-      "synonyms": ["combined effect", "collaboration benefit", "integration value"],
-      "antonyms": ["redundancy", "conflict", "duplication"],
+      "synonyms": [
+        "combined effect",
+        "collaboration benefit",
+        "integration value"
+      ],
+      "antonyms": [
+        "redundancy",
+        "conflict",
+        "duplication"
+      ],
       "nuance": "One of the most overused words in business. Use it accurately — it specifically means 2+2=5, not just 'working together'. If possible, quantify the synergy.",
       "register": "formal",
       "realLifeTask": "Identify one genuine synergy between two teams or products at your company.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "синергія",
+        "pl": "synergia",
+        "ru": "синергия"
+      }
     },
     {
       "term": "stakeholder buy-in",
@@ -632,13 +1412,31 @@
       "definitionEn": "The support, agreement, and commitment from key decision-makers needed before a project can move forward.",
       "partOfSpeech": "noun phrase",
       "exampleSentence": "Getting stakeholder buy-in early means fewer surprises and slower decisions later.",
-      "synonyms": ["support", "endorsement", "approval", "alignment"],
-      "antonyms": ["resistance", "opposition"],
+      "synonyms": [
+        "support",
+        "endorsement",
+        "approval",
+        "alignment"
+      ],
+      "antonyms": [
+        "resistance",
+        "opposition"
+      ],
       "nuance": "More than just approval — buy-in implies active support and willingness to contribute resources or political capital.",
       "register": "neutral",
       "realLifeTask": "Think of a current project. Who are the three stakeholders whose buy-in you need most?",
-      "tags": ["#business", "#project-management"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#project-management"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "підтримка зацікавлених сторін",
+        "pl": "zaangażowanie interesariuszy",
+        "ru": "поддержка заинтересованных сторон"
+      }
     },
     {
       "term": "low-hanging fruit",
@@ -646,13 +1444,30 @@
       "definitionEn": "Tasks, opportunities, or goals that are easily achievable and deliver quick results without much effort.",
       "partOfSpeech": "noun phrase",
       "exampleSentence": "Before we tackle the big infrastructure overhaul, let's pick off the low-hanging fruit and fix the three most common user errors.",
-      "synonyms": ["quick wins", "easy gains", "simple fixes"],
-      "antonyms": ["complex challenge", "long-term investment"],
+      "synonyms": [
+        "quick wins",
+        "easy gains",
+        "simple fixes"
+      ],
+      "antonyms": [
+        "complex challenge",
+        "long-term investment"
+      ],
       "nuance": "Not necessarily unimportant — it simply signals something achievable now. Often the best place to start when building momentum.",
       "register": "conversational",
       "realLifeTask": "Identify three pieces of low-hanging fruit in your current project or role.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "легкодосяжний результат",
+        "pl": "nisko wiszący owoc / łatwy cel",
+        "ru": "низко висящий плод / лёгкая цель"
+      }
     },
     {
       "term": "competitive edge",
@@ -660,13 +1475,31 @@
       "definitionEn": "An advantage that makes a company, product, or person more successful than its competition.",
       "partOfSpeech": "noun phrase",
       "exampleSentence": "Our competitive edge is the depth of integrations we offer — no other tool in this space has more than twenty.",
-      "synonyms": ["competitive advantage", "USP", "differentiator", "strength"],
-      "antonyms": ["weakness", "disadvantage"],
+      "synonyms": [
+        "competitive advantage",
+        "USP",
+        "differentiator",
+        "strength"
+      ],
+      "antonyms": [
+        "weakness",
+        "disadvantage"
+      ],
       "nuance": "Similar to 'unique selling point' but broader — it covers any sustainable advantage, not just a single feature.",
       "register": "neutral",
       "realLifeTask": "Describe your team's or company's competitive edge in one or two sentences.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "конкурентна перевага",
+        "pl": "przewaga konkurencyjna",
+        "ru": "конкурентное преимущество"
+      }
     },
     {
       "term": "insight",
@@ -674,13 +1507,29 @@
       "definitionEn": "A deep and accurate understanding of a situation, problem, or audience, often revealed through data or experience.",
       "partOfSpeech": "noun",
       "exampleSentence": "The customer interviews gave us a key insight: users don't abandon the product — they just forget to return.",
-      "synonyms": ["finding", "revelation", "understanding", "observation", "learning"],
+      "synonyms": [
+        "finding",
+        "revelation",
+        "understanding",
+        "observation",
+        "learning"
+      ],
       "antonyms": [],
       "nuance": "More powerful than just 'information'. An insight is something that changes how you think or act. 'Insights from data' is different from 'data'.",
       "register": "neutral",
       "realLifeTask": "Share one insight from your most recent project or client interaction with a colleague.",
-      "tags": ["#business", "#analysis"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#analysis"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "аналітичний висновок / розуміння",
+        "pl": "wgląd / spostrzeżenie",
+        "ru": "понимание / аналитический вывод"
+      }
     },
     {
       "term": "catalyst",
@@ -688,13 +1537,31 @@
       "definitionEn": "A person, event, or thing that triggers or accelerates a change or process.",
       "partOfSpeech": "noun",
       "exampleSentence": "The negative press coverage was actually a catalyst for the company to improve its support process.",
-      "synonyms": ["trigger", "driver", "spark", "enabler"],
-      "antonyms": ["barrier", "inhibitor"],
+      "synonyms": [
+        "trigger",
+        "driver",
+        "spark",
+        "enabler"
+      ],
+      "antonyms": [
+        "barrier",
+        "inhibitor"
+      ],
       "nuance": "From chemistry (a substance that speeds up a reaction). In business, it's something that causes change to happen faster than it would otherwise.",
       "register": "neutral",
       "realLifeTask": "Describe a catalyst for change in your organisation or industry in two sentences.",
-      "tags": ["#business", "#strategy"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#strategy"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "каталізатор / рушійна сила",
+        "pl": "katalizator",
+        "ru": "катализатор / движущая сила"
+      }
     },
     {
       "term": "advocate",
@@ -702,13 +1569,32 @@
       "definitionEn": "To publicly recommend or support a cause, policy, or person; also a person who does this.",
       "partOfSpeech": "verb / noun",
       "exampleSentence": "As a product manager, you need to advocate for the user in every business decision.",
-      "synonyms": ["champion", "support", "promote", "push for"],
-      "antonyms": ["oppose", "resist", "undermine"],
+      "synonyms": [
+        "champion",
+        "support",
+        "promote",
+        "push for"
+      ],
+      "antonyms": [
+        "oppose",
+        "resist",
+        "undermine"
+      ],
       "nuance": "In business, being an 'advocate' for something implies active, visible support — going beyond passive agreement.",
       "register": "neutral",
       "realLifeTask": "Identify something or someone you need to advocate for in your current role.",
-      "tags": ["#business", "#leadership"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#leadership"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "відстоювати / захищати",
+        "pl": "popierać / rzecznik",
+        "ru": "отстаивать / защищать"
+      }
     },
     {
       "term": "capacity",
@@ -716,13 +1602,31 @@
       "definitionEn": "The maximum amount of work, output, or activity that a person, team, or system can handle.",
       "partOfSpeech": "noun",
       "exampleSentence": "We're already at full capacity — adding another project will require either more resource or a scope reduction.",
-      "synonyms": ["capability", "ability", "throughput", "output potential"],
-      "antonyms": ["limitation", "constraint"],
+      "synonyms": [
+        "capability",
+        "ability",
+        "throughput",
+        "output potential"
+      ],
+      "antonyms": [
+        "limitation",
+        "constraint"
+      ],
       "nuance": "Different from 'bandwidth' (which is more informal and personal). Capacity is more often used for systems, teams, or infrastructure.",
       "register": "neutral",
       "realLifeTask": "Assess your team's current capacity honestly: are you at 60%, 80%, or 100%?",
-      "tags": ["#business", "#planning"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#planning"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "потужність / спроможність",
+        "pl": "pojemność / zdolność",
+        "ru": "мощность / возможность"
+      }
     },
     {
       "term": "friction",
@@ -730,13 +1634,33 @@
       "definitionEn": "Resistance or obstacles in a process that slow things down or cause difficulty for users or teams.",
       "partOfSpeech": "noun",
       "exampleSentence": "We reduced sign-up friction by removing the email confirmation step and saw a 30% uplift in conversions.",
-      "synonyms": ["resistance", "obstacle", "difficulty", "drag"],
-      "antonyms": ["flow", "ease", "smoothness"],
+      "synonyms": [
+        "resistance",
+        "obstacle",
+        "difficulty",
+        "drag"
+      ],
+      "antonyms": [
+        "flow",
+        "ease",
+        "smoothness"
+      ],
       "nuance": "From physics (resistance between surfaces). In business, friction is anything that makes a process harder or slower than it should be. Especially common in product and UX.",
       "register": "neutral",
       "realLifeTask": "Identify one source of friction in a process your users or customers experience and suggest how to reduce it.",
-      "tags": ["#business", "#product", "#UX"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product",
+        "#UX"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "тертя / перешкода",
+        "pl": "tarcie / opór",
+        "ru": "трение / препятствие"
+      }
     },
     {
       "term": "From a delivery perspective, the key point is…",
@@ -749,8 +1673,19 @@
       "nuance": "Useful when you want to shift the discussion from opinion to execution, scope, timing, or outcomes.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to introduce the most important delivery consideration in your next status update.",
-      "tags": ["#business", "#product-ownership", "#framing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#framing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "З точки зору виконання, ключовий момент — це…",
+        "pl": "Z perspektywy realizacji, kluczową kwestią jest…",
+        "ru": "С точки зрения реализации, ключевой момент — это…"
+      }
     },
     {
       "term": "At a high level, we are focusing on…",
@@ -763,8 +1698,19 @@
       "nuance": "Helps keep senior or cross-functional conversations clear before details are introduced.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to summarise your team's current focus in one sentence.",
-      "tags": ["#business", "#product-ownership", "#framing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#framing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "На загальному рівні ми зосереджені на…",
+        "pl": "Na ogólnym poziomie skupiamy się na…",
+        "ru": "На общем уровне мы сосредоточены на…"
+      }
     },
     {
       "term": "To put this in context…",
@@ -777,8 +1723,19 @@
       "nuance": "Signals that the next point will explain why something matters, not just what happened.",
       "register": "neutral",
       "realLifeTask": "Use this phrase before explaining the background to a project decision.",
-      "tags": ["#business", "#product-ownership", "#framing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#framing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Щоб поставити це в контекст…",
+        "pl": "Aby umieścić to w kontekście…",
+        "ru": "Чтобы поставить это в контекст…"
+      }
     },
     {
       "term": "There are two aspects to consider…",
@@ -791,8 +1748,19 @@
       "nuance": "Useful when a discussion is becoming broad and you need to create a simple structure.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to separate a topic into two practical considerations.",
-      "tags": ["#business", "#product-ownership", "#framing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#framing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Є два аспекти, які варто розглянути…",
+        "pl": "Są dwa aspekty do rozważenia…",
+        "ru": "Есть два аспекта, которые стоит рассмотреть…"
+      }
     },
     {
       "term": "Let me break this down into three parts…",
@@ -805,8 +1773,19 @@
       "nuance": "Sounds structured and helpful, especially in meetings where multiple topics are being mixed together.",
       "register": "neutral",
       "realLifeTask": "Use this phrase before explaining a complex issue in three short points.",
-      "tags": ["#business", "#product-ownership", "#framing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#framing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Дозвольте розбити це на три частини…",
+        "pl": "Pozwólcie, że podzielę to na trzy części…",
+        "ru": "Позвольте разбить это на три части…"
+      }
     },
     {
       "term": "The core issue here is…",
@@ -819,8 +1798,19 @@
       "nuance": "Direct but professional; useful when moving from symptoms to the real problem.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to name the main issue behind a current blocker.",
-      "tags": ["#business", "#product-ownership", "#framing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#framing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Основна проблема тут — це…",
+        "pl": "Główną kwestią jest tutaj…",
+        "ru": "Ключевая проблема здесь — это…"
+      }
     },
     {
       "term": "If we step back for a moment…",
@@ -833,8 +1823,19 @@
       "nuance": "Useful when a meeting is too focused on details and needs a broader perspective.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to redirect a discussion toward the bigger objective.",
-      "tags": ["#business", "#product-ownership", "#framing"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#framing"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Якщо зробити крок назад…",
+        "pl": "Jeśli na chwilę się cofniemy…",
+        "ru": "Если сделать шаг назад…"
+      }
     },
     {
       "term": "We should prioritise this for the next sprint",
@@ -847,8 +1848,19 @@
       "nuance": "Clear product and agile language; it implies the item is important enough to compete for sprint capacity.",
       "register": "neutral",
       "realLifeTask": "Use this phrase for one item you believe should enter the next sprint.",
-      "tags": ["#business", "#product-ownership", "#prioritisation"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#prioritisation"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам слід зробити це пріоритетом на наступний спринт",
+        "pl": "Powinniśmy nadać temu priorytet na kolejny sprint",
+        "ru": "Нам следует сделать это приоритетом на следующий спринт"
+      }
     },
     {
       "term": "This is critical for the upcoming release",
@@ -861,8 +1873,19 @@
       "nuance": "Stronger than 'important'; use it when release quality, readiness, or commitment is affected.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to describe one release-critical item.",
-      "tags": ["#business", "#product-ownership", "#prioritisation"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#prioritisation"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це критично важливо для наступного релізу",
+        "pl": "To jest kluczowe dla nadchodzącego wydania",
+        "ru": "Это критически важно для предстоящего релиза"
+      }
     },
     {
       "term": "This needs to be addressed as a priority",
@@ -875,8 +1898,19 @@
       "nuance": "Firm but professional; useful when escalation is needed without sounding emotional.",
       "register": "neutral",
       "realLifeTask": "Use this phrase when describing a blocker that needs prompt attention.",
-      "tags": ["#business", "#product-ownership", "#prioritisation"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#prioritisation"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це потрібно вирішити в першу чергу",
+        "pl": "To wymaga priorytetowego rozwiązania",
+        "ru": "Это нужно решить в первую очередь"
+      }
     },
     {
       "term": "If we have capacity, we can include this",
@@ -889,8 +1923,19 @@
       "nuance": "Keeps expectations realistic by separating desired scope from committed scope.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to discuss a nice-to-have item without overcommitting.",
-      "tags": ["#business", "#product-ownership", "#prioritisation"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#prioritisation"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Якщо у нас є ресурси, ми можемо включити це",
+        "pl": "Jeśli mamy możliwości, możemy to uwzględnić",
+        "ru": "Если у нас есть ресурсы, мы можем включить это"
+      }
     },
     {
       "term": "Let’s focus on what moves delivery forward",
@@ -903,8 +1948,19 @@
       "nuance": "Useful when discussion is drifting into low-value detail or side topics.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to bring a meeting back to practical next steps.",
-      "tags": ["#business", "#product-ownership", "#prioritisation"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#prioritisation"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Зосередимося на тому, що просуває виконання вперед",
+        "pl": "Skupmy się na tym, co przyspiesza realizację",
+        "ru": "Сосредоточимся на том, что продвигает реализацию вперёд"
+      }
     },
     {
       "term": "This is important, but not urgent",
@@ -917,8 +1973,19 @@
       "nuance": "Helpful for backlog and roadmap conversations where timing matters as much as value.",
       "register": "neutral",
       "realLifeTask": "Use this phrase for one item that matters but does not need immediate action.",
-      "tags": ["#business", "#product-ownership", "#prioritisation"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#prioritisation"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це важливо, але не терміново",
+        "pl": "To jest ważne, ale nie pilne",
+        "ru": "Это важно, но не срочно"
+      }
     },
     {
       "term": "We need to be selective here",
@@ -931,8 +1998,19 @@
       "nuance": "Useful when resources are limited and not every request can be accepted.",
       "register": "neutral",
       "realLifeTask": "Use this phrase when narrowing a list of competing priorities.",
-      "tags": ["#business", "#product-ownership", "#prioritisation"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#prioritisation"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам потрібно бути вибірковими тут",
+        "pl": "Musimy być tutaj selektywni",
+        "ru": "Нам нужно быть избирательными здесь"
+      }
     },
     {
       "term": "We need a clear decision on this",
@@ -945,8 +2023,19 @@
       "nuance": "Useful when ambiguity is blocking progress or ownership.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to identify a topic that needs an explicit decision.",
-      "tags": ["#business", "#product-ownership", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам потрібне чітке рішення з цього питання",
+        "pl": "Potrzebujemy tutaj jasnej decyzji",
+        "ru": "Нам нужно чёткое решение по этому вопросу"
+      }
     },
     {
       "term": "I would recommend proceeding with option A",
@@ -959,8 +2048,19 @@
       "nuance": "Professional and decisive; useful when stakeholders expect a recommendation, not just analysis.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to recommend one option and briefly explain why.",
-      "tags": ["#business", "#product-ownership", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Я б рекомендував продовжувати з варіантом А",
+        "pl": "Zalecałbym kontynuowanie z opcją A",
+        "ru": "Я бы рекомендовал продолжить с вариантом А"
+      }
     },
     {
       "term": "From my perspective, the better approach is…",
@@ -973,8 +2073,19 @@
       "nuance": "Softens a recommendation by presenting it as your view rather than an absolute statement.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to explain which approach you prefer and why.",
-      "tags": ["#business", "#product-ownership", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "З мого погляду, кращий підхід — це…",
+        "pl": "Z mojej perspektywy lepsze podejście to…",
+        "ru": "С моей точки зрения, лучший подход — это…"
+      }
     },
     {
       "term": "We should challenge whether this is necessary",
@@ -987,8 +2098,19 @@
       "nuance": "A constructive way to test value, scope, or assumptions without dismissing the request.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to question one low-value feature or activity.",
-      "tags": ["#business", "#product-ownership", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Варто поставити під сумнів, чи це необхідно",
+        "pl": "Powinniśmy zakwestionować, czy to jest potrzebne",
+        "ru": "Стоит поставить под сомнение, действительно ли это необходимо"
+      }
     },
     {
       "term": "Let’s align on the preferred direction",
@@ -1001,8 +2123,19 @@
       "nuance": "Useful before moving into planning, estimation, or communication.",
       "register": "neutral",
       "realLifeTask": "Use this phrase before confirming the direction for a project or feature.",
-      "tags": ["#business", "#product-ownership", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Давайте погодимо бажаний напрямок",
+        "pl": "Uzgodnijmy preferowany kierunek",
+        "ru": "Давайте согласуем предпочтительное направление"
+      }
     },
     {
       "term": "This decision has downstream implications",
@@ -1015,8 +2148,19 @@
       "nuance": "Highlights consequences beyond the immediate topic, especially dependencies and future constraints.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to describe one decision that affects later delivery.",
-      "tags": ["#business", "#product-ownership", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це рішення має наслідки на наступних етапах",
+        "pl": "Ta decyzja ma konsekwencje na dalszych etapach",
+        "ru": "Это решение имеет последствия на последующих этапах"
+      }
     },
     {
       "term": "We need to lock this in today",
@@ -1029,8 +2173,19 @@
       "nuance": "Direct and time-bound; use when delay would create delivery risk.",
       "register": "neutral",
       "realLifeTask": "Use this phrase for one decision that cannot keep moving.",
-      "tags": ["#business", "#product-ownership", "#decision-making"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#decision-making"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам потрібно зафіксувати це сьогодні",
+        "pl": "Musimy to potwierdzić / zablokować dziś",
+        "ru": "Нам нужно зафиксировать это сегодня"
+      }
     },
     {
       "term": "The main risk I see is…",
@@ -1043,8 +2198,19 @@
       "nuance": "Keeps risk discussions specific and avoids vague concern-raising.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to name the top risk for a current initiative.",
-      "tags": ["#business", "#product-ownership", "#risk"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#risk"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Основний ризик, який я бачу, — це…",
+        "pl": "Główne ryzyko, które widzę, to…",
+        "ru": "Главный риск, который я вижу, — это…"
+      }
     },
     {
       "term": "This creates a dependency on…",
@@ -1057,8 +2223,19 @@
       "nuance": "Useful in delivery planning because dependencies can affect sequencing, ownership, and timelines.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to identify one dependency in your current work.",
-      "tags": ["#business", "#product-ownership", "#risk"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#risk"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це створює залежність від…",
+        "pl": "To tworzy zależność od…",
+        "ru": "Это создаёт зависимость от…"
+      }
     },
     {
       "term": "We need to factor in the impact on…",
@@ -1071,8 +2248,19 @@
       "nuance": "Useful when a decision may have side effects beyond the immediate scope.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to highlight one impact that should be considered before a decision.",
-      "tags": ["#business", "#product-ownership", "#risk"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#risk"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам потрібно врахувати вплив на…",
+        "pl": "Musimy uwzględnić wpływ na…",
+        "ru": "Нам нужно учесть влияние на…"
+      }
     },
     {
       "term": "There is a risk of misalignment here",
@@ -1085,8 +2273,19 @@
       "nuance": "Professional way to raise concern about unclear expectations, ownership, or direction.",
       "register": "neutral",
       "realLifeTask": "Use this phrase when two groups appear to have different assumptions.",
-      "tags": ["#business", "#product-ownership", "#risk"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#risk"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Тут є ризик неузгодженості",
+        "pl": "Istnieje tutaj ryzyko rozbieżności",
+        "ru": "Здесь есть риск рассогласования"
+      }
     },
     {
       "term": "This could affect our timeline",
@@ -1099,8 +2298,19 @@
       "nuance": "A clear but measured way to flag potential schedule impact before it becomes a delay.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to explain how a blocker may affect timing.",
-      "tags": ["#business", "#product-ownership", "#risk"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#risk"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це може вплинути на наш графік",
+        "pl": "To może wpłynąć na nasz harmonogram",
+        "ru": "Это может повлиять на наш график"
+      }
     },
     {
       "term": "We should mitigate this early",
@@ -1113,8 +2323,19 @@
       "nuance": "Signals proactive risk management rather than waiting for a problem to materialise.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to propose an early action for reducing a risk.",
-      "tags": ["#business", "#product-ownership", "#risk"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#risk"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам слід вирішити це завчасно",
+        "pl": "Powinniśmy temu zaradzić wcześnie",
+        "ru": "Нам следует решить это заблаговременно"
+      }
     },
     {
       "term": "This needs closer coordination across teams",
@@ -1127,8 +2348,19 @@
       "nuance": "Useful when execution depends on cross-team sequencing, handoffs, or shared ownership.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to identify one area needing stronger cross-team coordination.",
-      "tags": ["#business", "#product-ownership", "#risk"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#risk"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це вимагає тіснішої координації між командами",
+        "pl": "To wymaga ściślejszej koordynacji między zespołami",
+        "ru": "Это требует более тесной координации между командами"
+      }
     },
     {
       "term": "We need to ensure alignment across teams",
@@ -1141,8 +2373,19 @@
       "nuance": "Common in cross-functional product and transformation work where several groups contribute to one outcome.",
       "register": "neutral",
       "realLifeTask": "Use this phrase before proposing a sync or shared decision point.",
-      "tags": ["#business", "#product-ownership", "#stakeholders"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#stakeholders"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам потрібно забезпечити узгодженість між командами",
+        "pl": "Musimy zapewnić zgodność między zespołami",
+        "ru": "Нам нужно обеспечить согласованность между командами"
+      }
     },
     {
       "term": "This should be validated with business stakeholders",
@@ -1155,8 +2398,19 @@
       "nuance": "Useful when product or delivery teams need business confirmation before proceeding.",
       "register": "neutral",
       "realLifeTask": "Use this phrase for one requirement that needs business validation.",
-      "tags": ["#business", "#product-ownership", "#stakeholders"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#stakeholders"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це слід погодити з бізнес-стейкхолдерами",
+        "pl": "To powinno być zatwierdzone przez interesariuszy biznesowych",
+        "ru": "Это следует согласовать с бизнес-стейкхолдерами"
+      }
     },
     {
       "term": "Let’s confirm alignment with IT / Transformation",
@@ -1169,8 +2423,19 @@
       "nuance": "Useful in organisations where technology and transformation teams influence scope, timing, or feasibility.",
       "register": "neutral",
       "realLifeTask": "Use this phrase before confirming a decision that depends on IT or transformation input.",
-      "tags": ["#business", "#product-ownership", "#stakeholders"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#stakeholders"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Давайте підтвердимо узгодженість з IT / Трансформацією",
+        "pl": "Potwierdźmy zgodność z IT / Transformacją",
+        "ru": "Давайте подтвердим согласованность с IT / Трансформацией"
+      }
     },
     {
       "term": "We may need sponsor visibility on this",
@@ -1183,8 +2448,19 @@
       "nuance": "Signals escalation for awareness rather than necessarily asking the sponsor to solve the issue.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to identify an issue that may need senior awareness.",
-      "tags": ["#business", "#product-ownership", "#stakeholders"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#stakeholders"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Можливо, потрібна увага спонсора до цього питання",
+        "pl": "Być może potrzebujemy widoczności sponsora w tej kwestii",
+        "ru": "Возможно, нам нужна видимость этого для спонсора"
+      }
     },
     {
       "term": "This impacts multiple workstreams",
@@ -1197,8 +2473,19 @@
       "nuance": "Useful in programme, transformation, and product delivery contexts with multiple teams or tracks.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to describe a change that affects more than one workstream.",
-      "tags": ["#business", "#product-ownership", "#stakeholders"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#stakeholders"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це впливає на кілька робочих потоків",
+        "pl": "To wpływa na wiele strumieni pracy",
+        "ru": "Это влияет на несколько рабочих потоков"
+      }
     },
     {
       "term": "We should bring this to SteerCo for visibility",
@@ -1211,8 +2498,19 @@
       "nuance": "Use when a topic has governance, risk, budget, or senior stakeholder relevance.",
       "register": "neutral",
       "realLifeTask": "Use this phrase for one topic that should be raised in a governance forum.",
-      "tags": ["#business", "#product-ownership", "#stakeholders"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#stakeholders"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам слід винести це на SteerCo для інформування",
+        "pl": "Powinniśmy to przedstawić SteerCo w celach informacyjnych",
+        "ru": "Нам следует вынести это на SteerCo для информирования"
+      }
     },
     {
       "term": "We need a consistent approach across countries",
@@ -1225,8 +2523,19 @@
       "nuance": "Useful in regional or global initiatives where local variation can create confusion or delivery risk.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to describe an area where country-level approaches should be aligned.",
-      "tags": ["#business", "#product-ownership", "#stakeholders"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#stakeholders"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Нам потрібен єдиний підхід в усіх країнах",
+        "pl": "Potrzebujemy spójnego podejścia w różnych krajach",
+        "ru": "Нам нужен единый подход во всех странах"
+      }
     },
     {
       "term": "We are making strong progress on this",
@@ -1239,8 +2548,19 @@
       "nuance": "Professional status language that communicates confidence without overclaiming completion.",
       "register": "neutral",
       "realLifeTask": "Use this phrase in a status update where progress is genuinely strong.",
-      "tags": ["#business", "#product-ownership", "#status"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#status"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Ми досягаємо значного прогресу в цьому",
+        "pl": "Robimy duże postępy w tej kwestii",
+        "ru": "Мы делаем значительный прогресс в этом"
+      }
     },
     {
       "term": "We are on track for delivery",
@@ -1253,8 +2573,19 @@
       "nuance": "Common in project and product updates; it reassures stakeholders about timeline confidence.",
       "register": "neutral",
       "realLifeTask": "Use this phrase for one deliverable that is progressing as planned.",
-      "tags": ["#business", "#product-ownership", "#status"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#status"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Ми дотримуємося графіку виконання",
+        "pl": "Jesteśmy na dobrej drodze do dostarczenia",
+        "ru": "Мы придерживаемся графика реализации"
+      }
     },
     {
       "term": "We are nearing implementation readiness",
@@ -1267,8 +2598,19 @@
       "nuance": "Useful when discovery, design, or planning is nearly complete but execution has not fully started.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to describe work that is almost ready for implementation.",
-      "tags": ["#business", "#product-ownership", "#status"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#status"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Ми наближаємося до готовності до впровадження",
+        "pl": "Zbliżamy się do gotowości wdrożeniowej",
+        "ru": "Мы приближаемся к готовности к внедрению"
+      }
     },
     {
       "term": "This is currently in progress",
@@ -1281,8 +2623,19 @@
       "nuance": "Simple and neutral status language; useful when no extra detail is needed.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to describe an active task in a concise status update.",
-      "tags": ["#business", "#product-ownership", "#status"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#status"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це зараз у процесі виконання",
+        "pl": "To jest obecnie w toku",
+        "ru": "Это сейчас в процессе"
+      }
     },
     {
       "term": "We are slightly behind schedule here",
@@ -1295,8 +2648,19 @@
       "nuance": "Transparent but not alarmist; best paired with a recovery plan or next step.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to report a delay and add one recovery action.",
-      "tags": ["#business", "#product-ownership", "#status"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#status"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Ми трохи відстаємо від графіку тут",
+        "pl": "Jesteśmy tu nieco za harmonogramem",
+        "ru": "Мы немного отстаём от графика здесь"
+      }
     },
     {
       "term": "This has been completed as planned",
@@ -1309,8 +2673,19 @@
       "nuance": "Clear completion language for status reports, steering updates, and release notes.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to confirm completion of one planned task.",
-      "tags": ["#business", "#product-ownership", "#status"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#status"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Це виконано відповідно до плану",
+        "pl": "Zostało to zakończone zgodnie z planem",
+        "ru": "Это выполнено в соответствии с планом"
+      }
     },
     {
       "term": "We are still working through some details",
@@ -1323,8 +2698,19 @@
       "nuance": "Useful when progress is being made but it is too early to finalise the answer.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to communicate that a topic is active but not yet final.",
-      "tags": ["#business", "#product-ownership", "#status"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#status"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Ми ще опрацьовуємо деякі деталі",
+        "pl": "Nadal pracujemy nad pewnymi szczegółami",
+        "ru": "Мы ещё прорабатываем некоторые детали"
+      }
     },
     {
       "term": "Can we clarify what the expected outcome is?",
@@ -1337,8 +2723,19 @@
       "nuance": "Useful when scope, success criteria, or decision expectations are unclear.",
       "register": "neutral",
       "realLifeTask": "Use this question when a discussion lacks a clear outcome.",
-      "tags": ["#business", "#product-ownership", "#clarification"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#clarification"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Чи можемо ми уточнити, який очікуваний результат?",
+        "pl": "Czy możemy wyjaśnić, jaki jest oczekiwany wynik?",
+        "ru": "Можем ли мы уточнить, каков ожидаемый результат?"
+      }
     },
     {
       "term": "Just to make sure we are aligned…",
@@ -1351,8 +2748,19 @@
       "nuance": "Polite and collaborative; useful before summarising or confirming an agreement.",
       "register": "neutral",
       "realLifeTask": "Use this phrase before restating what you believe the group agreed.",
-      "tags": ["#business", "#product-ownership", "#clarification"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#clarification"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Просто щоб переконатися, що ми на одній хвилі…",
+        "pl": "Żeby upewnić się, że jesteśmy zgodni…",
+        "ru": "Просто чтобы убедиться, что мы понимаем одно и то же…"
+      }
     },
     {
       "term": "I’m not sure this fully addresses the issue",
@@ -1365,8 +2773,19 @@
       "nuance": "More diplomatic than saying 'this does not solve it'; useful for challenging constructively.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to challenge a solution that may only address part of a problem.",
-      "tags": ["#business", "#product-ownership", "#clarification"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#clarification"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Я не впевнений, що це повністю вирішує проблему",
+        "pl": "Nie jestem pewien, czy to w pełni rozwiązuje problem",
+        "ru": "Я не уверен, что это полностью решает проблему"
+      }
     },
     {
       "term": "Could we take a step back and reconsider?",
@@ -1379,8 +2798,19 @@
       "nuance": "Polite but clear; useful when the current approach may be too narrow, rushed, or misaligned.",
       "register": "neutral",
       "realLifeTask": "Use this question when a team may be moving too quickly in the wrong direction.",
-      "tags": ["#business", "#product-ownership", "#clarification"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#clarification"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Чи не могли б ми зробити крок назад і переглянути?",
+        "pl": "Czy moglibyśmy się cofnąć i przemyśleć to ponownie?",
+        "ru": "Не могли бы мы сделать шаг назад и пересмотреть?"
+      }
     },
     {
       "term": "I think there may be a simpler approach",
@@ -1393,8 +2823,19 @@
       "nuance": "Useful for reducing unnecessary complexity without directly criticising the current idea.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to suggest simplifying a process, feature, or plan.",
-      "tags": ["#business", "#product-ownership", "#clarification"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#clarification"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Я думаю, може бути простіший підхід",
+        "pl": "Myślę, że może istnieć prostsze podejście",
+        "ru": "Я думаю, может быть более простой подход"
+      }
     },
     {
       "term": "Can we explore an alternative here?",
@@ -1407,8 +2848,19 @@
       "nuance": "Collaborative challenge language; useful when you want to open up options rather than reject a proposal.",
       "register": "neutral",
       "realLifeTask": "Use this question when you want the team to consider another possible solution.",
-      "tags": ["#business", "#product-ownership", "#clarification"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#clarification"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Чи можемо ми розглянути альтернативу тут?",
+        "pl": "Czy możemy zbadać tutaj alternatywę?",
+        "ru": "Можем ли мы рассмотреть альтернативу здесь?"
+      }
     },
     {
       "term": "I would question whether this is needed at this stage",
@@ -1421,8 +2873,19 @@
       "nuance": "Useful in scope control and prioritisation, especially when timing or value is uncertain.",
       "register": "neutral",
       "realLifeTask": "Use this phrase to challenge one item that may not be needed yet.",
-      "tags": ["#business", "#product-ownership", "#clarification"],
-      "themes": ["Business & Professional"]
+      "tags": [
+        "#business",
+        "#product-ownership",
+        "#clarification"
+      ],
+      "themes": [
+        "Business & Professional"
+      ],
+      "translations": {
+        "uk": "Я б поставив під сумнів, чи це потрібно на даному етапі",
+        "pl": "Kwestionowałbym, czy to jest potrzebne na tym etapie",
+        "ru": "Я бы поставил под сомнение, нужно ли это на данном этапе"
+      }
     }
   ]
 }
