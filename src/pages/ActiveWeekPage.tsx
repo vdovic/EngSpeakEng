@@ -185,7 +185,7 @@ function ExposureBar({ count }: { count: number }) {
 
 // ─── Active Focus row ─────────────────────────────────────────────────────────
 //
-// [⋮⋮]  term · TypeBadge · LevelBadge · ConfidenceDots      [✓] [×]
+// [⋮⋮]  term · TypeBadge · StageBadge · ConfidenceDots      [✓] [×]
 //        short definition                         ExposureBar
 //        💡 usage prompt (always visible)
 //
@@ -387,7 +387,7 @@ function PortfolioRow({
 
 // ─── Candidate row ────────────────────────────────────────────────────────────
 //
-// Line 1: term · TypeBadge · LevelBadge · reason badge       [Add]
+// Line 1: term · TypeBadge · StageBadge · reason badge       [Add]
 // Line 2: short definition                         ExposureBar
 
 function CandidateRow({

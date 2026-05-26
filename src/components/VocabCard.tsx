@@ -6,7 +6,7 @@
  *   - navigation to detail page
  *   - focus toggle (star button)
  *   - bulk selection (checkbox)
- *   - LevelBadge + ExposureProgress on every card
+ *   - StageBadge + ExposureProgress on every card
  */
 
 import { useNavigate } from 'react-router-dom'
