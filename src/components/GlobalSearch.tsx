@@ -10,6 +10,7 @@ import {
   MatchField,
 } from '@/utils/vocabSearch'
 import { VocabItem } from '@/types/vocabulary'
+import { StageBadge } from '@/components/StageBadge'
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -33,13 +34,6 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   )
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  inbox:      'bg-slate-100 text-slate-600',
-  learning:   'bg-blue-100 text-blue-700',
-  stable:     'bg-teal-100 text-teal-700',
-  activation: 'bg-amber-100 text-amber-700',
-  mastered:   'bg-violet-100 text-violet-700',
-}
 
 const MATCH_LABEL: Record<MatchField, string> = {
   term:       '',
@@ -108,7 +102,6 @@ function ResultRow({
   onHover: () => void
 }) {
   const { item } = result
-  const statusCls = STATUS_COLORS[item.status] ?? 'bg-slate-100 text-slate-600'
 
   return (
     <button
@@ -127,11 +120,7 @@ function ResultRow({
           <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded capitalize">
             {item.type}
           </span>
-          <span
-            className={`text-[10px] font-semibold px-1.5 py-0.5 rounded capitalize ${statusCls}`}
-          >
-            {item.status}
-          </span>
+          <StageBadge item={item} compact />
         </div>
         {/* Context line */}
         <MatchContext result={result} query={query} />

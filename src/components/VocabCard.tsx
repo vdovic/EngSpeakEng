@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom'
 import { Loader2, AlertCircle, Star, Check } from 'lucide-react'
 import { VocabItem } from '@/types/vocabulary'
 import { TypeBadge } from './TypeBadge'
-import { LevelBadge } from './LevelBadge'
+import { StageBadge } from './StageBadge'
 import { ExposureProgress } from './ExposureProgress'
 import { ConfidenceDots } from './ConfidenceDots'
 import { useVocabStore } from '@/store/vocabStore'
@@ -104,7 +104,7 @@ export function VocabCard({
           </span>
           <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
             <TypeBadge type={item.type} />
-            <LevelBadge item={item} />
+            <StageBadge item={item} />
             {isPending && (
               <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
                 <Loader2 size={9} className="animate-spin" />
@@ -159,7 +159,9 @@ export function VocabCard({
       </button>
 
       {/* Confidence dots — interactive, outside navigate button to avoid conflict */}
-      {!compact && item.status !== 'inbox' && (
+      {/* Guard: show only for words that have been practiced at least once.     */}
+      {/* Uses exposureCount rather than legacy status to avoid stale-state risk.*/}
+      {!compact && (item.exposureCount ?? 0) > 0 && (
         <div
           className="px-4 pb-3 flex items-center gap-1.5"
           onClick={(e) => e.stopPropagation()}

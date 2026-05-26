@@ -1,11 +1,12 @@
 /**
  * progressionLogic.ts
  *
- * Pure functions for the 4-point learning level system.
+ * Pure functions for the learning level and display-stage systems.
  *
+ * ── Level system (4-point, internal) ────────────────────────────────────────
  *   0 = new       — never exposed via Daily Challenge
  *   1 = learning  — 1–2 exposures
- *   2 = familiar  — 3–7 exposures
+ *   2 = familiar  — 3–7 exposures (also: 8 exposures without activation)
  *   3 = mastered  — 8+ exposures AND activation evidence
  *
  * Level 3 (Mastered) requires BOTH:
@@ -22,6 +23,16 @@
  * Do NOT use stored `item.level` for UI or calculations — it may be stale
  * if the store write was skipped or occurred before the mastery criteria
  * were updated.  Always call `getCanonicalLevel(item)` instead.
+ *
+ * ── DisplayStage system (5-point, learner-facing) ────────────────────────────
+ *   'new'        — in Focus, never practiced
+ *   'introduced' — 1–2 challenge exposures
+ *   'drilling'   — 3–7 challenge exposures
+ *   'activate'   — 8 exposures complete, awaiting real-life activation
+ *   'mastered'   — 8 exposures AND activation evidence (or legacy-mastered)
+ *
+ * Use `getDisplayStage(item)` for all user-facing progression display.
+ * Never store the result — always derive fresh from live item data.
  */
 
 import type { VocabItem, ItemStatus, Level } from '@/types/vocabulary'
@@ -86,4 +97,105 @@ export function levelFromStatus(status: ItemStatus): Level {
     case 'mastered':   return 3
     default:           return 0
   }
+}
+
+// ── DisplayStage system ───────────────────────────────────────────────────────
+
+/**
+ * The learner-facing 5-stage progression model.
+ *
+ *   new        — word is in Focus but has never been challenged
+ *   introduced — 1–2 challenge exposures (early recall forming)
+ *   drilling   — 3–7 challenge exposures (active SRS training)
+ *   activate   — 8 exposures complete; recall built, real-life use needed
+ *   mastered   — 8 exposures AND activation evidence (or legacy-mastered)
+ *
+ * Never stored on VocabItem — always derived fresh via getDisplayStage().
+ */
+export type DisplayStage = 'new' | 'introduced' | 'drilling' | 'activate' | 'mastered'
+
+/** Full labels shown in pipelines, detail views, and descriptive UI. */
+export const DISPLAY_STAGE_LABEL: Record<DisplayStage, string> = {
+  new:        'New',
+  introduced: 'Introduced',
+  drilling:   'Drilling',
+  activate:   'Activate',
+  mastered:   'Mastered',
+}
+
+/**
+ * Abbreviated labels for space-constrained contexts.
+ * Used only when the full label cannot fit (e.g. narrow columns).
+ * Prefer DISPLAY_STAGE_LABEL in all normal contexts.
+ */
+export const DISPLAY_STAGE_SHORT_LABEL: Record<DisplayStage, string> = {
+  new:        'New',
+  introduced: 'Intro',
+  drilling:   'Drill',
+  activate:   'Act',
+  mastered:   'Done',
+}
+
+/**
+ * Single-sentence descriptions for popovers, tooltips, and milestone views.
+ * Describes the stage from the learner's perspective.
+ */
+export const DISPLAY_STAGE_DESCRIPTION: Record<DisplayStage, string> = {
+  new:        'In your Focus, not yet practiced. It will appear in your next challenge.',
+  introduced: 'You\'ve seen this word 1–2 times. Recall is just beginning to form.',
+  drilling:   'Building recall through spaced repetition.',
+  activate:   'Challenge training complete. Try using this word in real conversation, writing, or work.',
+  mastered:   'Drilled and used in real life. Part of your active vocabulary.',
+}
+
+/**
+ * Derives the learner-facing display stage from live item data.
+ *
+ * This is the single source of truth for user-visible progression labels.
+ * It is intentionally re-computed on every render — never stored, never cached.
+ *
+ * Stage derivation rules:
+ *   1. Legacy-mastered guard: if item.status === 'mastered', return 'mastered'
+ *      regardless of exposureCount.  Words mastered through the old review
+ *      system may have exposureCount < 8; their stored status is authoritative.
+ *   2. exp === 0         → 'new'
+ *   3. exp 1–2           → 'introduced'
+ *   4. exp 3–7           → 'drilling'
+ *   5. exp >= 8, no activation evidence → 'activate'
+ *   6. exp >= 8, activation evidence    → 'mastered'
+ *
+ * Activation evidence (mirrors deriveLevel Level-3 gate exactly):
+ *   review.sentenceProduced = true  OR
+ *   activation.usageCount >= 3      OR
+ *   activation.confidenceLevel >= 3
+ *
+ * The confidenceLevel gate only triggers mastery at exp >= 8.
+ * At lower exposures, confidenceLevel only affects getChallengeType().
+ */
+export function getDisplayStage(item: VocabItem): DisplayStage {
+  // ── Legacy-mastered guard ──────────────────────────────────────────────────
+  // Words mastered through the old review system (successfulRecalls + usageLogs)
+  // may have exposureCount < 8.  The stored status is authoritative for these.
+  // For modern words, status === 'mastered' only when deriveStatus() confirms it,
+  // which is consistent with Level 3 — so this guard never contradicts the
+  // exposure-based path for any word created after the SRS system was introduced.
+  if (item.status === 'mastered') return 'mastered'
+
+  const exp = item.exposureCount ?? 0
+
+  if (exp === 0) return 'new'
+  if (exp <= 2)  return 'introduced'
+  if (exp <= 7)  return 'drilling'
+
+  // exp >= 8: Mastered if activation evidence exists; Activate otherwise.
+  // Uses item.activation?.usageCount (the integer counter) to match
+  // deriveLevel() exactly — not usagePoints(usageLogs) which counts valid logs.
+  const usageCount      = item.activation?.usageCount ?? 0
+  const confidenceLevel = item.activation?.confidenceLevel ?? 0
+  const hasActivation   =
+    item.review.sentenceProduced ||
+    usageCount >= 3              ||
+    confidenceLevel >= 3
+
+  return hasActivation ? 'mastered' : 'activate'
 }

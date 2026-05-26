@@ -48,8 +48,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { useVocabStore, useFocusThisWeekItems } from '@/store/vocabStore'
 import { useThemesStore, SUGGESTED_THEMES } from '@/store/themesStore'
-import { LevelBadge } from '@/components/LevelBadge'
+import { StageBadge } from '@/components/StageBadge'
 import { TypeBadge } from '@/components/TypeBadge'
+import { getCanonicalLevel } from '@/lib/progressionLogic'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { VocabItem } from '@/types/vocabulary'
 import { generateCandidates } from '@/lib/candidateLogic'
@@ -258,7 +259,7 @@ function ActiveFocusRow({
                   {item.term}
                 </span>
                 <TypeBadge type={item.type} />
-                <LevelBadge item={item} compact />
+                <StageBadge item={item} compact />
               </div>
             </button>
 
@@ -314,10 +315,12 @@ function ActiveFocusRow({
 // tap on the row body still navigates normally.
 
 function SortableActiveFocusRow(props: Omit<ActiveFocusRowProps, 'dragHandleProps' | 'isDragging'>) {
-  // getFocusItems already excludes status === 'mastered' items, so this guard
-  // is a defensive belt-and-suspenders: mastered words should never appear
-  // here, but if they do (e.g. stale data), their drag handle is suppressed.
-  const isMastered = props.item.status === 'mastered'
+  // getFocusItems already excludes mastered items, so this guard is a
+  // defensive belt-and-suspenders: mastered words should never appear here,
+  // but if they do (e.g. stale data), their drag handle is suppressed.
+  // Uses getCanonicalLevel rather than item.status to cover both legacy-mastered
+  // (status === 'mastered') and modern-mastered (exp >= 8 + activation) paths.
+  const isMastered = getCanonicalLevel(props.item) >= 3
   const {
     attributes,
     listeners,
@@ -367,7 +370,7 @@ function PortfolioRow({
         <div className="flex items-center gap-1.5 flex-wrap leading-snug">
           <span className="text-sm font-medium text-slate-700">{item.term}</span>
           <TypeBadge type={item.type} />
-          <LevelBadge item={item} compact />
+          <StageBadge item={item} compact />
         </div>
       </button>
       <ExposureBar count={item.exposureCount ?? 0} />
@@ -407,7 +410,7 @@ function CandidateRow({
         <div className="flex items-center gap-1.5 flex-wrap leading-snug">
           <span className="text-sm font-semibold text-slate-800">{item.term}</span>
           <TypeBadge type={item.type} />
-          <LevelBadge item={item} compact />
+          <StageBadge item={item} compact />
           <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${reason.colorClass}`}>
             {reason.label}
           </span>
@@ -456,7 +459,7 @@ function StarterFocusPortfolio({
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="text-sm font-semibold text-slate-900">{item.term}</span>
                   <TypeBadge type={item.type} />
-                  <LevelBadge item={item} compact />
+                  <StageBadge item={item} compact />
                 </div>
                 <p className="mt-1 truncate text-[11px] text-slate-400">
                   {item.shortDefinition ?? item.definitionEn ?? ''}
