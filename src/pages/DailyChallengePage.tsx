@@ -1362,7 +1362,7 @@ export function DailyChallengePage() {
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1.5 leading-snug">
                       {newCount >= MAX_EXPOSURE
-                        ? '🎉 Challenge mastered!'
+                        ? 'All challenge steps complete'
                         : feedback.correct
                         ? `Step ${oldCount + 1} of ${MAX_EXPOSURE} · next review in ${nextInterval}`
                         : `Staying at step ${oldCount} of ${MAX_EXPOSURE} · retry in ${nextInterval}`}
@@ -1371,13 +1371,14 @@ export function DailyChallengePage() {
                 )
               })()}
 
-              {/* ── Mastery milestone hint ── */}
+              {/* ── Activate-stage transition hint ── */}
               {feedback.justMastered && (
                 <div className="mb-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                  <p className="text-xs font-semibold text-amber-700 mb-1 uppercase tracking-wide">Challenge ladder complete</p>
+                  <p className="text-xs font-semibold text-amber-700 mb-1 uppercase tracking-wide">Challenge practice complete</p>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    You've drilled <span className="font-semibold">"{item.term}"</span> to the top.
-                    It's been removed from Focus — rate your confidence below to mark it as fully mastered.
+                    You've completed all challenge steps for{' '}
+                    <span className="font-semibold">"{item.term}"</span>.
+                    The next step is to use it naturally in real life — a conversation, an email, or a moment at work.
                   </p>
                 </div>
               )}

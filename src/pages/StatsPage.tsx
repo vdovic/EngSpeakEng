@@ -254,10 +254,10 @@ function GoalWidget({
 // ── Level distribution ────────────────────────────────────────────────────────
 
 const LEVEL_ROWS: { level: Level; label: string; color: string; desc: string }[] = [
-  { level: 0, label: 'New',      color: 'bg-slate-400',   desc: 'Not yet encountered' },
-  { level: 1, label: 'Learning', color: 'bg-blue-500',    desc: '1–2 exposures' },
-  { level: 2, label: 'Familiar', color: 'bg-amber-500',   desc: '3–7 exposures' },
-  { level: 3, label: 'Mastered', color: 'bg-violet-500',  desc: '8+ exposures & activation evidence' },
+  { level: 0, label: 'New',        color: 'bg-slate-400',   desc: 'Not yet practiced' },
+  { level: 1, label: 'Introduced', color: 'bg-sky-500',     desc: '1–2 challenge exposures' },
+  { level: 2, label: 'Drilling',   color: 'bg-amber-500',   desc: '3–7 challenge exposures' },
+  { level: 3, label: 'Mastered',   color: 'bg-emerald-600', desc: '8 exposures + real-life use' },
 ]
 
 function LevelSection({ dist, total }: { dist: Record<Level, number>; total: number }) {
@@ -293,9 +293,9 @@ function LevelSection({ dist, total }: { dist: Record<Level, number>; total: num
 
 const BAND_ROWS: { band: ExposureBand; label: string; color: string }[] = [
   { band: '0',   label: 'Not started (0)',    color: 'bg-slate-300'  },
-  { band: '1-2', label: 'Early (1–2)',        color: 'bg-blue-400'   },
-  { band: '3-7', label: 'Progressing (3–7)', color: 'bg-indigo-400' },
-  { band: '8',   label: 'Complete (8)',       color: 'bg-emerald-500'},
+  { band: '1-2', label: 'Introduced (1–2)',   color: 'bg-sky-400'    },
+  { band: '3-7', label: 'Drilling (3–7)',     color: 'bg-amber-400'  },
+  { band: '8',   label: 'Complete (8)',        color: 'bg-emerald-500'},
 ]
 
 function ExposureBandSection({ dist }: { dist: Record<ExposureBand, number> }) {
