@@ -281,7 +281,7 @@ function InboxCard({
           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 active:scale-95 transition-all"
         >
           <BookOpen size={11} />
-          Learning
+          Add to review
         </button>
 
         {/* Challenge */}
@@ -384,7 +384,7 @@ function BulkActionBar({
             className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 transition-colors"
           >
             <BookOpen size={12} />
-            Learning
+            Add to review
           </button>
           <button
             onClick={onAddChallenge}
@@ -441,7 +441,7 @@ function JourneyGuide() {
           <div className="flex gap-3 items-start">
             <div className="w-2 h-2 rounded-full bg-brand-500 mt-1.5 shrink-0" />
             <p className="text-xs text-slate-600 leading-relaxed">
-              <span className="font-bold text-slate-800">Learning</span> — enters your SRS Review queue. Words come back at growing intervals (1 day → 3 → 7 → 14…) until recalled 3 times. Best for most words.
+              <span className="font-bold text-slate-800">Add to review</span> — enters your SRS Review queue. Words come back at growing intervals (1 day → 3 → 7 → 14…) until recalled 3 times. Best for most words.
             </p>
           </div>
           <div className="flex gap-3 items-start">
@@ -457,7 +457,7 @@ function JourneyGuide() {
             </p>
           </div>
           <p className="text-[10px] text-slate-400 italic border-t border-slate-100 pt-2.5">
-            All three paths move the word out of Inbox into Learning. You can mix and match — or select multiple words for bulk actions.
+            All three paths move the word out of Inbox. You can mix and match — or select multiple words for bulk actions.
           </p>
         </div>
       )}
@@ -586,8 +586,8 @@ export function InboxPage() {
   async function handleMoveLearning(id: string) {
     const snap = captureSnapshot([id], ['status'])
     const { moved, skipped } = await moveToLearning([id])
-    if (moved > 0) showToast('Added to Review queue', 'Word appears in Review & Daily Challenge.', snap, 'Review now →', () => navigate('/review'))
-    else if (skipped > 0) showToast('Already in Learning or beyond — skipped.')
+    if (moved > 0) showToast('Added to Review queue', 'Word will appear in Review sessions.', snap, 'Review now →', () => navigate('/review'))
+    else if (skipped > 0) showToast('Already in review queue — skipped.')
   }
 
   async function handleAddChallenge(id: string) {
@@ -624,7 +624,7 @@ export function InboxPage() {
     clearSelection()
     showToast(
       `${moved} word${moved !== 1 ? 's' : ''} added to Review queue`,
-      skipped > 0 ? `${skipped} already in Learning — skipped.` : 'Words appear in Review & Daily Challenge.',
+      skipped > 0 ? `${skipped} already in review queue — skipped.` : 'Words will appear in Review sessions.',
       snap,
       'Review now →',
       () => navigate('/review'),

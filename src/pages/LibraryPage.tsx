@@ -344,7 +344,7 @@ function InboxCard({
           className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 active:scale-95 transition-all"
         >
           <BookOpen size={11} />
-          Learning
+          Add to review
         </button>
         <button
           onClick={() => onAddChallenge(item.id)}
@@ -456,7 +456,7 @@ function BulkActionBar({
             onClick={onMoveLearning}
             className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-xl text-xs font-semibold hover:bg-brand-700 transition-colors"
           >
-            <BookOpen size={12} /> Learning
+            <BookOpen size={12} /> Add to review
           </button>
           <button
             onClick={onAddChallenge}
@@ -780,8 +780,8 @@ export function LibraryPage() {
   async function handleMoveLearning(id: string) {
     const snap = captureSnapshot([id], ['status'])
     const { moved, skipped } = await moveToLearning([id])
-    if (moved > 0)   showToast('Added to Review queue', 'Word appears in Review & Daily Challenge.', snap, 'Review now →', () => navigate('/review'))
-    else if (skipped) showToast('Already in Learning or beyond — skipped.')
+    if (moved > 0)   showToast('Added to Review queue', 'Word will appear in Review sessions.', snap, 'Review now →', () => navigate('/review'))
+    else if (skipped) showToast('Already in review queue — skipped.')
   }
 
   async function handleAddChallenge(id: string) {
@@ -840,7 +840,7 @@ export function LibraryPage() {
     clearSelection()
     showToast(
       `${moved} word${moved !== 1 ? 's' : ''} added to Review queue`,
-      skipped > 0 ? `${skipped} already in Learning — skipped.` : undefined,
+      skipped > 0 ? `${skipped} already in review queue — skipped.` : undefined,
       snap, 'Review now →', () => navigate('/review'),
     )
   }
