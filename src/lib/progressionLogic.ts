@@ -141,10 +141,10 @@ export const DISPLAY_STAGE_SHORT_LABEL: Record<DisplayStage, string> = {
  * Describes the stage from the learner's perspective.
  */
 export const DISPLAY_STAGE_DESCRIPTION: Record<DisplayStage, string> = {
-  new:        'In your Focus, not yet practiced. It will appear in your next challenge.',
-  introduced: 'You\'ve seen this word 1–2 times. Recall is just beginning to form.',
-  drilling:   'Building recall through spaced repetition.',
-  activate:   'Challenge training complete. Try using this word in real conversation, writing, or work.',
+  new:        'Just added. You\'ll meet it in an upcoming challenge.',
+  introduced: 'You\'ve encountered this word a couple of times. The impression is just starting to form.',
+  drilling:   'Regular challenge practice is making this word stick.',
+  activate:   'You\'ve drilled this enough — now try it in real conversation, writing, or work.',
   mastered:   'Drilled and used in real life. Part of your active vocabulary.',
 }
 

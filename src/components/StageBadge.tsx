@@ -13,7 +13,7 @@
  * reads a pre-computed or stored stage value.
  *
  * Two rendering modes:
- *   compact=false (default) — colored pill: dot + label
+ *   compact=false (default) — colored pill: background + text label (no inner dot)
  *   compact=true            — colored dot only (for tight row layouts)
  *
  * The "activate" stage uses a visually distinct treatment because it is the
@@ -94,10 +94,9 @@ export function StageBadge({ item, compact = false, className = '' }: StageBadge
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.pill} ${className}`}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${cfg.pill} ${className}`}
       aria-label={ariaLabel}
     >
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} aria-hidden="true" />
       {label}
     </span>
   )
