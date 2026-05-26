@@ -417,6 +417,83 @@ Progress indicators that show objective state (exposure count, stage, usage coun
 
 ---
 
+## User Data Safety and Persistence
+
+### Core principle
+
+User learning history is sacred and irreversible.
+
+Every piece of data a learner accumulates — exposures, recalls, usage logs, confidence levels, sentences — represents real effort and real time. Silent data loss is unacceptable regardless of how convenient it might be for a refactor or migration.
+
+### Protected fields
+
+The following `VocabItem` fields must never be cleared, reset, or overwritten by a schema upgrade, automated migration, or background process:
+
+* `exposureCount` — challenge drilling progress (0–8)
+* `review.successfulRecalls`, `review.reviewCount`, `review.ease`, `review.intervalDays`, `review.nextReviewAt`, `review.lastReviewedAt` — full SRS state
+* `review.sentenceProduced` — mastery gate; cannot be re-derived from any other field
+* `activation.usageLogs` — complete real-life usage history
+* `activation.usageCount` — usage counter
+* `activation.confidenceLevel` — self-reported comfort level
+* `mySentence` — the learner's own produced sentence
+* `status` — internal queue membership gate
+* `archived` — soft-delete state
+* `inFocus`, `weeklyFocus` — focus membership
+* `tags`, `themes` — user-assigned organisation
+* `sourceText`, `sourceType` — user-provided context for the word
+* `createdAt` — chronological record
+
+Also protected in localStorage (separate stores):
+
+* Points, streaks, badges, challenge completions — `gamificationStore`
+* Custom theme list — `themesStore`
+* Learning profile and onboarding answers — `onboardingStore`
+
+### Dexie schema upgrade rules (non-negotiable)
+
+1. **All schema upgrades must be additive.** Add index columns or transform fields with `.modify()` — never remove, truncate, or clear data.
+
+2. **Never use `.upgrade((tx) => tx.table('items').clear())`** or any equivalent table-wipe. The v2 upgrade in `src/lib/db.ts` did this — it was a pre-production, zero-real-user decision and is marked in the code as a historical exception. It must never be repeated.
+
+3. **Never use `.upgrade()` to delete, reset, or overwrite protected fields.** Any `.modify()` call in an upgrade handler must touch only new or obsolete fields.
+
+4. **Every new `VocabItem` field must be backfilled in `migrateItem()`** in `src/lib/migration.ts` with a safe default. `migrateItem()` runs on every startup and is safer than a one-shot Dexie upgrade that cannot be undone.
+
+5. **If a genuinely destructive migration seems necessary, stop.** Do not implement it without: explicit product approval, a manual export/backup step surfaced to the user before the upgrade runs, and a documented recovery path.
+
+### No silent progress resets
+
+Do not add any code path that clears or resets a protected field without an explicit, confirmed user action. This includes:
+
+* No `exposureCount = 0` without user-initiated "Reset progress" confirmation
+* No `usageLogs = []` without user-initiated "Clear history" confirmation
+* No automatic status downgrades triggered by time, inactivity, or migration
+* No focus eviction that removes items without informing the user (the weekly reset is by design but must stay documented)
+
+### Prefer additive migrations and backfills
+
+When adding a new field to `VocabItem`:
+
+1. Add it as `optional` in the TypeScript type (`field?: Type`)
+2. Add a safe default in `migrateItem()` so existing items are backfilled on next load
+3. Write code that handles the `undefined` case at all callsites
+4. Never bump the Dexie schema version unless you are adding a new *index* (not just a field)
+
+### Localhost store versioning
+
+All Zustand `persist` stores must declare a `version` number and a `migrate()` function. Removing or renaming a persisted field requires a version bump and a migration that maps the old shape to the new one. See `onboardingStore.ts` for the correct pattern.
+
+### Before risky persistence changes
+
+If a change could affect stored user progress:
+
+1. Identify which protected fields are at risk
+2. Confirm the change is additive and recoverable
+3. If uncertain, propose an export/backup nudge in the UI before the change is deployed
+4. Document the before/after data shape in the PR
+
+---
+
 ## Accessibility Standards
 
 * Visual indicators that convey stage or status through color alone must have accessible text equivalents (`aria-label`, `title`, or a co-located visible label).
