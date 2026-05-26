@@ -13,14 +13,21 @@ import {
   CheckCircle2, XCircle, ChevronDown, ChevronUp, FileJson,
   AlertCircle, Activity,
 } from 'lucide-react'
-import { useVocabStore }  from '@/store/vocabStore'
+import { useVocabStore }       from '@/store/vocabStore'
+import { useGamificationStore } from '@/store/gamificationStore'
+import { useThemesStore }       from '@/store/themesStore'
+import { useOnboardingStore }   from '@/store/onboardingStore'
 import {
   exportVocabToJson,
   downloadVocabJson,
-  parseImportedVocabJson,
+  parseFullExport,
   mergeImportedVocabItems,
+  mergeGamificationSnapshot,
   VocabImportError,
   type MergeResult,
+  type GamificationSnapshot,
+  type ExportExtras,
+  type FullExportParseResult,
 } from '@/lib/vocabImportExport'
 import {
   validateVocabItems,
@@ -31,6 +38,7 @@ import {
 import { buildDiagnosticReport, downloadDiagnosticReport } from '@/lib/diagnostics'
 import { APP_VERSION, APP_PHASE, BUILD_DATE } from '@/lib/appVersion'
 import type { VocabItem } from '@/types/vocabulary'
+import type { UserLearningProfile } from '@/types/profile'
 
 // ── Section wrapper ────────────────────────────────────────────────────────────
 
@@ -175,8 +183,34 @@ function ValidationSummaryCard({ summary }: { summary: ValidationSummary }) {
 function ExportSection({ items }: { items: VocabItem[] }) {
   const [exported, setExported] = useState(false)
 
+  // Gather all store data for a complete backup
+  const gamification = useGamificationStore((s) => ({
+    points:               s.points,
+    streakDays:           s.streakDays,
+    lastChallengeDate:    s.lastChallengeDate,
+    badges:               s.badges,
+    challengeCompletions: s.challengeCompletions,
+    pointsHistory:        s.pointsHistory,
+    goalTarget:           s.goalTarget,
+    goalStartDate:        s.goalStartDate,
+    goalDeadline:         s.goalDeadline,
+    gamesPlayed:          s.gamesPlayed,
+    bestGameStreak:       s.bestGameStreak,
+  }))
+  const themes    = useThemesStore((s) => s.themes)
+  const obProfile = useOnboardingStore((s) => s.profile)
+  const obDone    = useOnboardingStore((s) => s.completed)
+
   function handleExport() {
-    const payload = exportVocabToJson(items)
+    const extras: ExportExtras = {
+      gamification,
+      themes,
+      preferences: {
+        onboardingCompleted: obDone,
+        onboardingProfile:   obProfile ?? undefined,
+      },
+    }
+    const payload = exportVocabToJson(items, extras)
     downloadVocabJson(payload)
     setExported(true)
     setTimeout(() => setExported(false), 3000)
@@ -227,15 +261,22 @@ function ExportSection({ items }: { items: VocabItem[] }) {
 
 function ImportSection({ items }: { items: VocabItem[] }) {
   const fileRef  = useRef<HTMLInputElement>(null)
-  const [parseError,  setParseError]  = useState<string | null>(null)
-  const [preview,     setPreview]     = useState<MergeResult | null>(null)
-  const [importState, setImportState] = useState<'idle' | 'importing' | 'done'>('idle')
+  const [parseError,   setParseError]   = useState<string | null>(null)
+  const [preview,      setPreview]      = useState<MergeResult | null>(null)
+  const [parsedExtras, setParsedExtras] = useState<Omit<FullExportParseResult, 'items'> | null>(null)
+  const [importState,  setImportState]  = useState<'idle' | 'importing' | 'done'>('idle')
+  const [extrasApplied, setExtrasApplied] = useState<{ themes: number; gamification: boolean; profile: boolean } | null>(null)
+
   const { bulkImport } = useVocabStore()
+  const { themes: currentThemes, addTheme } = useThemesStore()
+  const { profile: currentProfile, setProfile } = useOnboardingStore()
 
   function reset() {
     setParseError(null)
     setPreview(null)
+    setParsedExtras(null)
     setImportState('idle')
+    setExtrasApplied(null)
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -245,14 +286,18 @@ function ImportSection({ items }: { items: VocabItem[] }) {
 
     setParseError(null)
     setPreview(null)
+    setParsedExtras(null)
     setImportState('idle')
+    setExtrasApplied(null)
 
     const reader = new FileReader()
     reader.onload = (ev) => {
       try {
-        const parsed  = parseImportedVocabJson(ev.target?.result as string)
-        const result  = mergeImportedVocabItems(items, parsed)
-        setPreview(result)
+        const fullResult = parseFullExport(ev.target?.result as string)
+        const { items: parsedItems, ...extras } = fullResult
+        const vocabMerge = mergeImportedVocabItems(items, parsedItems)
+        setPreview(vocabMerge)
+        setParsedExtras(extras)
       } catch (err) {
         if (err instanceof VocabImportError) {
           setParseError(err.message)
@@ -269,6 +314,36 @@ function ImportSection({ items }: { items: VocabItem[] }) {
     setImportState('importing')
     try {
       await bulkImport(preview.merged)
+
+      let themesAdded       = 0
+      let gamificationMerged = false
+      let profileRestored    = false
+
+      // Apply gamification — max-wins merge so no progress is lost
+      if (parsedExtras?.gamification) {
+        const currentSnap: GamificationSnapshot = useGamificationStore.getState()
+        const merged = mergeGamificationSnapshot(currentSnap, parsedExtras.gamification)
+        useGamificationStore.setState(merged)
+        gamificationMerged = true
+      }
+
+      // Apply themes — add any from backup not already in store
+      if (parsedExtras?.themes && parsedExtras.themes.length > 0) {
+        for (const t of parsedExtras.themes) {
+          if (!currentThemes.includes(t)) {
+            addTheme(t)
+            themesAdded++
+          }
+        }
+      }
+
+      // Restore onboarding profile — only if the user has none yet (non-destructive)
+      if (parsedExtras?.preferences?.onboardingProfile && currentProfile === null) {
+        setProfile(parsedExtras.preferences.onboardingProfile as UserLearningProfile)
+        profileRestored = true
+      }
+
+      setExtrasApplied({ themes: themesAdded, gamification: gamificationMerged, profile: profileRestored })
       setImportState('done')
     } catch {
       setParseError('Import failed — your library has not been changed.')
@@ -288,7 +363,7 @@ function ImportSection({ items }: { items: VocabItem[] }) {
         <div className="space-y-3">
           <div className="flex items-center gap-2.5 p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-sm text-emerald-800 font-medium">
             <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
-            Import complete — your library has been updated.
+            Import complete — your data has been restored.
           </div>
           {preview && (
             <ul className="text-sm text-slate-600 space-y-1 pl-2">
@@ -298,6 +373,15 @@ function ImportSection({ items }: { items: VocabItem[] }) {
               )}
               {preview.skippedDuplicates > 0 && (
                 <li>· <strong>{preview.skippedDuplicates}</strong> duplicate{preview.skippedDuplicates !== 1 ? 's' : ''} skipped</li>
+              )}
+              {extrasApplied?.gamification && (
+                <li>· Progress &amp; achievements restored</li>
+              )}
+              {extrasApplied?.themes != null && extrasApplied.themes > 0 && (
+                <li>· <strong>{extrasApplied.themes}</strong> theme{extrasApplied.themes !== 1 ? 's' : ''} added</li>
+              )}
+              {extrasApplied?.profile && (
+                <li>· Learning profile restored</li>
               )}
             </ul>
           )}

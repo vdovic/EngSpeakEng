@@ -19,6 +19,8 @@ const KNOWN_LS_KEYS = [
   'focus-week-start',
   'ese-challenge-session',
   'ese-review-tip-v1',
+  'ese.challenge.practiceMode',
+  'active-focus-order',
 ] as const
 
 // ── Report shape ───────────────────────────────────────────────────────────────

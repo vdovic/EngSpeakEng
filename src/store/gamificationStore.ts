@@ -174,6 +174,33 @@ export const useGamificationStore = create<GamificationStore>()(
           bestGameStreak: 0,
         }),
     }),
-    { name: 'speak-english-gamification' },
+    {
+      name:    'speak-english-gamification',
+      version: 1,
+      /**
+       * Migrate persisted state across store versions.
+       *
+       * v0 → v1: first versioned release — backfill any fields that may be
+       * absent in older payloads.  All user progress (points, streakDays,
+       * badges, challengeCompletions, pointsHistory, gamesPlayed,
+       * bestGameStreak) is preserved; missing fields get safe defaults.
+       */
+      migrate(persisted: unknown, _fromVersion: number) {
+        const old = (persisted ?? {}) as Partial<GamificationStore>
+        return {
+          points:               old.points               ?? 0,
+          streakDays:           old.streakDays           ?? 0,
+          lastChallengeDate:    old.lastChallengeDate     ?? null,
+          badges:               old.badges               ?? [],
+          challengeCompletions: old.challengeCompletions ?? 0,
+          pointsHistory:        old.pointsHistory        ?? {},
+          goalTarget:           old.goalTarget           ?? 1500,
+          goalStartDate:        old.goalStartDate        ?? defaultStartDate(),
+          goalDeadline:         old.goalDeadline         ?? defaultDeadline(),
+          gamesPlayed:          old.gamesPlayed          ?? 0,
+          bestGameStreak:       old.bestGameStreak       ?? 0,
+        }
+      },
+    },
   ),
 )
