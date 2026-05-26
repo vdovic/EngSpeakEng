@@ -18,7 +18,6 @@ import { DefinitionChoiceChallenge } from '@/components/challenges/DefinitionCho
 import { FillGapChallenge } from '@/components/challenges/FillGapChallenge'
 import { SentenceProductionChallenge } from '@/components/challenges/SentenceProductionChallenge'
 import { RealLifeUseCheckChallenge } from '@/components/challenges/RealLifeUseCheckChallenge'
-import { WordDetailModal } from '@/components/WordDetailModal'
 import {
   saveSession, loadTodaySession, clearSession, todayKey, getUniqueWordProgress,
   PRACTICE_MODE_KEY,
@@ -278,7 +277,6 @@ export function DailyChallengePage() {
   const [reshaking, setReshaking] = useState(false)
   const [sessionSize, setSessionSize] = useState<number>(CHALLENGE_SESSION_CAP)
 
-  const [wordDetailItem, setWordDetailItem]           = useState<VocabItem | null>(null)
   const [resumeBanner, setResumeBanner]               = useState<string | null>(null)
 
   const [practiceMode, setPracticeModeRaw] = useState<'standard' | 'deep'>(() => {
@@ -437,7 +435,7 @@ export function DailyChallengePage() {
           setCurrentIndex(restoreIndex)
           setPhase('exercising')
           const progress = uniqueWordProgressForSlots(restoredSlots, restoreIndex)
-          setResumeBanner(`Resuming your challenge · word ${progress.current}/${progress.total}`)
+          setResumeBanner(`Resuming your challenge ï¿½ word ${progress.current}/${progress.total}`)
           return
         }
       }
@@ -1133,7 +1131,7 @@ export function DailyChallengePage() {
           </span>
         </div>
         <button
-          onClick={() => setWordDetailItem(item)}
+          onClick={() => navigate(`/item/${item.id}`)}
           className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
           title="View word details"
         >
@@ -1362,13 +1360,10 @@ export function DailyChallengePage() {
               {/* Action buttons */}
               <div className="flex gap-3 mt-2">
                 <button
-                  onClick={() => {
-                    const it = allItems.find((i) => i.id === feedback.itemId)
-                    if (it) setWordDetailItem(it)
-                  }}
+                  onClick={() => navigate(`/item/${feedback.itemId}`)}
                   className="px-4 py-3 text-sm font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-colors shrink-0"
                 >
-                  Word details
+                  Explore word
                 </button>
                 <button
                   onClick={dismissFeedback}
@@ -1401,10 +1396,6 @@ export function DailyChallengePage() {
         </>
       )}
 
-      {/* Inline word detail modal */}
-      {wordDetailItem && (
-        <WordDetailModal item={wordDetailItem} onClose={() => setWordDetailItem(null)} />
-      )}
 
     </div>
   )
