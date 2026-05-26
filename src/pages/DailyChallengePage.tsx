@@ -72,6 +72,54 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+/**
+ * Distributes challenge slots so that cards for the same word are naturally
+ * spaced across the session rather than appearing consecutively.
+ *
+ * Algorithm: round-robin across per-item slot groups.
+ *   Round 0: first slot of every word   (in the order items were encountered)
+ *   Round 1: second slot of every word  (words with only 1 slot are skipped)
+ *   Round 2: third slot of every word   (words with fewer slots are skipped)
+ *
+ * Guarantees:
+ *   • No 3+ consecutive slots for the same word
+ *   • No same-word + same-challengeType consecutive pair
+ *   • ~n_words gap between any two visits to the same word
+ *   • Item priority order is preserved within each round
+ *   • Per-word challenge-type progression (e.g. def→fill→sentence) is preserved
+ *
+ * Accepted edge cases (impossible to fix without changing word selection):
+ *   • Single-item session — nothing to interleave with
+ *   • One word contributes more slots than all others combined
+ */
+function interleaveSlots(slots: ChallengeSlot[]): ChallengeSlot[] {
+  if (slots.length <= 2) return slots
+
+  // Group slots by item, preserving encounter order and per-item challenge sequence
+  const groupOrder: string[] = []
+  const groups = new Map<string, ChallengeSlot[]>()
+  for (const slot of slots) {
+    if (!groups.has(slot.item.id)) {
+      groups.set(slot.item.id, [])
+      groupOrder.push(slot.item.id)
+    }
+    groups.get(slot.item.id)!.push(slot)
+  }
+
+  if (groupOrder.length === 1) return slots // single item — nothing to interleave
+
+  // Round-robin: take one slot per item per round
+  const maxRounds = Math.max(...Array.from(groups.values()).map((g) => g.length))
+  const result: ChallengeSlot[] = []
+  for (let round = 0; round < maxRounds; round++) {
+    for (const id of groupOrder) {
+      const group = groups.get(id)!
+      if (round < group.length) result.push(group[round])
+    }
+  }
+  return result
+}
+
 function uniqueSlotsByItem(slots: ChallengeSlot[]): ChallengeSlot[] {
   const seen = new Set<string>()
   return slots.filter((slot) => {
@@ -364,7 +412,7 @@ export function DailyChallengePage() {
     const normalPick  = normalDue.slice(0, cap - focusPick.length)
 
     const pickedItems = shuffle([...focusPick, ...normalPick]).slice(0, cap)
-    return buildExerciseSlotsForItems(pickedItems)
+    return interleaveSlots(buildExerciseSlotsForItems(pickedItems))
   }
 
   function buildThemeSlots(theme: string, cap = sessionSize): ChallengeSlot[] {
@@ -378,7 +426,7 @@ export function DailyChallengePage() {
     )
     const due    = shuffle(pool.filter((i) =>  isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
     const notDue = shuffle(pool.filter((i) => !isDueChallengeNow(i.exposureCount, i.nextChallengeDate)))
-    return buildExerciseSlotsForItems([...due, ...notDue].slice(0, cap))
+    return interleaveSlots(buildExerciseSlotsForItems([...due, ...notDue].slice(0, cap)))
   }
 
   // ── Mount: restore session OR build fresh ────────────────────────────────────
@@ -566,10 +614,10 @@ export function DailyChallengePage() {
     // Always look up live item data from the Zustand store so that exposureCount
     // and other fields updated during the just-completed session are reflected in
     // the new session's challenge type selection and preview card.
-    const liveSlots = previewSlots.flatMap((s) => {
+    const liveSlots = interleaveSlots(previewSlots.flatMap((s) => {
       const liveItem = allItems.find((i) => i.id === s.item.id) ?? s.item
       return buildExerciseSlotsForItems([liveItem])
-    })
+    }))
     usedItemIds.current = new Set(liveSlots.map((s) => s.item.id))
     setSlots(liveSlots)
     setCurrentIndex(0)
@@ -599,7 +647,7 @@ export function DailyChallengePage() {
     ).slice(0, CHALLENGE_SESSION_CAP)
     if (available.length === 0) return
     available.forEach((i) => usedItemIds.current.add(i.id))
-    setSlots(buildExerciseSlotsForItems(available))
+    setSlots(interleaveSlots(buildExerciseSlotsForItems(available)))
     setCurrentIndex(0)
     setResults([])
     setIsBonus(true)
