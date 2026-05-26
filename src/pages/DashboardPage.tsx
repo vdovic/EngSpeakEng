@@ -285,7 +285,7 @@ function LearningSnapshotStrip({
 }) {
   const cards = [
     { value: String(librarySize), label: 'library', onClick: onLibrary },
-    { value: String(activelyLearning), label: 'learning', onClick: onFocus },
+    { value: String(activelyLearning), label: 'in progress', onClick: onFocus },
     { value: String(focusSize), label: 'in focus', onClick: onFocus },
     { value: `${overallProgress}%`, label: 'progress', onClick: onProgress },
   ]
@@ -366,7 +366,7 @@ function AlmostMasteredStrip({
   return (
     <section className="mb-5">
       <div className="mb-2 flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Almost mastered</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Ready to use</p>
         <button onClick={onNavigate} className="flex items-center gap-0.5 text-xs font-semibold text-brand-600">
           See all <ChevronRight size={12} />
         </button>
@@ -416,7 +416,7 @@ const HOW_IT_WORKS_STEPS = [
     href: '/challenge',
   },
   {
-    label: 'Activation',
+    label: 'Activate',
     badge: 'Progress',
     description: 'Mastery comes from exposure, understanding, and using words in real situations.',
     href: '/progress',
