@@ -98,7 +98,7 @@ Rules:
 Real-life use is optional but encouraged.
 
 * user can log real-life usage
-* real-life usage can accelerate mastery
+* real-life use is the defining criterion for mastery, not just an accelerator
 * user may mark a word as mastered manually
 * the app should encourage active use without forcing it
 
@@ -337,3 +337,88 @@ Before large UX or architecture changes:
 3. Prefer small coherent improvements over large unfocused redesigns.
 4. Keep existing routes and data compatible unless explicitly instructed otherwise.
 5. Run TypeScript and build checks before finalising changes.
+
+---
+
+## Learner Progression Model
+
+Five stages in order: **New → Introduced → Drilling → Activate → Mastered**
+
+* This is the only progression taxonomy shown to learners. Do not introduce a parallel stage system.
+* Stages are always derived from live item data at render time. Never store or cache a computed stage value.
+* `ItemStatus` (inbox / learning / stable / activation / mastered) is an internal data field. Never display raw status values to learners.
+* **Activate** is intentionally a verb, not a noun. It is the only stage requiring action outside the app. Do not normalize it to match the other stage labels.
+* Do not add a sixth stage without explicit product discussion.
+
+---
+
+## Activation Philosophy
+
+Activate is categorically different from the other four stages.
+
+* The other four stages represent in-app progress. Activate represents completed in-app training and a requirement for real-world use.
+* Activation uses OR logic — any single evidence gate is sufficient to advance to Mastered. Do not change this to AND.
+* Do not design the Activate stage to feel like more drills or require more in-app steps. The word is the learner's responsibility now.
+* Activate's distinctive visual and label treatment is intentional. Do not normalize it to match the other stages.
+
+---
+
+## Learning and Mastery Philosophy
+
+The goal is active production, not test performance.
+
+* Challenge practice helps the word become familiar. Real-life production proves the word is alive in the learner's vocabulary.
+* "Mastered" means the learner can reach for the word naturally — not that they scored well in a challenge.
+* Recognition ("Do I know this word?") is curation, not learning. It must not appear as a challenge exercise type.
+
+---
+
+## Gamification Constraints
+
+This product targets adult B2–C1 professional learners. The following patterns actively conflict with their expectations and must not be added:
+
+* Points, XP, scores, or performance ratings
+* Streaks
+* Achievement badges or unlock animations
+* Internal quality labels surfaced to users (e.g. "Strong", "Struggling")
+* Leaderboards or social comparison
+
+Progress indicators that show objective state (exposure count, stage, usage count) are encouraged. The distinction is showing *what is true*, not *how good the learner is*.
+
+---
+
+## Language and Terminology
+
+**Stability.** Learner-facing terminology must remain consistent once established. Rename stages, labels, or key actions only with deliberate product rationale. Semantic clarity matters more than novelty or cleverness.
+
+**Boundaries.** Internal system terms (status field values, technical field names such as "ease factor" or "SRS interval") must not appear in primary UI text. Technical data belongs in collapsible panels for curious learners, not in primary views.
+
+**Register.** Write from the learner's perspective. Stage descriptions answer "What does this mean for me right now?" in one calm sentence. Tone is confident and quiet — not celebratory, not urgent.
+
+---
+
+## Architecture Principles
+
+**Derived state is never stored.** Progression stage, canonical level, and any similar derivation must be computed from live item data at render time. Never persist a computed progression value to the database, store, or component state.
+
+**Display components receive live items, not pre-computed values.** Progression badges and indicators accept a `VocabItem` and derive their display internally. This makes stale state architecturally impossible.
+
+**The internal/learner-facing boundary is maintained.** `ItemStatus` is for internal data logic. `DisplayStage` is for what learners see. Do not mix the two surfaces.
+
+---
+
+## Implementation Discipline
+
+* Before committing any progression or state-derivation change: TypeScript must be clean, tests must pass, and the production build must succeed.
+* New pure derivation functions need unit tests before being wired to any UI.
+* State exact scope before coding. Do not expand scope without explicit approval.
+* Systematic migrations are incremental: each phase must leave the codebase clean before the next begins. Legacy and new systems will coexist during migration — this is expected and acceptable.
+* Read relevant files before proposing changes. Identify all usage sites before removing or renaming anything.
+
+---
+
+## Accessibility Standards
+
+* Visual indicators that convey stage or status through color alone must have accessible text equivalents (`aria-label`, `title`, or a co-located visible label).
+* Color is reinforcement, not the sole carrier of meaning.
+* Interactive elements must be clearly distinguishable from informational elements in layout and visual weight.
