@@ -520,7 +520,7 @@ function JourneyGuide() {
       {open && (
         <div className="border-t border-slate-100 px-4 pt-3 pb-4 space-y-3">
           {[
-            { color: 'bg-brand-500',  label: 'Learning', desc: 'Enters your SRS Review queue (1 day → 3 → 7 → 14…).' },
+            { color: 'bg-brand-500',  label: 'Add to review', desc: 'Enters your SRS Review queue (1 day → 3 → 7 → 14…).' },
             { color: 'bg-amber-500',  label: 'Challenge', desc: "Jumps into today's Daily Challenge quiz (0–8 steps)." },
             { color: 'bg-orange-500', label: 'My Focus',  desc: 'Adds to your active focus list for conscious practice.' },
           ].map(({ color, label, desc }) => (

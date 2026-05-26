@@ -1285,7 +1285,7 @@ function ProgressSection({ item }: { item: VocabItem }) {
         {/* Activate: drilling complete + activation gate checklist */}
         {stage === 'activate' && (
           <div>
-            <SectionDivider label="Activation" />
+            <SectionDivider label="Activate" />
             {/* Confirm drilling is done */}
             <div className="flex items-center gap-2 mb-3 text-xs text-emerald-700">
               <Check size={13} className="text-emerald-500 shrink-0" />

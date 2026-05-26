@@ -534,13 +534,13 @@ function PortfolioOverview({
         {learningCount > 0 && (
           <span className="text-[10px] font-semibold text-blue-500 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
-            {learningCount} Learning
+            {learningCount} Introduced
           </span>
         )}
         {familiarCount > 0 && (
           <span className="text-[10px] font-semibold text-violet-500 flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-violet-400 inline-block" />
-            {familiarCount} Familiar
+            {familiarCount} Drilling
           </span>
         )}
         {masteredCount > 0 && (
