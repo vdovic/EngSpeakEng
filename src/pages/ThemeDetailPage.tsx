@@ -18,7 +18,7 @@ import {
 import { useVocabStore } from '@/store/vocabStore'
 import { useThemesStore } from '@/store/themesStore'
 import { useThemeAutoAssign } from '@/hooks/useThemeAutoAssign'
-import { LevelBadge } from '@/components/LevelBadge'
+import { StageBadge } from '@/components/StageBadge'
 import { VocabItem } from '@/types/vocabulary'
 
 // ── ThemeDetailPage ───────────────────────────────────────────────────────────
@@ -363,7 +363,7 @@ export function ThemeDetailPage() {
                       </p>
                     )}
                   </button>
-                  <LevelBadge item={item} />
+                  <StageBadge item={item} />
                   <button
                     onClick={() => void removeWord(item)}
                     className="shrink-0 p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -433,7 +433,7 @@ export function ThemeDetailPage() {
                       </p>
                     )}
                   </div>
-                  <LevelBadge item={item} />
+                  <StageBadge item={item} />
                   <button
                     onClick={() => void addWord(item)}
                     className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-brand-600 bg-brand-50 border border-brand-200 rounded-lg hover:bg-brand-100 transition-colors"

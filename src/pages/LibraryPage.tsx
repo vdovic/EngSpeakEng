@@ -27,7 +27,7 @@ import { useThemesStore } from '@/store/themesStore'
 import { VocabCard } from '@/components/VocabCard'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { TypeBadge } from '@/components/TypeBadge'
-import { LevelBadge } from '@/components/LevelBadge'
+import { StageBadge } from '@/components/StageBadge'
 import { ExposureProgress } from '@/components/ExposureProgress'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { VocabItem } from '@/types/vocabulary'
@@ -44,8 +44,8 @@ import { FOCUS_MAX } from '@/lib/focusLogic'
 const LEVEL_OPTIONS: { value: LevelFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 0,     label: 'New' },
-  { value: 1,     label: 'Learning' },
-  { value: 2,     label: 'Familiar' },
+  { value: 1,     label: 'Introduced' },
+  { value: 2,     label: 'Drilling' },
   { value: 3,     label: 'Mastered' },
 ]
 
@@ -88,7 +88,7 @@ const SORT_GROUPS: { label: string; options: { value: LibrarySortKey; label: str
     ],
   },
   {
-    label: 'Learning level',
+    label: 'Progress stage',
     options: [
       { value: 'level-asc',  label: 'New → Mastered' },
       { value: 'level-desc', label: 'Mastered → New' },
@@ -112,7 +112,7 @@ const SORT_GROUPS: { label: string; options: { value: LibrarySortKey; label: str
     label: 'Spaced-repetition review',
     options: [
       { value: 'due',  label: 'Due for review soonest' },
-      { value: 'weak', label: 'Weakest recall (ease score)' },
+      { value: 'weak', label: 'Needs most practice' },
     ],
   },
 ]
@@ -259,7 +259,7 @@ function ThemePickerModal({
 
 // ── Inbox card ────────────────────────────────────────────────────────────────
 // Action-rich card for items that still need activation.
-// Shows checkbox (for bulk), LevelBadge, ExposureProgress, and quick actions.
+// Shows checkbox (for bulk), StageBadge, ExposureProgress, and quick actions.
 
 interface InboxCardProps {
   item: VocabItem
@@ -312,7 +312,7 @@ function InboxCard({
           <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
             <span className="font-semibold text-slate-900 text-sm leading-tight">{item.term}</span>
             <TypeBadge type={item.type} />
-            <LevelBadge item={item} />
+            <StageBadge item={item} />
             {/* Show self-assessed familiarity set during Quick Add (read-only) */}
             {(item.activation?.confidenceLevel ?? 0) > 0 && (
               <ConfidenceDots item={item} compact />

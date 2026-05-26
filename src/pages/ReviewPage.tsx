@@ -4,7 +4,7 @@ import { CheckCircle, ArrowLeft, X, GraduationCap } from 'lucide-react'
 import { useVocabStore, useDueItems } from '@/store/vocabStore'
 import { VocabItem, ReviewOutcome } from '@/types/vocabulary'
 import { TypeBadge } from '@/components/TypeBadge'
-import { LevelBadge } from '@/components/LevelBadge'
+import { StageBadge } from '@/components/StageBadge'
 
 // ── Review mode logic ──────────────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ function ReviewCard({ item, mode, onOutcome }: CardProps) {
             <h2 className="text-3xl font-bold text-slate-900 mb-3">{item.term}</h2>
             <div className="flex gap-1.5">
               <TypeBadge type={item.type} />
-              <LevelBadge item={item} />
+              <StageBadge item={item} />
             </div>
           </>
         )}

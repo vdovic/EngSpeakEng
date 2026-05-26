@@ -12,7 +12,7 @@ import { isDueChallengeNow, intervalLabel } from '@/lib/challengeSchedule'
 import { getChallengeType, CHALLENGE_TYPE_LABEL, ChallengeType } from '@/lib/challengeLogic'
 import { CHALLENGE_SESSION_CAP, SESSION_SIZES, STATUS_ORDER, MAX_EXPOSURE } from '@/lib/constants'
 import { VocabItem, ExerciseResult } from '@/types/vocabulary'
-import { LevelBadge } from '@/components/LevelBadge'
+import { StageBadge } from '@/components/StageBadge'
 import { ExposureProgress } from '@/components/ExposureProgress'
 import { DefinitionChoiceChallenge } from '@/components/challenges/DefinitionChoiceChallenge'
 import { FillGapChallenge } from '@/components/challenges/FillGapChallenge'
@@ -224,7 +224,7 @@ function WordPickerModal({
                       </p>
                     )}
                   </div>
-                  <LevelBadge item={item} />
+                  <StageBadge item={item} />
                 </div>
               </button>
             ))
@@ -263,7 +263,7 @@ function PreviewRow({
               {item.partOfSpeech && (
                 <span className="text-xs text-slate-400 italic">{item.partOfSpeech}</span>
               )}
-              <LevelBadge item={item} compact className="shrink-0" />
+              <StageBadge item={item} compact className="shrink-0" />
             </div>
             {/* Progress indicators */}
             <div className="flex items-center gap-3 mt-1.5 flex-wrap">
@@ -1240,7 +1240,7 @@ export function DailyChallengePage() {
 
       {/* ── Level + Exposure + Challenge type label ── */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <LevelBadge item={item} />
+        <StageBadge item={item} />
         <ExposureProgress exposureCount={item.exposureCount ?? 0} compact />
         <span className="ml-auto text-xs font-semibold text-slate-400 uppercase tracking-wide">
           {CHALLENGE_TYPE_LABEL[activeType]}
