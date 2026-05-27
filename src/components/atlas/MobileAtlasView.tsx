@@ -2,24 +2,29 @@
  * MobileAtlasView.tsx
  *
  * Mobile companion to AtlasCanvas.
- * On screens < 768px, the full canvas is replaced by a regional card list:
- * one card per theme showing the theme name, word count, and a compact
- * stage distribution bar.
+ * On screens < 768px, the full canvas is replaced by a guided regional atlas:
  *
- * Design intent: spatial ownership without canvas complexity.
- * The learner sees their vocabulary grouped by theme, colour-coded by stage.
- * Tapping a card shows the words in that theme (stage-sorted).
+ *   • Lens selector  — 3 interpretive views (Progress / Vitality / Confidence)
+ *   • Summary row    — total words + stage distribution bar
+ *   • Special collections — Ready to Use, Recently Active
+ *   • Region cards   — one card per theme, expandable, with tappable word chips
  *
- * This is NOT a management interface — there are no edit actions.
+ * Design intent: designed, not degraded.  The mobile view is a different
+ * experience from the canvas, not a simplified version of it.  Spatial
+ * ownership is expressed through lists, colour signals, and legible labels.
+ *
+ * Word chips are tappable → navigate to /item/:id.
+ * The lens changes the colour signal on each chip's stage dot.
  */
 
 import { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import type { AtlasLayout, AtlasNode, AtlasStage } from '@/lib/atlasLayout'
+import type { AtlasLayout, AtlasNode, AtlasStage, AtlasLens } from '@/lib/atlasLayout'
 
-// ── Stage labels and colors ────────────────────────────────────────────────────
+// ── Stage colours ─────────────────────────────────────────────────────────────
 
-const STAGE_COLOR: Record<AtlasStage, string> = {
+const STAGE_BG: Record<AtlasStage, string> = {
   new:        'bg-slate-500',
   introduced: 'bg-indigo-400',
   drilling:   'bg-amber-400',
@@ -29,6 +34,28 @@ const STAGE_COLOR: Record<AtlasStage, string> = {
 
 const STAGE_ORDER: AtlasStage[] = ['mastered', 'activate', 'drilling', 'introduced', 'new']
 
+// ── Lens chip dot colour ──────────────────────────────────────────────────────
+
+function chipDotColor(node: AtlasNode, lens: AtlasLens): string {
+  if (lens === 'vitality') {
+    if (node.lastActivityMs === null) return 'bg-slate-700'
+    const days = (Date.now() - node.lastActivityMs) / 86_400_000
+    if (days <= 7)   return 'bg-orange-400'
+    if (days <= 30)  return 'bg-amber-300'
+    if (days <= 90)  return 'bg-blue-300'
+    return 'bg-slate-600'
+  }
+  if (lens === 'confidence') {
+    const lvl = node.confidenceLevel
+    if (lvl === 3) return 'bg-emerald-400'
+    if (lvl === 2) return 'bg-amber-400'
+    if (lvl === 1) return 'bg-orange-400'
+    return 'bg-slate-700'
+  }
+  // progress
+  return STAGE_BG[node.stage]
+}
+
 // ── Region card data ──────────────────────────────────────────────────────────
 
 interface RegionCardData {
@@ -37,58 +64,33 @@ interface RegionCardData {
   stageCounts: Record<AtlasStage, number>
 }
 
-function buildRegionCards(layout: AtlasLayout): {
-  cards: RegionCardData[]
-  unthemed: AtlasNode[]
-} {
+function buildRegionCards(layout: AtlasLayout): RegionCardData[] {
   const themeMap = new Map<string, AtlasNode[]>()
 
-  // Map nodes to their themes via regions
   for (const node of layout.nodes) {
-    // We don't have the original VocabItem here, but we stored term.
-    // Themes are stored per region — we need to back-map nodes to themes.
-    // Since we placed nodes per-theme during layout, we rely on the regions list.
-    // We'll re-derive by checking which region each node is closest to.
-    // (Simple approach: already done in layout — region list gives us centroids.
-    //  We assign node to closest region centroid.)
     let bestTheme: string | null = null
     let bestDist2 = Infinity
     for (const region of layout.regions) {
-      const dx = node.x - region.cx
-      const dy = node.y - region.cy
+      const dx = node.x - region.cx, dy = node.y - region.cy
       const d2 = dx * dx + dy * dy
-      if (d2 < bestDist2) {
-        bestDist2 = d2
-        bestTheme = region.theme
-      }
+      if (d2 < bestDist2) { bestDist2 = d2; bestTheme = region.theme }
     }
-
-    // Only assign to a region if within 1.5× its major axis
     const region = bestTheme ? layout.regions.find((r) => r.theme === bestTheme)! : null
-    const withinRegion = region
-      ? bestDist2 < (Math.max(region.rx, region.ry) * 1.5) ** 2
-      : false
-
+    const withinRegion = region ? bestDist2 < (Math.max(region.rx, region.ry) * 1.5) ** 2 : false
     if (bestTheme && withinRegion) {
       if (!themeMap.has(bestTheme)) themeMap.set(bestTheme, [])
       themeMap.get(bestTheme)!.push(node)
     }
-    // Nodes far from any region are "unthemed" but we won't show them separately on mobile
   }
 
-  const cards: RegionCardData[] = layout.regions.map((region) => {
+  return layout.regions.map((region) => {
     const nodes = themeMap.get(region.theme) ?? []
     const stageCounts: Record<AtlasStage, number> = {
       new: 0, introduced: 0, drilling: 0, activate: 0, mastered: 0,
     }
     for (const n of nodes) stageCounts[n.stage]++
     return { theme: region.theme, nodes, stageCounts }
-  })
-
-  // Sort by node count desc
-  cards.sort((a, b) => b.nodes.length - a.nodes.length)
-
-  return { cards, unthemed: [] }
+  }).sort((a, b) => b.nodes.length - a.nodes.length)
 }
 
 // ── Stage distribution bar ────────────────────────────────────────────────────
@@ -103,7 +105,7 @@ function StageBar({ counts, total }: { counts: Record<AtlasStage, number>; total
         return (
           <div
             key={stage}
-            className={`h-full ${STAGE_COLOR[stage]} opacity-80`}
+            className={`h-full ${STAGE_BG[stage]} opacity-80`}
             style={{ width: `${pct}%` }}
           />
         )
@@ -112,32 +114,37 @@ function StageBar({ counts, total }: { counts: Record<AtlasStage, number>; total
   )
 }
 
-// ── Word chip list ─────────────────────────────────────────────────────────────
+// ── Word chip ─────────────────────────────────────────────────────────────────
 
-function WordList({ nodes }: { nodes: AtlasNode[] }) {
+function WordChip({ node, lens }: { node: AtlasNode; lens: AtlasLens }) {
+  return (
+    <Link
+      to={`/item/${node.id}`}
+      className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300 hover:bg-white/10 hover:text-slate-100 transition-colors"
+    >
+      <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${chipDotColor(node, lens)}`} />
+      {node.term}
+    </Link>
+  )
+}
+
+// ── Word chip list ────────────────────────────────────────────────────────────
+
+function WordList({ nodes, lens }: { nodes: AtlasNode[]; lens: AtlasLens }) {
   const sorted = [...nodes].sort((a, b) => {
-    const aIdx = STAGE_ORDER.indexOf(a.stage)
-    const bIdx = STAGE_ORDER.indexOf(b.stage)
-    return aIdx - bIdx
+    const ai = STAGE_ORDER.indexOf(a.stage), bi = STAGE_ORDER.indexOf(b.stage)
+    return ai - bi
   })
-
   return (
     <div className="mt-3 flex flex-wrap gap-1.5">
-      {sorted.map((n) => (
-        <span
-          key={n.id}
-          className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-xs text-slate-300"
-        >
-          {n.term}
-        </span>
-      ))}
+      {sorted.map((n) => <WordChip key={n.id} node={n} lens={lens} />)}
     </div>
   )
 }
 
 // ── Region card ───────────────────────────────────────────────────────────────
 
-function RegionCard({ card }: { card: RegionCardData }) {
+function RegionCard({ card, lens }: { card: RegionCardData; lens: AtlasLens }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -149,15 +156,56 @@ function RegionCard({ card }: { card: RegionCardData }) {
       >
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold text-slate-200">{card.theme}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{card.nodes.length} word{card.nodes.length !== 1 ? 's' : ''}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {card.nodes.length} word{card.nodes.length !== 1 ? 's' : ''}
+          </p>
           <StageBar counts={card.stageCounts} total={card.nodes.length} />
         </div>
         <div className="shrink-0 text-slate-600">
           {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
         </div>
       </button>
+      {open && card.nodes.length > 0 && <WordList nodes={card.nodes} lens={lens} />}
+    </div>
+  )
+}
 
-      {open && card.nodes.length > 0 && <WordList nodes={card.nodes} />}
+// ── Special collection card ───────────────────────────────────────────────────
+
+function CollectionCard({
+  title,
+  subtitle,
+  nodes,
+  lens,
+  accentClass,
+}: {
+  title: string
+  subtitle: string
+  nodes: AtlasNode[]
+  lens: AtlasLens
+  accentClass: string
+}) {
+  const [open, setOpen] = useState(true)
+  if (nodes.length === 0) return null
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${accentClass}`}>
+      <button
+        className="flex w-full items-center justify-between gap-3 text-left"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-slate-200">{title}</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {nodes.length} word{nodes.length !== 1 ? 's' : ''} · {subtitle}
+          </p>
+        </div>
+        <div className="shrink-0 text-slate-600">
+          {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        </div>
+      </button>
+      {open && <WordList nodes={nodes} lens={lens} />}
     </div>
   )
 }
@@ -175,7 +223,7 @@ function SummaryRow({ layout }: { layout: AtlasLayout }) {
   }, [layout])
 
   return (
-    <div className="mb-4 flex items-center gap-3 rounded-xl border border-white/8 bg-white/4 px-4 py-3">
+    <div className="mb-3 flex items-center gap-3 rounded-xl border border-white/8 bg-white/4 px-4 py-3">
       <div className="flex-1">
         <p className="text-sm font-semibold text-slate-200">{total} words in your vocabulary</p>
         <StageBar counts={stageCounts} total={total} />
@@ -183,7 +231,7 @@ function SummaryRow({ layout }: { layout: AtlasLayout }) {
       <div className="flex gap-2">
         {STAGE_ORDER.slice(0, 3).map((stage) => stageCounts[stage] > 0 && (
           <div key={stage} className="text-center">
-            <div className={`h-2 w-2 mx-auto rounded-full ${STAGE_COLOR[stage]}`} />
+            <div className={`h-2 w-2 mx-auto rounded-full ${STAGE_BG[stage]}`} />
             <p className="mt-0.5 text-[10px] text-slate-600">{stageCounts[stage]}</p>
           </div>
         ))}
@@ -192,14 +240,67 @@ function SummaryRow({ layout }: { layout: AtlasLayout }) {
   )
 }
 
+// ── Lens selector ──────────────────────────────────────────────────────────────
+
+const LENS_LABELS: Record<AtlasLens, string> = {
+  progress:   'Progress',
+  vitality:   'Vitality',
+  confidence: 'Confidence',
+}
+
+function LensSelector({
+  lens,
+  onLensChange,
+}: {
+  lens: AtlasLens
+  onLensChange: (l: AtlasLens) => void
+}) {
+  return (
+    <div
+      className="flex items-center gap-1 p-1 rounded-full bg-white/5 border border-white/8 mb-4 self-start"
+      role="group"
+      aria-label="Atlas lens"
+    >
+      {(Object.keys(LENS_LABELS) as AtlasLens[]).map((l) => (
+        <button
+          key={l}
+          onClick={() => onLensChange(l)}
+          aria-pressed={lens === l}
+          className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all ${
+            lens === l
+              ? 'bg-white/15 text-slate-100'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          {LENS_LABELS[l]}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 // ── MobileAtlasView ───────────────────────────────────────────────────────────
 
 interface MobileAtlasViewProps {
   layout: AtlasLayout
+  lens: AtlasLens
+  onLensChange: (lens: AtlasLens) => void
 }
 
-export function MobileAtlasView({ layout }: MobileAtlasViewProps) {
-  const { cards } = useMemo(() => buildRegionCards(layout), [layout])
+export function MobileAtlasView({ layout, lens, onLensChange }: MobileAtlasViewProps) {
+  const cards = useMemo(() => buildRegionCards(layout), [layout])
+
+  // Special collections
+  const readyToUse = useMemo(
+    () => layout.nodes.filter((n) => n.stage === 'activate'),
+    [layout],
+  )
+  const recentlyActive = useMemo(() => {
+    const cutoffMs = Date.now() - 14 * 24 * 60 * 60 * 1000
+    return layout.nodes.filter(
+      (n) => n.lastActivityMs !== null && n.lastActivityMs > cutoffMs,
+    )
+  }, [layout])
 
   return (
     <div
@@ -208,12 +309,36 @@ export function MobileAtlasView({ layout }: MobileAtlasViewProps) {
     >
       <div className="mx-auto max-w-lg">
         {/* Header */}
-        <div className="mb-5">
+        <div className="mb-4">
           <h1 className="text-lg font-bold text-slate-100">Language Atlas</h1>
           <p className="mt-0.5 text-xs text-slate-500">Your vocabulary, by region</p>
         </div>
 
+        {/* Lens selector */}
+        <LensSelector lens={lens} onLensChange={onLensChange} />
+
+        {/* Summary */}
         <SummaryRow layout={layout} />
+
+        {/* Special collections */}
+        {(readyToUse.length > 0 || recentlyActive.length > 0) && (
+          <div className="flex flex-col gap-2 mb-3">
+            <CollectionCard
+              title="Ready to Use"
+              subtitle="fully drilled — bring them into real life"
+              nodes={readyToUse}
+              lens={lens}
+              accentClass="border-white/80/20 bg-white/5"
+            />
+            <CollectionCard
+              title="Recently Active"
+              subtitle="worked on in the last 2 weeks"
+              nodes={recentlyActive}
+              lens={lens}
+              accentClass="border-indigo-500/20 bg-indigo-500/5"
+            />
+          </div>
+        )}
 
         {/* Region cards */}
         {cards.length === 0 ? (
@@ -223,7 +348,7 @@ export function MobileAtlasView({ layout }: MobileAtlasViewProps) {
         ) : (
           <div className="flex flex-col gap-2">
             {cards.map((card) => (
-              <RegionCard key={card.theme} card={card} />
+              <RegionCard key={card.theme} card={card} lens={lens} />
             ))}
           </div>
         )}
