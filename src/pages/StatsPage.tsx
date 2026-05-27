@@ -1057,10 +1057,736 @@ function Observatory({
   )
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Analytics view
+//
+// The Analytics tab is the "exploration" perspective — data-rich, historically
+// oriented, and pattern-focused.  It answers: "What patterns are in my learning
+// data?"
+//
+// Contrast with Observatory (atmospheric, present-tense, emotional) which
+// answers: "What is true about my learning right now?"
+//
+// Both tabs receive the same pre-computed data from StatsPage — no logic
+// duplication, two presentation modes.
+// ─────────────────────────────────────────────────────────────────────────────
+
+type ProgressView = 'observatory' | 'analytics'
+
+// ── Segmented toggle ──────────────────────────────────────────────────────────
+
+interface ViewToggleProps {
+  view: ProgressView
+  onChange: (v: ProgressView) => void
+}
+
+function ViewToggle({ view, onChange }: ViewToggleProps) {
+  return (
+    <div className="flex justify-center pt-6 pb-1">
+      <div
+        className="flex bg-slate-100 rounded-full p-0.5"
+        role="tablist"
+        aria-label="Progress view"
+      >
+        {(['observatory', 'analytics'] as const).map((v) => (
+          <button
+            key={v}
+            role="tab"
+            aria-selected={view === v}
+            onClick={() => onChange(v)}
+            className={[
+              'px-5 py-1.5 rounded-full text-[11px] font-semibold tracking-wide',
+              'transition-all duration-200 select-none',
+              view === v
+                ? 'bg-white text-slate-700 shadow-sm'
+                : 'text-slate-400 hover:text-slate-500',
+            ].join(' ')}
+          >
+            {v === 'observatory' ? 'Observatory' : 'Analytics'}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Section header shared by all Analytics sections ───────────────────────────
+
+function AnalyticsSectionHeader({
+  title,
+  subtitle,
+}: {
+  title: string
+  subtitle?: string
+}) {
+  return (
+    <div className="mb-4">
+      <h2 className="text-xs font-medium text-slate-400 uppercase tracking-widest">
+        {title}
+      </h2>
+      {subtitle && (
+        <p className="text-xs text-slate-400 mt-1">{subtitle}</p>
+      )}
+    </div>
+  )
+}
+
+// ── Analytics: Snapshot ───────────────────────────────────────────────────────
+
+interface AnalyticsSnapshotProps {
+  totalInLibrary: number
+  aliveCount: number
+  masteredCount: number
+  activateCount: number
+  usesThisWeek: number
+  avgExposure: number
+}
+
+function AnalyticsSnapshot({
+  totalInLibrary,
+  aliveCount,
+  masteredCount,
+  activateCount,
+  usesThisWeek,
+  avgExposure,
+}: AnalyticsSnapshotProps) {
+  const cells: Array<{ label: string; value: string }> = [
+    { label: 'In library',     value: totalInLibrary.toLocaleString() },
+    { label: 'Alive',          value: aliveCount.toLocaleString() },
+    { label: 'Mastered',       value: masteredCount.toLocaleString() },
+    { label: 'Ready to use',   value: activateCount.toLocaleString() },
+    { label: 'Used this week', value: usesThisWeek.toLocaleString() },
+    { label: 'Avg exposures',  value: avgExposure.toFixed(1) },
+  ]
+
+  return (
+    <div>
+      <AnalyticsSectionHeader title="At a glance" />
+      <div className="grid grid-cols-3 gap-3">
+        {cells.map(({ label, value }) => (
+          <div key={label} className="py-4 text-center rounded-2xl bg-slate-50">
+            <div className="text-2xl font-light text-slate-800">{value}</div>
+            <div className="text-[11px] text-slate-400 mt-1 leading-tight">{label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Analytics: Growth Chart ───────────────────────────────────────────────────
+
+function GrowthChart({ cohorts }: { cohorts: GrowthCohort[] }) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
+
+  // Cumulative totals per month — derived inline, no exported helper needed
+  const points = useMemo(() => {
+    let running = 0
+    return cohorts.map((c) => {
+      running += c.total
+      return {
+        monthKey: c.monthKey,
+        label:    c.label,
+        cumTotal: running,
+        added:    c.total,
+      }
+    })
+  }, [cohorts])
+
+  const vis = points.slice(-24)   // at most 24 months on screen
+  const n   = vis.length
+
+  if (n < 2) {
+    return (
+      <div>
+        <AnalyticsSectionHeader title="Vocabulary growth" />
+        <p className="text-sm text-slate-400 text-center py-8">
+          Add words across multiple months to see your growth curve.
+        </p>
+      </div>
+    )
+  }
+
+  const VBW = 480, VBH = 110
+  const PL = 44, PR = 16, PT = 14, PB = 26
+  const plotW = VBW - PL - PR
+  const plotH = VBH - PT - PB
+
+  const maxVal = Math.max(...vis.map((p) => p.cumTotal), 1)
+  const toX = (i: number) => PL + (i / (n - 1)) * plotW
+  const toY = (v: number) => PT + plotH - (v / maxVal) * plotH
+
+  const linePath = vis
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(i).toFixed(1)} ${toY(p.cumTotal).toFixed(1)}`)
+    .join(' ')
+  const areaPath =
+    linePath +
+    ` L ${toX(n - 1).toFixed(1)} ${(PT + plotH).toFixed(1)}` +
+    ` L ${PL.toFixed(1)} ${(PT + plotH).toFixed(1)} Z`
+
+  const yTicks  = [0, Math.round(maxVal / 2), maxVal]
+  const xEvery  = n <= 12 ? 1 : n <= 18 ? 2 : 3
+
+  return (
+    <div>
+      <AnalyticsSectionHeader
+        title="Vocabulary growth"
+        subtitle="Cumulative words added to your library over time"
+      />
+      <svg
+        viewBox={`0 0 ${VBW} ${VBH}`}
+        className="w-full"
+        style={{ height: 100 }}
+        aria-label={`Vocabulary grew from ${vis[0].cumTotal} to ${vis[n - 1].cumTotal} words over ${n} months`}
+        role="img"
+      >
+        <defs>
+          <linearGradient id="gc-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#6366f1" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0"    />
+          </linearGradient>
+        </defs>
+
+        {/* Y-axis gridlines + labels */}
+        {yTicks.map((tick) => {
+          const y = toY(tick)
+          return (
+            <g key={tick}>
+              <line
+                x1={PL} y1={y} x2={VBW - PR} y2={y}
+                stroke="#f1f5f9" strokeWidth="1"
+              />
+              <text
+                x={PL - 5} y={y + 3.5}
+                textAnchor="end" fontSize="8" fill="#94a3b8"
+                fontFamily="system-ui,-apple-system,sans-serif"
+              >
+                {tick >= 1000 ? `${(tick / 1000).toFixed(1)}k` : tick}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#gc-grad)" />
+
+        {/* Line */}
+        <path
+          d={linePath}
+          fill="none" stroke="#6366f1" strokeWidth="1.8"
+          strokeLinejoin="round" strokeLinecap="round"
+        />
+
+        {/* Data points + X labels */}
+        {vis.map((p, i) => {
+          const x = toX(i)
+          const y = toY(p.cumTotal)
+          const showLabel = i % xEvery === 0 || i === n - 1
+          const isHov = hoveredIdx === i
+          return (
+            <g
+              key={p.monthKey}
+              onMouseEnter={() => setHoveredIdx(i)}
+              onMouseLeave={() => setHoveredIdx(null)}
+              style={{ cursor: 'default' }}
+            >
+              {/* Larger invisible hit area so hovering is easy */}
+              <circle cx={x} cy={y} r={8} fill="transparent" />
+              <circle
+                cx={x} cy={y}
+                r={isHov ? 4 : 2.5}
+                fill={isHov ? '#6366f1' : '#818cf8'}
+                opacity={isHov ? 1 : 0.65}
+                style={{ transition: 'r 0.1s ease, opacity 0.1s ease' }}
+              />
+              {showLabel && (
+                <text
+                  x={x} y={VBH - 4}
+                  textAnchor="middle" fontSize="7.5" fill="#94a3b8"
+                  fontFamily="system-ui,-apple-system,sans-serif"
+                >
+                  {p.label.slice(0, 3)}
+                </text>
+              )}
+            </g>
+          )
+        })}
+      </svg>
+
+      {/* Hover caption below chart */}
+      <div style={{ minHeight: 18 }} className="mt-0.5">
+        {hoveredIdx !== null && vis[hoveredIdx] != null && (
+          <p className="text-xs text-slate-400 text-center">
+            <span className="font-medium text-slate-600">
+              {vis[hoveredIdx].label}
+            </span>
+            {' — '}
+            {vis[hoveredIdx].cumTotal.toLocaleString()} words
+            {' · +'}
+            {vis[hoveredIdx].added} that month
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Analytics: Stage Evolution Chart ─────────────────────────────────────────
+
+function StageEvolutionChart({ cohorts }: { cohorts: GrowthCohort[] }) {
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null)
+
+  const vis = cohorts.slice(-12)
+  const n   = vis.length
+
+  if (n === 0) {
+    return (
+      <div>
+        <AnalyticsSectionHeader title="Stage composition" />
+        <p className="text-sm text-slate-400 text-center py-8">
+          Add words to see how your library is maturing.
+        </p>
+      </div>
+    )
+  }
+
+  const VBW = 480, VBH = 130
+  const PL = 10, PR = 10, PT = 10, PB = 26
+  const plotW  = VBW - PL - PR
+  const plotH  = VBH - PT - PB
+  const groupW = plotW / n
+  const barW   = Math.max(groupW * 0.72, 6)
+  const barOff = (groupW - barW) / 2
+
+  const maxTotal = Math.max(...vis.map((c) => c.total), 1)
+  const xEvery   = n <= 6 ? 1 : n <= 9 ? 2 : 3
+
+  const hoveredEntry = hoveredKey != null
+    ? vis.find((c) => c.monthKey === hoveredKey) ?? null
+    : null
+
+  return (
+    <div>
+      <AnalyticsSectionHeader
+        title="Stage composition"
+        subtitle="Monthly additions coloured by their current learning stage"
+      />
+      <svg
+        viewBox={`0 0 ${VBW} ${VBH}`}
+        className="w-full"
+        style={{ height: 118 }}
+        aria-label="Monthly vocabulary additions by stage"
+        role="img"
+      >
+        {/* Baseline */}
+        <line
+          x1={PL} y1={PT + plotH} x2={VBW - PR} y2={PT + plotH}
+          stroke="#e2e8f0" strokeWidth="1"
+        />
+
+        {vis.map((cohort, i) => {
+          const gx  = PL + i * groupW + barOff
+          const isH = hoveredKey === cohort.monthKey
+          let stackY = PT + plotH
+
+          const parts = STAGE_ORDER
+            .map((stage) => ({ stage, count: cohort.distribution[stage] }))
+            .filter((s) => s.count > 0)
+            .map(({ stage, count }) => {
+              const h = (count / maxTotal) * plotH
+              const y = stackY - h
+              stackY -= h
+              return { stage, y, h }
+            })
+
+          const showLabel = i % xEvery === 0 || i === n - 1
+
+          return (
+            <g
+              key={cohort.monthKey}
+              onMouseEnter={() => setHoveredKey(cohort.monthKey)}
+              onMouseLeave={() => setHoveredKey(null)}
+              style={{ cursor: 'default' }}
+            >
+              {/* Wider invisible hit zone */}
+              <rect
+                x={gx - 4} y={PT}
+                width={barW + 8} height={plotH}
+                fill="transparent"
+              />
+              {parts.map(({ stage, y, h }) => (
+                <rect
+                  key={stage}
+                  x={gx} y={y}
+                  width={barW} height={Math.max(h, 0)}
+                  fill={STAGE_COLOR[stage]}
+                  opacity={hoveredKey === null || isH ? 0.85 : 0.3}
+                  style={{ transition: 'opacity 0.18s ease' }}
+                />
+              ))}
+              {showLabel && (
+                <text
+                  x={gx + barW / 2} y={VBH - 5}
+                  textAnchor="middle" fontSize="7.5" fill="#94a3b8"
+                  fontFamily="system-ui,-apple-system,sans-serif"
+                >
+                  {cohort.label.slice(0, 3)}
+                </text>
+              )}
+            </g>
+          )
+        })}
+      </svg>
+
+      {/* Hover caption + legend */}
+      <div className="flex items-start justify-between mt-1 gap-3 flex-wrap">
+        <div style={{ minHeight: 18 }}>
+          {hoveredEntry != null && (
+            <p className="text-xs text-slate-400">
+              <span className="font-medium text-slate-600">
+                {hoveredEntry.label}
+              </span>
+              {' — '}
+              {hoveredEntry.total} word{hoveredEntry.total !== 1 ? 's' : ''} added
+            </p>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+          {STAGE_ORDER.map((stage) => (
+            <div key={stage} className="flex items-center gap-1">
+              <span
+                className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: STAGE_COLOR[stage] }}
+                aria-hidden="true"
+              />
+              <span className="text-[10px] text-slate-400">
+                {STAGE_LABEL[stage]}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Analytics: Activity Calendar ──────────────────────────────────────────────
+
+function ActivityCalendar({
+  pointsHistory,
+}: {
+  pointsHistory: Record<string, number>
+}) {
+  // Build 90 day × activity lookup, oldest first (index 0 = 89 days ago)
+  const cells = useMemo(() => {
+    const today = new Date()
+    return Array.from({ length: 90 }, (_, i) => {
+      const d   = new Date(today)
+      d.setDate(d.getDate() - (89 - i))
+      const key = d.toISOString().slice(0, 10)
+      const pts = pointsHistory[key] ?? 0
+      const mon = d.toLocaleString('default', { month: 'short' })
+      return {
+        dateKey: key,
+        points:  pts,
+        active:  pts > 0,
+        label:   `${mon} ${d.getDate()}${pts > 0 ? `: ${pts} pts` : ''}`,
+      }
+    })
+  }, [pointsHistory])
+
+  const maxPts = Math.max(...cells.map((c) => c.points), 1)
+  const hasAny = cells.some((c) => c.active)
+
+  // Grid: 7 rows × 13 columns.  col = ⌊i/7⌋, row = i % 7
+  const ROWS = 7, COLS = 13
+  const CELL = 22, GAP = 3, STEP = CELL + GAP
+  const VBW  = COLS * STEP + GAP * 2
+  const VBH  = ROWS * STEP + GAP * 2
+
+  return (
+    <div>
+      <AnalyticsSectionHeader
+        title="Activity pattern"
+        subtitle="90 days of practice — each cell is one day"
+      />
+      <svg
+        viewBox={`0 0 ${VBW} ${VBH}`}
+        className="w-full"
+        style={{ height: Math.round(VBH * 0.65) }}
+        aria-label="90-day practice activity heatmap"
+        role="img"
+      >
+        {cells.map((cell, i) => {
+          const col     = Math.floor(i / ROWS)
+          const row     = i % ROWS
+          const x       = GAP + col * STEP
+          const y       = GAP + row * STEP
+          const opacity = cell.active ? Math.max(0.22, cell.points / maxPts) : 0
+          const fill    = cell.active
+            ? `rgba(251,191,36,${opacity.toFixed(2)})`
+            : '#f1f5f9'
+          return (
+            <rect key={cell.dateKey} x={x} y={y} width={CELL} height={CELL} rx={3} fill={fill}>
+              <title>{cell.label}</title>
+            </rect>
+          )
+        })}
+      </svg>
+
+      <div className="flex items-center justify-between mt-2">
+        {hasAny ? (
+          <span />
+        ) : (
+          <p className="text-xs text-slate-400">
+            Your activity pattern takes shape as you practise daily.
+          </p>
+        )}
+        <div className="flex items-center gap-1.5 ml-auto">
+          <span className="text-[10px] text-slate-400">Less</span>
+          {[0.12, 0.35, 0.6, 1.0].map((op, k) => (
+            <div
+              key={k}
+              className="w-3 h-3 rounded-sm"
+              style={{ backgroundColor: `rgba(251,191,36,${op})` }}
+              aria-hidden="true"
+            />
+          ))}
+          <span className="text-[10px] text-slate-400">More</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Analytics: Confidence ─────────────────────────────────────────────────────
+
+function ConfidenceAnalyticsSection({
+  confidence,
+}: {
+  confidence: ReturnType<typeof getConfidenceDistribution>
+}) {
+  const total =
+    confidence.green + confidence.yellow + confidence.red + confidence.unset
+
+  const bars = [
+    { label: 'Comfortable',           count: confidence.green,  color: '#10b981' },
+    { label: 'Somewhat comfortable',  count: confidence.yellow, color: '#fbbf24' },
+    { label: 'Not yet comfortable',   count: confidence.red,    color: '#f87171' },
+    { label: 'Unrated',               count: confidence.unset,  color: '#cbd5e1' },
+  ]
+
+  if (total === 0) {
+    return (
+      <div>
+        <AnalyticsSectionHeader title="Confidence" />
+        <p className="text-sm text-slate-400 text-center py-6">
+          Rate your confidence on word detail pages to see the breakdown.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <AnalyticsSectionHeader
+        title="Confidence"
+        subtitle="Self-reported comfort using these words naturally in context"
+      />
+
+      {/* Summary bar */}
+      <div
+        className="flex w-full rounded-full overflow-hidden mb-5"
+        style={{ height: 10 }}
+        role="img"
+        aria-label="Confidence distribution overview"
+      >
+        {bars.map(({ label, count, color }) => {
+          const pct = total > 0 ? (count / total) * 100 : 0
+          return pct > 0 ? (
+            <div
+              key={label}
+              style={{ width: `${pct}%`, backgroundColor: color }}
+              title={`${label}: ${Math.round(pct)}%`}
+            />
+          ) : null
+        })}
+      </div>
+
+      {/* Individual bars */}
+      <div className="space-y-4">
+        {bars.map(({ label, count, color }) => {
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0
+          return (
+            <div key={label}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: color }}
+                    aria-hidden="true"
+                  />
+                  <span className="text-sm text-slate-600">{label}</span>
+                </div>
+                <div className="flex items-baseline gap-1.5 text-xs">
+                  <span className="font-medium text-slate-700">{count}</span>
+                  <span className="text-slate-400">({pct}%)</span>
+                </div>
+              </div>
+              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{ width: `${pct}%`, backgroundColor: color }}
+                  role="progressbar"
+                  aria-valuenow={pct}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label={`${label}: ${pct}%`}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Analytics: Theme Coverage ─────────────────────────────────────────────────
+
+function ThemeCoverageSection({
+  entries,
+}: {
+  entries: ThemeTerritoryEntry[]
+}) {
+  if (entries.length === 0) return null
+
+  return (
+    <div>
+      <AnalyticsSectionHeader
+        title="Semantic coverage"
+        subtitle="Vocabulary depth and stage spread across your active themes"
+      />
+      <div className="space-y-6">
+        {entries.map((entry) => {
+          const stages = STAGE_ORDER.filter((s) => entry.distribution[s] > 0)
+
+          return (
+            <div key={entry.theme}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-slate-700">
+                  {entry.theme}
+                </span>
+                <div className="flex items-center gap-3 text-xs">
+                  {entry.aliveCount > 0 && (
+                    <span className="text-emerald-600">
+                      {entry.aliveCount} alive
+                    </span>
+                  )}
+                  <span className="text-slate-400">{entry.total} total</span>
+                </div>
+              </div>
+
+              {/* Stage composition bar */}
+              <div
+                className="flex w-full rounded-full overflow-hidden"
+                style={{ height: 8 }}
+                role="img"
+                aria-label={`${entry.theme} stage distribution`}
+              >
+                {stages.map((stage) => (
+                  <div
+                    key={stage}
+                    style={{
+                      width: `${(entry.distribution[stage] / entry.total) * 100}%`,
+                      backgroundColor: STAGE_COLOR[stage],
+                    }}
+                    title={`${STAGE_LABEL[stage]}: ${entry.distribution[stage]}`}
+                  />
+                ))}
+              </div>
+
+              {/* Stage breakdown labels */}
+              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                {stages.map((stage) => (
+                  <span key={stage} className="text-[11px] text-slate-400">
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle"
+                      style={{ backgroundColor: STAGE_COLOR[stage] }}
+                      aria-hidden="true"
+                    />
+                    {STAGE_LABEL[stage]}{' '}{entry.distribution[stage]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Analytics: View assembler ─────────────────────────────────────────────────
+
+interface AnalyticsViewProps {
+  nonArchived:   VocabItem[]
+  aliveCount:    number
+  masteredCount: number
+  activateCount: number
+  usesThisWeek:  number
+  cohorts:       GrowthCohort[]
+  themeEntries:  ThemeTerritoryEntry[]
+  pointsHistory: Record<string, number>
+}
+
+function AnalyticsView({
+  nonArchived,
+  aliveCount,
+  masteredCount,
+  activateCount,
+  usesThisWeek,
+  cohorts,
+  themeEntries,
+  pointsHistory,
+}: AnalyticsViewProps) {
+  const confidence = useMemo(
+    () => getConfidenceDistribution(nonArchived),
+    [nonArchived],
+  )
+  const avgExposure = useMemo(
+    () =>
+      nonArchived.length > 0
+        ? nonArchived.reduce((s, i) => s + (i.exposureCount ?? 0), 0) /
+          nonArchived.length
+        : 0,
+    [nonArchived],
+  )
+
+  return (
+    <div className="space-y-12 mt-6">
+      <AnalyticsSnapshot
+        totalInLibrary={nonArchived.length}
+        aliveCount={aliveCount}
+        masteredCount={masteredCount}
+        activateCount={activateCount}
+        usesThisWeek={usesThisWeek}
+        avgExposure={avgExposure}
+      />
+      <GrowthChart cohorts={cohorts} />
+      <StageEvolutionChart cohorts={cohorts} />
+      <ActivityCalendar pointsHistory={pointsHistory} />
+      <ConfidenceAnalyticsSection confidence={confidence} />
+      <ThemeCoverageSection entries={themeEntries} />
+    </div>
+  )
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export function StatsPage() {
-  const navigate = useNavigate()
+  const navigate    = useNavigate()
+  const [activeView, setActiveView] = useState<ProgressView>('observatory')
   const items    = useVocabStore((s) => s.items)
   const themes   = useThemesStore((s) => s.themes)
   const {
@@ -1115,44 +1841,68 @@ export function StatsPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pb-24 space-y-10">
+    <div className="max-w-lg mx-auto px-4 pb-24">
 
-      {/* Layer 1 — The Sky */}
+      {/* ── View selector ── */}
+      <ViewToggle view={activeView} onChange={setActiveView} />
 
-      {/* 1. Headline + hero metric */}
-      <HeadlineSection
-        heroNumber={aliveCount === 0 ? nonArchived.length : aliveCount}
-        heroLabel={aliveCount === 0 ? 'words in your collection' : 'alive in your vocabulary'}
-        main={headline.main}
-        sub={headline.sub}
-      />
+      {activeView === 'observatory' ? (
 
-      {/* 2. Living Vocabulary Constellation */}
-      <VocabularyConstellation
-        nodes={constellationNodes}
-        totalItems={nonArchived.length}
-      />
+        /* ── Observatory: atmospheric, present-tense, reflective ── */
+        <div className="space-y-10 mt-2">
 
-      {/* 3. 90-day momentum trail */}
-      <MomentumTrail pointsHistory={pointsHistory} />
+          {/* 1. Headline + hero metric */}
+          <HeadlineSection
+            heroNumber={aliveCount === 0 ? nonArchived.length : aliveCount}
+            heroLabel={aliveCount === 0 ? 'words in your collection' : 'alive in your vocabulary'}
+            main={headline.main}
+            sub={headline.sub}
+          />
 
-      {/* 4. Activation spotlight */}
-      <ActivationSpotlight
-        items={activateItems}
-        allItems={nonArchived}
-        onNavigate={(id) => navigate(`/library/${id}`)}
-      />
+          {/* 2. Living Vocabulary Constellation */}
+          <VocabularyConstellation
+            nodes={constellationNodes}
+            totalItems={nonArchived.length}
+          />
 
-      {/* Layer 2 — The Observatory */}
-      <Observatory
-        cohorts={growthCohorts}
-        distribution={stageDistrib}
-        themeEntries={themeTerritory}
-        horizon={longHorizon}
-        items={nonArchived}
-        gamification={gamification}
-        usesThisWeek={usesThisWeek}
-      />
+          {/* 3. 90-day momentum trail */}
+          <MomentumTrail pointsHistory={pointsHistory} />
+
+          {/* 4. Activation spotlight */}
+          <ActivationSpotlight
+            items={activateItems}
+            allItems={nonArchived}
+            onNavigate={(id) => navigate(`/library/${id}`)}
+          />
+
+          {/* 5. Observatory lenses */}
+          <Observatory
+            cohorts={growthCohorts}
+            distribution={stageDistrib}
+            themeEntries={themeTerritory}
+            horizon={longHorizon}
+            items={nonArchived}
+            gamification={gamification}
+            usesThisWeek={usesThisWeek}
+          />
+
+        </div>
+
+      ) : (
+
+        /* ── Analytics: exploratory, historical, pattern-focused ── */
+        <AnalyticsView
+          nonArchived={nonArchived}
+          aliveCount={aliveCount}
+          masteredCount={masteredCount}
+          activateCount={stageDistrib.activate}
+          usesThisWeek={usesThisWeek}
+          cohorts={growthCohorts}
+          themeEntries={themeTerritory}
+          pointsHistory={pointsHistory}
+        />
+
+      )}
 
     </div>
   )
