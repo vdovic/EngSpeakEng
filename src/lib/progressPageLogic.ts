@@ -276,6 +276,167 @@ export function buildProgressHeadline(input: HeadlineInput): ProgressHeadline {
   }
 }
 
+// ── Growth cohorts (Phase 4 Observatory) ─────────────────────────────────────
+
+/**
+ * A monthly cohort of vocabulary items — used to render the Growth Rings visualization.
+ * Items are grouped by their createdAt date; stage distribution reflects current live state.
+ * Sorted oldest-first so the innermost ring = earliest cohort.
+ */
+export interface GrowthCohort {
+  monthKey: string                // 'YYYY-MM' — sortable key
+  label: string                   // 'Jan 2025' — display label
+  total: number                   // words added in this month
+  distribution: StageDistribution // current stage breakdown for these words
+}
+
+/**
+ * Groups non-archived items by creation month.
+ * Returns cohorts sorted oldest-first.
+ */
+export function buildGrowthCohorts(items: VocabItem[]): GrowthCohort[] {
+  const map = new Map<string, { total: number; distribution: StageDistribution }>()
+
+  for (const item of items) {
+    if (item.archived) continue
+    const d = new Date(item.createdAt)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+    if (!map.has(key)) {
+      map.set(key, {
+        total: 0,
+        distribution: { new: 0, introduced: 0, drilling: 0, activate: 0, mastered: 0 },
+      })
+    }
+    const entry = map.get(key)!
+    entry.total++
+    entry.distribution[getDisplayStage(item)]++
+  }
+
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, { total, distribution }]) => {
+      const [yr, mo] = key.split('-')
+      const label = format(new Date(Number(yr), Number(mo) - 1, 1), 'MMM yyyy')
+      return { monthKey: key, label, total, distribution }
+    })
+}
+
+// ── Theme territory (Phase 4 Observatory) ─────────────────────────────────────
+
+/**
+ * Per-theme aggregated data — used by the Territory lens.
+ * Words assigned to multiple themes are counted in each.
+ */
+export interface ThemeTerritoryEntry {
+  theme: string
+  total: number
+  distribution: StageDistribution
+  aliveCount: number   // mastered + activate-stage words with usageCount > 0
+}
+
+/**
+ * Aggregates non-archived items per user-defined theme.
+ * Items assigned to multiple themes are counted in each.
+ * Result sorted by total descending.
+ */
+export function buildThemeTerritory(
+  items: VocabItem[],
+  themes: string[],
+): ThemeTerritoryEntry[] {
+  const map = new Map<string, { total: number; distribution: StageDistribution; aliveCount: number }>()
+
+  for (const theme of themes) {
+    map.set(theme, {
+      total: 0,
+      distribution: { new: 0, introduced: 0, drilling: 0, activate: 0, mastered: 0 },
+      aliveCount: 0,
+    })
+  }
+
+  for (const item of items) {
+    if (item.archived) continue
+    const stage = getDisplayStage(item)
+    const alive =
+      stage === 'mastered' ||
+      (stage === 'activate' && (item.activation?.usageCount ?? 0) > 0)
+
+    for (const theme of (item.themes ?? [])) {
+      const entry = map.get(theme)
+      if (!entry) continue
+      entry.total++
+      entry.distribution[stage]++
+      if (alive) entry.aliveCount++
+    }
+  }
+
+  return Array.from(map.entries())
+    .filter(([, e]) => e.total > 0)
+    .map(([theme, e]): ThemeTerritoryEntry => ({
+      theme,
+      total: e.total,
+      distribution: { ...e.distribution },
+      aliveCount: e.aliveCount,
+    }))
+    .sort((a, b) => b.total - a.total)
+}
+
+// ── Long horizon (Phase 4 Observatory) ────────────────────────────────────────
+
+/** One projected milestone in the Long Horizon view. */
+export interface LongHorizonMilestone {
+  target: number
+  reached: boolean
+  /**
+   * Approximate weeks from now to reach this milestone.
+   * null when velocity is zero or milestone is already reached.
+   */
+  weeksFromNow: number | null
+}
+
+/** Data for the Long Horizon visualization. */
+export interface LongHorizon {
+  /** Total non-archived items currently in the library. */
+  currentTotal: number
+  /** Average new words added per week over the last 28 days. */
+  weeklyVelocity: number
+  /** Standard milestone checkpoints toward the 1 500-word goal. */
+  milestones: LongHorizonMilestone[]
+}
+
+const HORIZON_TARGETS = [100, 250, 500, 750, 1000, 1500] as const
+
+/**
+ * Computes a growth-rate projection from createdAt timestamps.
+ * Velocity = words added in the last 28 days ÷ 4.
+ * Milestones are projected forward from the current library size.
+ */
+export function buildLongHorizon(items: VocabItem[]): LongHorizon {
+  const now    = Date.now()
+  const active = items.filter((i) => !i.archived)
+  const currentTotal = active.length
+
+  const windowMs    = 28 * 24 * 60 * 60 * 1000
+  const recentCount = active.filter((i) => now - new Date(i.createdAt).getTime() < windowMs).length
+  const weeklyVelocity = recentCount / 4
+
+  const milestones: LongHorizonMilestone[] = HORIZON_TARGETS.map((target) => {
+    if (target <= currentTotal) {
+      return { target, reached: true, weeksFromNow: null }
+    }
+    if (weeklyVelocity <= 0) {
+      return { target, reached: false, weeksFromNow: null }
+    }
+    return {
+      target,
+      reached: false,
+      weeksFromNow: Math.ceil((target - currentTotal) / weeklyVelocity),
+    }
+  })
+
+  return { currentTotal, weeklyVelocity, milestones }
+}
+
 // ── Constellation (Phase 2) ───────────────────────────────────────────────────
 
 /**

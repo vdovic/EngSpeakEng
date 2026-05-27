@@ -125,6 +125,13 @@ const CONSTELLATION_CSS = `
     0%, 100% { opacity: 0.22; }
     50%       { opacity: 0.58; }
   }
+  @keyframes csbCardIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .csb-card-enter { animation: csbCardIn 150ms ease forwards; }
+  }
 `
 
 // ── StageMiniTimeline ──────────────────────────────────────────────────────────
@@ -286,10 +293,14 @@ function WordJourneyCard({ node, position, isMobile }: WordJourneyCardProps) {
   if (isMobile) {
     style = {
       position: 'fixed',
-      bottom: 16,
-      left: 16,
-      right: 16,
+      bottom: 0,
+      left: 0,
+      right: 0,
       zIndex: 50,
+      // Pad out of the iPhone home-indicator safe area
+      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+      padding: '0 16px',
+      paddingTop: 0,
     }
   } else {
     // Place card to the right of the star, offset slightly upward
@@ -305,14 +316,25 @@ function WordJourneyCard({ node, position, isMobile }: WordJourneyCardProps) {
   return (
     <div style={style} className="pointer-events-none select-none">
       <div
-        className="rounded-2xl overflow-hidden shadow-2xl"
+        className="rounded-2xl overflow-hidden shadow-2xl csb-card-enter"
         style={{
           background: 'rgba(15, 23, 42, 0.96)',
           border: '1px solid rgba(148,163,184,0.12)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
+          marginBottom: isMobile ? 16 : 0,
         }}
       >
+        {/* Pill dismissal affordance — mobile only */}
+        {isMobile && (
+          <div className="flex justify-center pt-2.5 pb-0.5" aria-hidden="true">
+            <div
+              className="w-8 rounded-full"
+              style={{ height: 3, backgroundColor: 'rgba(148,163,184,0.22)' }}
+            />
+          </div>
+        )}
+
         {/* Stage accent strip */}
         <div
           className="h-0.5 w-full"
@@ -505,6 +527,13 @@ export function VocabularyConstellation({ nodes, totalItems }: VocabularyConstel
     [],
   )
 
+  // Respect prefers-reduced-motion for inline CSS transitions
+  // (keyframe animations are already wrapped in the @media block in CONSTELLATION_CSS)
+  const prefersReducedMotion = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
+
   // Sort nodes back-to-front
   const sorted = useMemo(
     () => [...nodes].sort((a, b) => STAGE_Z[a.stage] - STAGE_Z[b.stage]),
@@ -600,7 +629,7 @@ export function VocabularyConstellation({ nodes, totalItems }: VocabularyConstel
         viewBox={`0 0 ${VB_W} ${VB_H}`}
         preserveAspectRatio="xMidYMid meet"
         className="w-full block"
-        style={{ opacity: mounted ? 1 : 0, transition: 'opacity 1.4s ease' }}
+        style={{ opacity: mounted ? 1 : 0, transition: 'opacity 0.9s ease' }}
         aria-hidden="true"
         onMouseLeave={clearActive}
         // SVG-level touch dismiss: fires when touching the background (not a node,
@@ -687,7 +716,7 @@ export function VocabularyConstellation({ nodes, totalItems }: VocabularyConstel
                   filter="url(#csb-glow-lg)"
                   className={haloClass}
                   style={{
-                    transition: 'r 0.2s ease, opacity 0.2s ease',
+                    transition: prefersReducedMotion ? 'none' : 'opacity 0.2s ease',
                     ...(delay ? { animationDelay: delay } : {}),
                   }}
                 />
@@ -703,7 +732,7 @@ export function VocabularyConstellation({ nodes, totalItems }: VocabularyConstel
                   filter={vis.glowFilter ? `url(#${vis.glowFilter})` : undefined}
                   className={glowClass}
                   style={{
-                    transition: 'r 0.2s ease, opacity 0.2s ease',
+                    transition: prefersReducedMotion ? 'none' : 'opacity 0.2s ease',
                     ...(delay ? { animationDelay: delay } : {}),
                   }}
                 />
@@ -715,11 +744,11 @@ export function VocabularyConstellation({ nodes, totalItems }: VocabularyConstel
                 r={isActive ? vis.coreR * 1.35 : vis.coreR}
                 fill={isActive ? '#ffffff' : vis.coreColor}
                 opacity={isActive ? 1 : vis.coreOpacity}
-                style={{ transition: 'r 0.15s ease, fill 0.15s ease, opacity 0.15s ease' }}
+                style={{ transition: prefersReducedMotion ? 'none' : 'fill 0.15s ease, opacity 0.15s ease' }}
               />
 
-              {/* Hit target — always r=8 */}
-              <circle cx={px} cy={py} r={8} fill="transparent" />
+              {/* Hit target — larger on mobile for touch accuracy */}
+              <circle cx={px} cy={py} r={isMobile ? 22 : 8} fill="transparent" />
             </g>
           )
         })}

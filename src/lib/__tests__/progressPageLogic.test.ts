@@ -13,6 +13,9 @@ import {
   relativeTime,
   buildProgressHeadline,
   buildConstellationNodes,
+  buildGrowthCohorts,
+  buildThemeTerritory,
+  buildLongHorizon,
   type HeadlineInput,
 } from '@/lib/progressPageLogic'
 import type { VocabItem } from '@/types/vocabulary'
@@ -450,5 +453,214 @@ describe('buildConstellationNodes', () => {
     })
     const [node] = buildConstellationNodes([item], [])
     expect(node.lastActiveAt).toBeUndefined()
+  })
+})
+
+// ── buildGrowthCohorts ────────────────────────────────────────────────────────
+
+describe('buildGrowthCohorts', () => {
+  it('returns empty array for empty input', () => {
+    expect(buildGrowthCohorts([])).toHaveLength(0)
+  })
+
+  it('returns empty array when all items are archived', () => {
+    expect(buildGrowthCohorts([makeItem({ archived: true })])).toHaveLength(0)
+  })
+
+  it('groups items by creation month', () => {
+    const jan = makeItem({ createdAt: '2025-01-15T10:00:00.000Z' })
+    const feb = makeItem({ createdAt: '2025-02-20T10:00:00.000Z' })
+    const result = buildGrowthCohorts([jan, feb])
+    expect(result).toHaveLength(2)
+    expect(result[0].monthKey).toBe('2025-01')
+    expect(result[1].monthKey).toBe('2025-02')
+  })
+
+  it('groups multiple items in the same month into one cohort', () => {
+    const items = [
+      makeItem({ createdAt: '2025-01-01T00:00:00.000Z' }),
+      makeItem({ createdAt: '2025-01-15T00:00:00.000Z' }),
+      makeItem({ createdAt: '2025-01-31T00:00:00.000Z' }),
+    ]
+    const result = buildGrowthCohorts(items)
+    expect(result).toHaveLength(1)
+    expect(result[0].total).toBe(3)
+  })
+
+  it('sorts cohorts oldest-first', () => {
+    const items = [
+      makeItem({ createdAt: '2025-03-01T00:00:00.000Z' }),
+      makeItem({ createdAt: '2025-01-01T00:00:00.000Z' }),
+      makeItem({ createdAt: '2025-02-01T00:00:00.000Z' }),
+    ]
+    const result = buildGrowthCohorts(items)
+    expect(result[0].monthKey).toBe('2025-01')
+    expect(result[1].monthKey).toBe('2025-02')
+    expect(result[2].monthKey).toBe('2025-03')
+  })
+
+  it('counts stage distribution correctly per cohort', () => {
+    const items = [
+      makeItem({
+        createdAt: '2025-01-01T00:00:00.000Z',
+        exposureCount: 8,
+        activation: makeActivation({ usageCount: 3, usageLogs: [] }),
+      }),  // mastered
+      makeItem({ createdAt: '2025-01-01T00:00:00.000Z', exposureCount: 4 }),  // drilling
+    ]
+    const result = buildGrowthCohorts(items)
+    expect(result[0].distribution.mastered).toBe(1)
+    expect(result[0].distribution.drilling).toBe(1)
+    expect(result[0].total).toBe(2)
+  })
+
+  it('excludes archived items', () => {
+    const items = [
+      makeItem({ createdAt: '2025-01-01T00:00:00.000Z' }),
+      makeItem({ createdAt: '2025-01-01T00:00:00.000Z', archived: true }),
+    ]
+    const result = buildGrowthCohorts(items)
+    expect(result[0].total).toBe(1)
+  })
+
+  it('provides a human-readable label for each cohort', () => {
+    const item = makeItem({ createdAt: '2025-06-10T00:00:00.000Z' })
+    const result = buildGrowthCohorts([item])
+    expect(result[0].label).toMatch(/Jun\s+2025/)
+  })
+})
+
+// ── buildThemeTerritory ───────────────────────────────────────────────────────
+
+describe('buildThemeTerritory', () => {
+  it('returns empty array for empty items', () => {
+    expect(buildThemeTerritory([], ['Business'])).toHaveLength(0)
+  })
+
+  it('returns empty array when no items match any theme', () => {
+    const item = makeItem({ themes: [] })
+    expect(buildThemeTerritory([item], ['Business'])).toHaveLength(0)
+  })
+
+  it('counts items in their assigned themes', () => {
+    const items = [
+      makeItem({ themes: ['Business'] }),
+      makeItem({ themes: ['Business'] }),
+      makeItem({ themes: ['Casual'] }),
+    ]
+    const result = buildThemeTerritory(items, ['Business', 'Casual'])
+    const business = result.find((e) => e.theme === 'Business')!
+    expect(business.total).toBe(2)
+  })
+
+  it('counts an item with multiple themes in each of those themes', () => {
+    const item = makeItem({ themes: ['Business', 'Casual'] })
+    const result = buildThemeTerritory([item], ['Business', 'Casual'])
+    const b = result.find((e) => e.theme === 'Business')!
+    const c = result.find((e) => e.theme === 'Casual')!
+    expect(b.total).toBe(1)
+    expect(c.total).toBe(1)
+  })
+
+  it('excludes archived items', () => {
+    const item = makeItem({ themes: ['Business'], archived: true })
+    expect(buildThemeTerritory([item], ['Business'])).toHaveLength(0)
+  })
+
+  it('sorts entries by total descending', () => {
+    const items = [
+      makeItem({ themes: ['A'] }),
+      makeItem({ themes: ['B'] }),
+      makeItem({ themes: ['B'] }),
+      makeItem({ themes: ['B'] }),
+      makeItem({ themes: ['A'] }),
+    ]
+    const result = buildThemeTerritory(items, ['A', 'B'])
+    expect(result[0].theme).toBe('B')
+    expect(result[0].total).toBe(3)
+  })
+
+  it('computes aliveCount as mastered + activate-with-use', () => {
+    const alive    = makeItem({ themes: ['T'], exposureCount: 8, activation: makeActivation({ usageCount: 3, usageLogs: [] }) })
+    const notAlive = makeItem({ themes: ['T'], exposureCount: 4 })
+    const result   = buildThemeTerritory([alive, notAlive], ['T'])
+    expect(result[0].aliveCount).toBe(1)
+  })
+
+  it('ignores themes not in the user themes list', () => {
+    const item = makeItem({ themes: ['Unknown Theme'] })
+    expect(buildThemeTerritory([item], ['Business'])).toHaveLength(0)
+  })
+})
+
+// ── buildLongHorizon ──────────────────────────────────────────────────────────
+
+describe('buildLongHorizon', () => {
+  it('returns zero values for empty items', () => {
+    const result = buildLongHorizon([])
+    expect(result.currentTotal).toBe(0)
+    expect(result.weeklyVelocity).toBe(0)
+  })
+
+  it('excludes archived items from currentTotal', () => {
+    const result = buildLongHorizon([makeItem({ archived: true }), makeItem()])
+    expect(result.currentTotal).toBe(1)
+  })
+
+  it('includes all six standard milestone targets', () => {
+    const { milestones } = buildLongHorizon([])
+    const targets = milestones.map((m) => m.target)
+    expect(targets).toContain(100)
+    expect(targets).toContain(250)
+    expect(targets).toContain(500)
+    expect(targets).toContain(750)
+    expect(targets).toContain(1000)
+    expect(targets).toContain(1500)
+  })
+
+  it('marks milestones already surpassed as reached', () => {
+    const items = Array.from({ length: 105 }, () => makeItem())
+    const { milestones } = buildLongHorizon(items)
+    expect(milestones.find((m) => m.target === 100)!.reached).toBe(true)
+    expect(milestones.find((m) => m.target === 250)!.reached).toBe(false)
+  })
+
+  it('marks all milestones as not reached when library is small', () => {
+    const items = Array.from({ length: 5 }, () => makeItem())
+    const { milestones } = buildLongHorizon(items)
+    expect(milestones.every((m) => !m.reached)).toBe(true)
+  })
+
+  it('computes weeklyVelocity from recent additions (last 28 days)', () => {
+    // 8 items added within the last 28 days → velocity = 2/week
+    const recent = Array.from({ length: 8 }, () =>
+      makeItem({ createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() })
+    )
+    const result = buildLongHorizon(recent)
+    expect(result.weeklyVelocity).toBe(2)
+  })
+
+  it('does not count items older than 28 days in velocity', () => {
+    const old = makeItem({ createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() })
+    const result = buildLongHorizon([old])
+    expect(result.weeklyVelocity).toBe(0)
+  })
+
+  it('sets weeksFromNow to null when velocity is zero', () => {
+    const items = Array.from({ length: 5 }, () =>
+      makeItem({ createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() })
+    )
+    const { milestones } = buildLongHorizon(items)
+    expect(milestones.every((m) => m.weeksFromNow === null)).toBe(true)
+  })
+
+  it('sets weeksFromNow correctly when velocity is known', () => {
+    // 4 recent items → velocity = 1/week. Need 96 more to reach 100 → 96 weeks
+    const items = Array.from({ length: 4 }, () =>
+      makeItem({ createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() })
+    )
+    const { milestones } = buildLongHorizon(items)
+    const m100 = milestones.find((m) => m.target === 100)!
+    expect(m100.weeksFromNow).toBe(96)  // ceil((100 - 4) / 1)
   })
 })
