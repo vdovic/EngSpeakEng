@@ -101,11 +101,18 @@ export function ConfidenceDots({
             aria-label={cfg.title}
             onClick={() => handleClick(cfg.level)}
             className={[
-              `${dotSize} rounded-full border transition-all`,
-              isFilled ? cfg.filled : cfg.empty,
+              // Expanded hit area for desktop mouse clicks (visual dot sits inside)
+              'p-1.5 -m-1.5 flex items-center justify-center rounded-full',
               interactive ? 'cursor-pointer' : 'cursor-default',
             ].join(' ')}
-          />
+          >
+            <span
+              className={[
+                `${dotSize} rounded-full border transition-all block`,
+                isFilled ? cfg.filled : cfg.empty,
+              ].join(' ')}
+            />
+          </button>
         )
       })}
 

@@ -24,8 +24,10 @@ import {
   getTodayNudge,
   getTodaySessionState,
 } from '@/lib/todayLogic'
+import { getActivationWords } from '@/lib/activationLogic'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { StarterPacksSection } from '@/components/StarterPacksSection'
+import { UseNowSheet } from '@/components/UseNowSheet'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useDueItems, useVocabStore, useWeeklyFocusItems } from '@/store/vocabStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
@@ -564,6 +566,56 @@ function GamesSection() {
   )
 }
 
+// ── UseNowStrip ───────────────────────────────────────────────────────────────
+// Compact invitation strip shown when activation-ready words exist.
+// Shows a count + up to 3 word chips as a preview. One tap opens the sheet.
+
+function UseNowStrip({
+  words,
+  onOpen,
+}: {
+  words: VocabItem[]
+  onOpen: () => void
+}) {
+  if (words.length === 0) return null
+
+  const previewWords = words.slice(0, 3)
+
+  return (
+    <button
+      onClick={onOpen}
+      className="mb-5 flex w-full items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-left transition-all hover:bg-amber-50 hover:border-amber-300 active:scale-[0.99]"
+    >
+      {/* Label */}
+      <span className="shrink-0 text-sm font-bold text-amber-900">Use now</span>
+      <span className="shrink-0 text-sm text-amber-300" aria-hidden="true">·</span>
+      <span className="shrink-0 text-sm text-amber-700">
+        {words.length} word{words.length !== 1 ? 's' : ''}
+      </span>
+
+      {/* Word chips — hidden on very narrow screens to keep strip on one line */}
+      <div className="flex min-w-0 flex-1 gap-1 overflow-hidden">
+        {previewWords.map((item) => (
+          <span
+            key={item.id}
+            className="shrink-0 rounded-full border border-amber-200 bg-white px-2.5 py-0.5 text-xs font-medium text-amber-800"
+          >
+            {item.term}
+          </span>
+        ))}
+        {words.length > 3 && (
+          <span className="shrink-0 text-xs text-amber-400 self-center">
+            +{words.length - 3}
+          </span>
+        )}
+      </div>
+
+      {/* Chevron */}
+      <ChevronRight size={14} className="ml-auto shrink-0 text-amber-400" />
+    </button>
+  )
+}
+
 function computeOverallProgress(items: VocabItem[]): number {
   const active = items.filter((item) => !item.archived)
   if (active.length === 0) return 0
@@ -580,9 +632,10 @@ function computeOverallProgress(items: VocabItem[]): number {
 
 export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => void }) {
   const navigate = useNavigate()
-  const [showAdd, setShowAdd] = useState(false)
-  const [focusCount, setFocusCount] = useState<FocusCount>(25)
-  const [focusKind, setFocusKind] = useState<FocusKind>('mixed')
+  const [showAdd,     setShowAdd]     = useState(false)
+  const [showUseNow,  setShowUseNow]  = useState(false)
+  const [focusCount,  setFocusCount]  = useState<FocusCount>(25)
+  const [focusKind,   setFocusKind]   = useState<FocusKind>('mixed')
 
   const items = useVocabStore((s) => s.items)
   const logUsage = useVocabStore((s) => s.logUsage)
@@ -628,7 +681,8 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
       }).length,
     [libraryItems],
   )
-  const overallProgress = useMemo(() => computeOverallProgress(items), [items])
+  const overallProgress   = useMemo(() => computeOverallProgress(items), [items])
+  const activationWords   = useMemo(() => getActivationWords(items), [items])
   const isEmpty = items.length === 0
 
   async function handleRandomFocusReshuffle() {
@@ -684,6 +738,12 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         )}
       </div>
 
+      {/* Use Now strip — visible only when activation-ready words exist */}
+      <UseNowStrip
+        words={activationWords}
+        onOpen={() => setShowUseNow(true)}
+      />
+
       <FocusSetupSection
         count={focusCount}
         kind={focusKind}
@@ -730,6 +790,12 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
       />
 
       {showAdd && <QuickAddModal onClose={() => setShowAdd(false)} />}
+
+      <UseNowSheet
+        words={activationWords}
+        isOpen={showUseNow}
+        onClose={() => setShowUseNow(false)}
+      />
     </div>
   )
 }
