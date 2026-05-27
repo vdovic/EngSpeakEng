@@ -9,21 +9,34 @@
  * The canvas is 4000 × 2800 world units.  The camera starts centred.
  * Themes are placed as "regions" — soft elliptical halos — at golden-angle
  * positions on an ellipse.  Words within each theme cluster around their
- * region's centroid with stage-based radial offsets and deterministic jitter.
- * Words with no theme drift to the centre with loose scatter.
+ * region's centroid using Gaussian scatter (Box-Muller transform).
+ *
+ * ── Spatial semantics ─────────────────────────────────────────────────────────
+ *
+ * Mastered words settle NEAR their region centroid (sigma=35 — the settled core).
+ * New words scatter FAR from the centroid (sigma=220 — the frontier cloud).
+ * This makes the learner's owned vocabulary feel dense and inhabited, while
+ * unlearned words feel distant, numerous, and waiting.
+ *
+ * ── Visual weight ─────────────────────────────────────────────────────────────
+ *
+ * Node radius is derived from engagement: exposure + recalls + usage.
+ * A word the learner has wrestled with repeatedly appears large and solid.
+ * A fresh, untouched word appears as a faint point.
+ * Stage colour provides the hue layer; engagement provides the mass.
  *
  * ── Determinism guarantee ─────────────────────────────────────────────────────
  *
  * All positions are derived from FNV-1a hash32(item.id).
  * Math.random() is NEVER called.  Same items → same positions, every session.
  *
- * ── Stage colour palette (single lens) ───────────────────────────────────────
+ * ── Stage colour palette ──────────────────────────────────────────────────────
  *
- *   new        slate    #64748b   radius 4   glow off
- *   introduced indigo   #818cf8   radius 5   glow low
- *   drilling   amber    #fbbf24   radius 6   glow medium
- *   activate   warm wh  #f8f4ef   radius 7   glow high
- *   mastered   green    #4ade80   radius 8   glow full
+ *   new        slate    #64748b   glow off
+ *   introduced indigo   #818cf8   glow low
+ *   drilling   amber    #fbbf24   glow medium
+ *   activate   warm wh  #f8f4ef   glow high
+ *   mastered   green    #4ade80   glow full
  */
 
 import type { VocabItem } from '@/types/vocabulary'
@@ -79,14 +92,31 @@ export interface AtlasLayout {
   bounds: AtlasBounds
 }
 
-// ── Stage visual config ───────────────────────────────────────────────────────
+// ── Stage visual config (radius excluded — computed from engagement) ───────────
 
-const STAGE_CONFIG: Record<AtlasStage, AtlasNodeStyle> = {
-  new:        { color: '#64748b', radius: 4,  glowColor: 'rgba(100, 116, 139, 0)',    glowBlur: 0  },
-  introduced: { color: '#818cf8', radius: 5,  glowColor: 'rgba(129, 140, 248, 0.5)', glowBlur: 6  },
-  drilling:   { color: '#fbbf24', radius: 6,  glowColor: 'rgba(251, 191, 36, 0.6)',  glowBlur: 10 },
-  activate:   { color: '#f8f4ef', radius: 7,  glowColor: 'rgba(248, 244, 239, 0.8)', glowBlur: 14 },
-  mastered:   { color: '#4ade80', radius: 8,  glowColor: 'rgba(74, 222, 128, 0.7)',  glowBlur: 12 },
+type AtlasNodeStyleConfig = Omit<AtlasNodeStyle, 'radius'>
+
+const STAGE_CONFIG: Record<AtlasStage, AtlasNodeStyleConfig> = {
+  new:        { color: '#64748b', glowColor: 'rgba(100, 116, 139, 0)',    glowBlur: 0  },
+  introduced: { color: '#818cf8', glowColor: 'rgba(129, 140, 248, 0.5)', glowBlur: 6  },
+  drilling:   { color: '#fbbf24', glowColor: 'rgba(251, 191, 36, 0.6)',  glowBlur: 10 },
+  activate:   { color: '#f8f4ef', glowColor: 'rgba(248, 244, 239, 0.8)', glowBlur: 14 },
+  mastered:   { color: '#4ade80', glowColor: 'rgba(74, 222, 128, 0.7)',  glowBlur: 12 },
+}
+
+// ── Gaussian scatter sigma per stage ─────────────────────────────────────────
+//
+// Mastered words (sigma=35) settle tightly near the region centroid — the
+// inhabited, owned core.  New words (sigma=220) scatter widely — the frontier
+// cloud the learner is approaching.  This is the OPPOSITE of a progress meter:
+// it encodes spatial ownership, not distance-to-goal.
+
+const STAGE_SIGMA: Record<AtlasStage, number> = {
+  mastered:   35,
+  activate:   55,
+  drilling:   80,
+  introduced: 130,
+  new:        220,
 }
 
 // ── FNV-1a hash32 ─────────────────────────────────────────────────────────────
@@ -112,6 +142,43 @@ function hashFloat(id: string, salt: string): number {
   return (hash32(id + salt) / 0x100000000)
 }
 
+// ── Box-Muller Gaussian pair ───────────────────────────────────────────────────
+//
+// Converts two uniform [0,1) values into two standard-normal values.
+// Both u1 and u2 are expected to come from hashFloat (deterministic, in [0,1)).
+
+function gaussianPair(u1: number, u2: number): [number, number] {
+  const u1Safe = Math.max(u1, 1e-7)   // avoid log(0)
+  const mag = Math.sqrt(-2 * Math.log(u1Safe))
+  return [
+    mag * Math.cos(2 * Math.PI * u2),
+    mag * Math.sin(2 * Math.PI * u2),
+  ]
+}
+
+// ── Engagement-based radius ────────────────────────────────────────────────────
+//
+// Radius encodes the learner's lived relationship with the word.
+// A word trained many times, recalled successfully, and used in real life
+// appears large.  An untouched word appears as a faint point.
+//
+// Components:
+//   exposure  — how many challenge rounds the word has gone through (0–8)
+//   recalls   — successful SRS recalls (0–8)
+//   usage     — number of real-life usage logs, capped at 5
+//
+// Range: 2.5 (no engagement) → 9.5 (full engagement, max 21 points)
+
+function engagementRadius(item: VocabItem): number {
+  const exposure = Math.min(item.exposureCount ?? 0, 8)
+  const recalls  = Math.min(item.review?.successfulRecalls ?? 0, 8)
+  const usageLogs = item.activation?.usageLogs
+  const usage    = Math.min(Array.isArray(usageLogs) ? usageLogs.length : 0, 5)
+  const maxScore = 21
+  const score    = (exposure + recalls + usage) / maxScore
+  return 2.5 + score * 7.0
+}
+
 // ── Stage derivation ──────────────────────────────────────────────────────────
 
 function toAtlasStage(item: VocabItem): AtlasStage {
@@ -121,27 +188,6 @@ function toAtlasStage(item: VocabItem): AtlasStage {
   if (stage === 'drilling')   return 'drilling'
   if (stage === 'activate')   return 'activate'
   return 'mastered'
-}
-
-// ── Stage-based radial band ───────────────────────────────────────────────────
-//
-// Words are placed within a radius band that grows with stage.
-// This creates a visible spatial gradient from centre-ish (new) to outer (mastered).
-// The scatter RANGE is wide to avoid obvious rings — only the base shifts.
-
-const STAGE_RADIAL_BASE: Record<AtlasStage, number> = {
-  new:        30,
-  introduced: 60,
-  drilling:   90,
-  activate:   130,
-  mastered:   160,
-}
-const STAGE_RADIAL_SCATTER: Record<AtlasStage, number> = {
-  new:        40,
-  introduced: 50,
-  drilling:   60,
-  activate:   60,
-  mastered:   70,
 }
 
 // ── Theme centroid placement ──────────────────────────────────────────────────
@@ -179,7 +225,16 @@ function computeRegions(
   return result
 }
 
-// ── Word position within a region ─────────────────────────────────────────────
+// ── Word position within a region (Gaussian scatter) ─────────────────────────
+//
+// Each word's offset from its region centroid is drawn from a bivariate
+// Gaussian with standard deviation STAGE_SIGMA[stage].  Mastered words
+// huddle near the centre; new words populate the frontier.
+//
+// The maximum sigma multiplier (3.0) limits outliers while preserving the
+// natural Gaussian cloud shape.
+
+const MAX_SIGMA_MULT = 3.0
 
 function placeWord(
   item: VocabItem,
@@ -189,25 +244,18 @@ function placeWord(
   const cx = region ? region.cx : CANVAS_W / 2
   const cy = region ? region.cy : CANVAS_H / 2
 
-  const baseRadius = STAGE_RADIAL_BASE[stage]
-  const scatter    = STAGE_RADIAL_SCATTER[stage]
+  const sigma = STAGE_SIGMA[stage]
 
-  // Deterministic radial offset for this word
-  const radiusJitter = hashFloat(item.id, 'radius') * scatter
-  const radius = baseRadius + radiusJitter
+  const u1 = hashFloat(item.id, 'gauss_u1')
+  const u2 = hashFloat(item.id, 'gauss_u2')
+  const [z0, z1] = gaussianPair(u1, u2)
 
-  // Deterministic angle — full circle (2π)
-  const angle = hashFloat(item.id, 'angle') * Math.PI * 2
+  // Clamp to MAX_SIGMA_MULT standard deviations
+  const clamp = sigma * MAX_SIGMA_MULT
+  const ox = Math.max(-clamp, Math.min(clamp, z0 * sigma))
+  const oy = Math.max(-clamp, Math.min(clamp, z1 * sigma))
 
-  // Cap within halo bounds if we have a region
-  const maxR = region ? Math.min(region.rx, region.ry) * 0.92 : 800
-
-  const r = Math.min(radius, maxR)
-
-  return {
-    x: cx + Math.cos(angle) * r,
-    y: cy + Math.sin(angle) * r,
-  }
+  return { x: cx + ox, y: cy + oy }
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────
@@ -241,12 +289,15 @@ export function computeAtlasLayout(items: VocabItem[]): AtlasLayout {
 
   // ── 3. Place each word ────────────────────────────────────────────────────
   const nodes: AtlasNode[] = visible.map((item) => {
-    const stage   = toAtlasStage(item)
-    const style   = STAGE_CONFIG[stage]
-    const theme   = item.themes?.[0]
-    const region  = (theme && regionMap.has(theme)) ? regionMap.get(theme)! : null
+    const stage  = toAtlasStage(item)
+    const theme  = item.themes?.[0]
+    const region = (theme && regionMap.has(theme)) ? regionMap.get(theme)! : null
 
     const { x, y } = placeWord(item, stage, region)
+
+    // Radius from engagement; stage config provides colour and glow
+    const baseStyle = STAGE_CONFIG[stage]
+    const style: AtlasNodeStyle = { ...baseStyle, radius: engagementRadius(item) }
 
     return {
       id:             item.id,

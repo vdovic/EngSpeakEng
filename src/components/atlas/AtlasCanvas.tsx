@@ -39,12 +39,24 @@ import { SpatialGrid } from '@/lib/atlasQuadtree'
 
 const MIN_SCALE = 0.2
 const MAX_SCALE = 4.0
-const INITIAL_SCALE = 0.72
+const INITIAL_SCALE = 1.2
 const HOVER_HIT_WORLD = 28      // world-unit radius for hover detection
-const DRIFT_AMPLITUDE = 2.0     // px max drift per node
+const DRIFT_AMPLITUDE = 7.0     // px max drift per node — perceptible, breathing-like
 const DRIFT_SPEED = 0.0004      // radians per ms
 const REGION_HALO_ALPHA = 0.07  // very subtle halo fill
 const BG_COLOR = '#08111f'
+
+// ── Persistent label thresholds ───────────────────────────────────────────────
+//
+// Labels emerge gradually as the learner zooms in.
+// Mastered words surface first (scale 0.75), then activate (0.90), then
+// high-engagement drilling (1.30).  Alpha fades in over a 0.35-scale window.
+
+const LABEL_THRESHOLD: Partial<Record<string, number>> = {
+  mastered: 0.75,
+  activate: 0.90,
+  drilling: 1.30,
+}
 
 // ── Camera ────────────────────────────────────────────────────────────────────
 
@@ -90,6 +102,27 @@ function buildBackground(w: number, h: number): HTMLCanvasElement {
   return bg
 }
 
+// ── Shared screen-position helper ─────────────────────────────────────────────
+//
+// Returns the physical-pixel (canvas-buffer) position of a node, including
+// its per-frame drift offset.  Used by drawNodes, drawLabels, and drawTooltip
+// so drift is always consistent.
+
+function nodeScreenPos(
+  node: AtlasNode,
+  camera: Camera,
+  dpr: number,
+  now: number,
+): { sx: number; sy: number } {
+  const scale = camera.scale * dpr
+  const driftX = Math.sin(now * DRIFT_SPEED + node.driftPhase) * DRIFT_AMPLITUDE
+  const driftY = Math.cos(now * DRIFT_SPEED + node.driftAxisPhase) * DRIFT_AMPLITUDE
+  return {
+    sx: (node.x - camera.x) * scale + driftX * dpr,
+    sy: (node.y - camera.y) * scale + driftY * dpr,
+  }
+}
+
 // ── Region halo draw ──────────────────────────────────────────────────────────
 
 function drawRegions(
@@ -122,14 +155,19 @@ function drawRegions(
     ctx.fill()
     ctx.restore()
 
-    // Region label — drawn in world space for consistent scale with zoom
+    // Region identity label — atmospheric, at centroid, italic, low opacity.
+    // Drawn in world-space so it scales with zoom (feels embedded in the terrain).
     ctx.save()
-    const labelSize = Math.max(11, Math.min(16, region.rx * 0.07))
-    ctx.font = `${labelSize}px -apple-system, BlinkMacSystemFont, sans-serif`
-    ctx.fillStyle = 'rgba(148, 163, 220, 0.45)'
+    const labelSize = Math.max(18, Math.min(32, region.rx * 0.09))
+    ctx.font = `italic ${labelSize}px -apple-system, BlinkMacSystemFont, Georgia, serif`
+    ctx.fillStyle = 'rgba(180, 195, 235, 0.15)'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
-    ctx.fillText(region.theme.toUpperCase(), region.cx, region.cy - region.ry * 0.72)
+    const titleCase = region.theme
+      .split(' ')
+      .map((w) => w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : w)
+      .join(' ')
+    ctx.fillText(titleCase, region.cx, region.cy)
     ctx.restore()
   }
 
@@ -148,16 +186,8 @@ function drawNodes(
   canvasH: number,
   hoveredId: string | null,
 ) {
-  const scale = camera.scale * dpr
-
   for (const node of layout.nodes) {
-    // Ambient drift — ±DRIFT_AMPLITUDE px in screen space
-    const driftX = Math.sin(now * DRIFT_SPEED + node.driftPhase) * DRIFT_AMPLITUDE
-    const driftY = Math.cos(now * DRIFT_SPEED + node.driftAxisPhase) * DRIFT_AMPLITUDE
-
-    // World → screen
-    const sx = (node.x - camera.x) * scale + driftX * dpr
-    const sy = (node.y - camera.y) * scale + driftY * dpr
+    const { sx, sy } = nodeScreenPos(node, camera, dpr, now)
 
     // Viewport cull — skip nodes outside canvas (+ margin)
     const margin = 60 * dpr
@@ -195,12 +225,7 @@ function drawTooltip(
   _canvasH: number,
   now: number,
 ) {
-  const driftX = Math.sin(now * DRIFT_SPEED + node.driftPhase) * DRIFT_AMPLITUDE
-  const driftY = Math.cos(now * DRIFT_SPEED + node.driftAxisPhase) * DRIFT_AMPLITUDE
-  const scale  = camera.scale * dpr
-
-  let sx = (node.x - camera.x) * scale + driftX * dpr
-  let sy = (node.y - camera.y) * scale + driftY * dpr
+  let { sx, sy } = nodeScreenPos(node, camera, dpr, now)
 
   const PAD_X = 12 * dpr
   const PAD_Y =  8 * dpr
@@ -241,6 +266,105 @@ function drawTooltip(
   ctx.restore()
 }
 
+// ── Persistent label emergence ────────────────────────────────────────────────
+//
+// Renders word labels for mastered, activate, and high-engagement drilling
+// nodes once the camera scale crosses their threshold.  Alpha fades in smoothly
+// over a 0.35-scale window.  Non-overlapping placement — lower-priority nodes
+// are skipped rather than stacked.
+
+function drawLabels(
+  ctx: CanvasRenderingContext2D,
+  layout: AtlasLayout,
+  camera: Camera,
+  dpr: number,
+  now: number,
+  canvasW: number,
+  canvasH: number,
+) {
+  const scale = camera.scale
+
+  // Collect eligible nodes
+  const eligible = layout.nodes.filter((n) => {
+    const threshold = LABEL_THRESHOLD[n.stage]
+    if (threshold === undefined) return false
+    if (scale < threshold) return false
+    // Drilling labels only appear for words the learner has invested in
+    if (n.stage === 'drilling' && n.style.radius < 4.5) return false
+    return true
+  })
+
+  if (eligible.length === 0) return
+
+  // Priority: mastered first (most owned), then activate, then drilling.
+  // Within each stage, larger nodes (more engaged) surface first.
+  const STAGE_PRIORITY: Record<string, number> = { mastered: 0, activate: 1, drilling: 2 }
+  eligible.sort((a, b) => {
+    const pa = STAGE_PRIORITY[a.stage] ?? 99
+    const pb = STAGE_PRIORITY[b.stage] ?? 99
+    if (pa !== pb) return pa - pb
+    return b.style.radius - a.style.radius
+  })
+
+  const FONT_SIZE = 11 * dpr
+  ctx.font = `500 ${FONT_SIZE}px -apple-system, BlinkMacSystemFont, sans-serif`
+
+  // Track placed label bounding boxes to prevent overlap
+  const placed: Array<[number, number, number, number]> = []  // [x, y, w, h]
+
+  for (const node of eligible) {
+    const threshold = LABEL_THRESHOLD[node.stage]!
+    // Fade in over 0.35 scale window, max alpha 0.65
+    const alpha = Math.min(0.65, Math.max(0, (scale - threshold) / 0.35) * 0.65)
+    if (alpha < 0.01) continue
+
+    const { sx, sy } = nodeScreenPos(node, camera, dpr, now)
+
+    // Viewport cull
+    const margin = 100 * dpr
+    if (sx < -margin || sx > canvasW + margin || sy < -margin || sy > canvasH + margin) continue
+
+    const textW = ctx.measureText(node.term).width
+    const nodeR = node.style.radius * camera.scale * dpr
+    const labelX = sx
+    const labelY = sy - nodeR - 5 * dpr
+
+    // Bounding rect for overlap detection (slight padding)
+    const rect: [number, number, number, number] = [
+      labelX - textW / 2 - 3 * dpr,
+      labelY - FONT_SIZE - 2 * dpr,
+      textW + 6 * dpr,
+      FONT_SIZE + 4 * dpr,
+    ]
+
+    // Skip if this label would overlap a previously placed one
+    const overlaps = placed.some(([px, py, pw, ph]) =>
+      !(rect[0] > px + pw || rect[0] + rect[2] < px ||
+        rect[1] > py + ph || rect[1] + rect[3] < py),
+    )
+    if (overlaps) continue
+
+    placed.push(rect)
+
+    ctx.save()
+    ctx.font = `500 ${FONT_SIZE}px -apple-system, BlinkMacSystemFont, sans-serif`
+    ctx.textAlign    = 'center'
+    ctx.textBaseline = 'alphabetic'
+
+    // Warm hue for mastered/activate (owned vocabulary), cooler for drilling
+    if (node.stage === 'mastered') {
+      ctx.fillStyle = `rgba(134, 239, 172, ${alpha})`   // green-300
+    } else if (node.stage === 'activate') {
+      ctx.fillStyle = `rgba(253, 230, 138, ${alpha})`   // amber-200
+    } else {
+      ctx.fillStyle = `rgba(148, 163, 184, ${alpha})`   // slate-400
+    }
+
+    ctx.fillText(node.term, labelX, labelY)
+    ctx.restore()
+  }
+}
+
 // ── AtlasCanvas component ─────────────────────────────────────────────────────
 
 interface AtlasCanvasProps {
@@ -254,8 +378,8 @@ export function AtlasCanvas({ layout }: AtlasCanvasProps) {
   // ResizeObserver corrects it precisely on first render.
   // camera.x/y = world coords of the screen's top-left corner.
   const cameraRef   = useRef<Camera>({
-    x: CANVAS_W / 2 - 550 / INITIAL_SCALE,   // 550 ≈ half typical canvas width
-    y: CANVAS_H / 2 - 300 / INITIAL_SCALE,   // 300 ≈ half typical canvas height
+    x: CANVAS_W / 2 - 550 / INITIAL_SCALE,   // rough approximation; ResizeObserver corrects on first paint
+    y: CANVAS_H / 2 - 300 / INITIAL_SCALE,
     scale: INITIAL_SCALE,
   })
   const cameraInitialized = useRef(false)
@@ -310,6 +434,7 @@ export function AtlasCanvas({ layout }: AtlasCanvasProps) {
 
       drawRegions(ctx, layout, cam, dpr)
       drawNodes(ctx, layout, cam, dpr, now, cw, ch, hoveredRef.current?.id ?? null)
+      drawLabels(ctx, layout, cam, dpr, now, cw, ch)
 
       if (hoveredRef.current) {
         drawTooltip(ctx, hoveredRef.current, cam, dpr, cw, ch, now)
