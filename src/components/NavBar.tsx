@@ -3,7 +3,7 @@ import { NavLink, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, RefreshCw, Library,
   Target, BarChart2, Zap, Layers, GraduationCap, Sparkles,
-  MoreHorizontal, X, Settings,
+  MoreHorizontal, X, Settings, Globe2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -37,6 +37,7 @@ const SIDEBAR_PRIMARY: NavLinkDef[] = [
 ]
 
 const SIDEBAR_EXPLORE: NavLinkDef[] = [
+  { to: '/atlas',  icon: Globe2,    label: 'Atlas'  },
   { to: '/themes', icon: Layers,    label: 'Themes' },
   { to: '/review', icon: RefreshCw, label: 'Review' },
 ]
@@ -56,6 +57,7 @@ const MOBILE_PRIMARY: NavLinkDef[] = [
 
 const MOBILE_MORE: NavLinkDef[] = [
   { to: '/progress', icon: BarChart2, label: 'Progress' },
+  { to: '/atlas',    icon: Globe2,    label: 'Atlas'    },
   { to: '/review',   icon: RefreshCw, label: 'Review'   },
   { to: '/themes',   icon: Layers,    label: 'Themes'   },
   { to: '/settings', icon: Settings,  label: 'Settings' },

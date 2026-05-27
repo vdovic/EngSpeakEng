@@ -45,6 +45,7 @@ const ThemeDetailPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 )
+const AtlasPage = lazy(() => import('@/pages/AtlasPage'))
 
 // ── DeepPracticeIndicator ─────────────────────────────────────────────────────
 // Shown across the whole app (except on /challenge itself) when a Deep Practice
@@ -144,6 +145,8 @@ export default function App() {
             <Route path="/themes/:themeName" element={<ThemeDetailPage />} />
             <Route path="/settings"  element={<SettingsPage />} />
 
+            <Route path="/atlas"     element={<AtlasPage />} />
+
             {/* Legacy aliases — redirect to canonical routes */}
             <Route path="/inbox"  element={<Navigate to="/library"  replace />} />
             <Route path="/week"   element={<Navigate to="/focus"    replace />} />
@@ -153,8 +156,8 @@ export default function App() {
       </main>
 
       {/* ── Global floating add button ── */}
-      {/* Hidden on /progress — the observatory page is reflective, not additive */}
-      {location.pathname !== '/progress' && (
+      {/* Hidden on /progress and /atlas — reflective / exploration surfaces */}
+      {location.pathname !== '/progress' && location.pathname !== '/atlas' && (
         <button
           onClick={() => setShowQuickAdd(true)}
           className="fixed bottom-[4.5rem] right-4 md:bottom-6 md:right-6 z-20 w-12 h-12 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 active:scale-95 transition-all flex items-center justify-center"
