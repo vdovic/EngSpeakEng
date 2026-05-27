@@ -261,9 +261,16 @@ export function buildProgressHeadline(input: HeadlineInput): ProgressHeadline {
         sub: 'Add words to your library to begin.',
       }
     }
+    if (aliveCount === 0) {
+      // Hero will show library count — sub should not duplicate it
+      return {
+        main: 'Your collection is ready to learn from.',
+        sub: 'Practise words to make them yours.',
+      }
+    }
     return {
       main: 'Your vocabulary is just getting started.',
-      sub: `${totalInLibrary} word${totalInLibrary !== 1 ? 's' : ''} in your library — keep practising.`,
+      sub: `${aliveCount} word${aliveCount !== 1 ? 's' : ''} alive · keep practising.`,
     }
   }
 
@@ -561,9 +568,37 @@ export function buildConstellationNodes(
     const center       = centers.get(clusterKey)!
     const scatter      = primaryTheme ? SCATTER : UNSCATTER
 
-    const rng   = lcg(hashId(item.id))
-    const angle = rng() * 2 * Math.PI
-    const r     = Math.sqrt(rng()) * scatter   // sqrt gives uniform disc distribution
+    // Primary LCG for scatter jitter — seeded from the item's hash
+    const rng = lcg(hashId(item.id))
+
+    let px: number
+    let py: number
+
+    if (sortedThemes.length === 0) {
+      // ── No-themes mode: full-canvas sky distribution ──────────────────────────
+      // When the library has no theme assignments at all, the normal algorithm
+      // clusters every item around a single center (0.5, 0.5) with scatter 0.18,
+      // producing a tight blob in the middle of the canvas.
+      //
+      // Instead: derive each item's "home zone" from a second independent LCG
+      // stream (XOR-seeded so its sequence is fully independent of the scatter
+      // stream).  This spreads items organically across the full canvas —
+      // deterministic, hash-stable, no visible grid pattern.
+      const spread = lcg(hashId(item.id) ^ 0x9e3779b9)   // golden-ratio XOR → independent
+      const baseX  = MARGIN + spread() * (1 - 2 * MARGIN)
+      const baseY  = MARGIN + spread() * (1 - 2 * MARGIN)
+      // Tiny jitter (radius 0.04) from primary rng for slight organic micro-variation
+      const jAngle = rng() * 2 * Math.PI
+      const jR     = Math.sqrt(rng()) * 0.04
+      px = Math.max(MARGIN, Math.min(1 - MARGIN, baseX + jR * Math.cos(jAngle)))
+      py = Math.max(MARGIN, Math.min(1 - MARGIN, baseY + jR * Math.sin(jAngle)))
+    } else {
+      // ── Normal mode: theme-cluster distribution ────────────────────────────────
+      const angle = rng() * 2 * Math.PI
+      const r     = Math.sqrt(rng()) * scatter   // sqrt gives uniform disc distribution
+      px = Math.max(MARGIN, Math.min(1 - MARGIN, center.cx + r * Math.cos(angle)))
+      py = Math.max(MARGIN, Math.min(1 - MARGIN, center.cy + r * Math.sin(angle)))
+    }
 
     // Compute last meaningful interaction timestamp
     const candidates: string[] = []
@@ -581,8 +616,8 @@ export function buildConstellationNodes(
       primaryTheme,
       usageCount:     item.activation?.usageCount ?? 0,
       confidenceLevel: item.activation?.confidenceLevel ?? 0,
-      x: Math.max(MARGIN, Math.min(1 - MARGIN, center.cx + r * Math.cos(angle))),
-      y: Math.max(MARGIN, Math.min(1 - MARGIN, center.cy + r * Math.sin(angle))),
+      x:              px,
+      y:              py,
       createdAt:      item.createdAt,
       lastActiveAt,
     }

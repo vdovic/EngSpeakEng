@@ -120,23 +120,26 @@ function annularSector(
 // ── Section 1: Headline ────────────────────────────────────────────────────────
 
 interface HeadlineSectionProps {
-  aliveCount: number
+  /** The large number shown at the top — collection size when nothing is alive yet. */
+  heroNumber: number
+  /** The caption beneath the hero number. */
+  heroLabel: string
   main: string
   sub: string
 }
 
-function HeadlineSection({ aliveCount, main, sub }: HeadlineSectionProps) {
+function HeadlineSection({ heroNumber, heroLabel, main, sub }: HeadlineSectionProps) {
   return (
     <div className="pt-8 pb-4 px-1">
       {/* Hero number */}
       <div
         className="text-6xl font-extralight tracking-tight text-slate-800 leading-none"
-        aria-label={`${aliveCount} words in your active vocabulary`}
+        aria-label={`${heroNumber} ${heroLabel}`}
       >
-        {aliveCount.toLocaleString()}
+        {heroNumber.toLocaleString()}
       </div>
       <div className="mt-1 text-sm font-medium text-emerald-600 uppercase tracking-widest">
-        alive in your vocabulary
+        {heroLabel}
       </div>
 
       {/* Headline */}
@@ -159,6 +162,7 @@ interface MomentumTrailProps {
 function MomentumTrail({ pointsHistory }: MomentumTrailProps) {
   const dots = useMemo(() => get90DayActivity(pointsHistory), [pointsHistory])
 
+  const hasActivity = dots.some((d) => d.active)
   const maxPts = Math.max(...dots.map((d) => d.points), 1)
   const W = 900
   const H = 56
@@ -170,35 +174,42 @@ function MomentumTrail({ pointsHistory }: MomentumTrailProps) {
         <span className="text-xs font-medium text-slate-400 uppercase tracking-widest">
           90-day activity
         </span>
-        <span className="text-xs text-slate-300">today →</span>
+        {hasActivity && <span className="text-xs text-slate-300">today →</span>}
       </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        preserveAspectRatio="none"
-        className="w-full rounded-sm"
-        style={{ height: 40 }}
-        aria-label="90-day learning activity trail"
-        role="img"
-      >
-        {dots.map((dot, i) => {
-          const x            = i * (barW + 1)
-          const heightFraction = dot.active ? Math.max(0.25, dot.points / maxPts) : 0.08
-          const barH         = Math.round(H * heightFraction)
-          const y            = H - barH
-          return (
-            <rect
-              key={dot.dateKey}
-              x={x}
-              y={y}
-              width={barW}
-              height={barH}
-              rx={1}
-              fill={dot.active ? '#fbbf24' : '#e2e8f0'}
-              aria-label={dot.active ? `${dot.label}: ${dot.points} pts` : dot.label}
-            />
-          )
-        })}
-      </svg>
+      {!hasActivity && (
+        <p className="text-xs text-slate-400 py-1">
+          Your activity trail will appear here as you practise.
+        </p>
+      )}
+      {hasActivity && (
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          preserveAspectRatio="none"
+          className="w-full rounded-sm"
+          style={{ height: 40 }}
+          aria-label="90-day learning activity trail"
+          role="img"
+        >
+          {dots.map((dot, i) => {
+            const x              = i * (barW + 1)
+            const heightFraction = dot.active ? Math.max(0.25, dot.points / maxPts) : 0.08
+            const barH           = Math.round(H * heightFraction)
+            const y              = H - barH
+            return (
+              <rect
+                key={dot.dateKey}
+                x={x}
+                y={y}
+                width={barW}
+                height={barH}
+                rx={1}
+                fill={dot.active ? '#fbbf24' : '#e2e8f0'}
+                aria-label={dot.active ? `${dot.label}: ${dot.points} pts` : dot.label}
+              />
+            )
+          })}
+        </svg>
+      )}
     </div>
   )
 }
@@ -320,12 +331,9 @@ function ActivationSpotlight({ items, allItems, onNavigate }: ActivationSpotligh
       </div>
 
       {visible.length === 0 ? (
-        <div className="px-4 py-5 bg-slate-50 rounded-xl border border-slate-100 text-center">
-          <p className="text-sm text-slate-400">No words at the Activate stage yet.</p>
-          <p className="text-xs text-slate-300 mt-1">
-            Keep practising — Activate appears after 8 challenge exposures.
-          </p>
-        </div>
+        <p className="text-sm text-slate-400 text-center py-2">
+          Words arrive here once they are fully drilled.
+        </p>
       ) : (
         <div className="space-y-2">
           {visible.map((item) => (
@@ -763,17 +771,15 @@ function GoalWidget({
       </div>
 
       <div className="flex items-center justify-between text-xs text-slate-400">
-        <span
-          className={
-            gp.isOnTrack ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium'
-          }
-        >
-          {gp.isOnTrack ? 'On track' : 'Behind target'}
+        <span>
+          {gp.remaining > 0
+            ? `${gp.remaining.toLocaleString()} words remaining`
+            : 'All words mastered'}
         </span>
         <span>
           {gp.weeksLeft > 0
-            ? `${gp.wordsPerWeekNeeded}/week needed · ${gp.weeksLeft}w left`
-            : 'Goal deadline passed'}
+            ? `${gp.weeksLeft}w left`
+            : 'Goal period ended'}
         </span>
       </div>
     </div>
@@ -855,19 +861,19 @@ function DetailedInsightsContent({
         </p>
         <div className="space-y-2.5">
           <ConfidenceBar
-            label="Comfortable (green)"
+            label="Comfortable"
             count={confidence.green}
             total={confTotal}
             color="#10b981"
           />
           <ConfidenceBar
-            label="Prompted (yellow)"
+            label="Somewhat comfortable"
             count={confidence.yellow}
             total={confTotal}
             color="#fbbf24"
           />
           <ConfidenceBar
-            label="Recognise (red)"
+            label="Not yet comfortable"
             count={confidence.red}
             total={confTotal}
             color="#f87171"
@@ -943,11 +949,20 @@ function ObservatoryLens({
         }
       </button>
 
-      {isOpen && (
-        <div className="px-4 pb-6 pt-3 border-t border-slate-100">
-          {children}
+      {/* CSS grid accordion — animates without max-height artefacts */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateRows: isOpen ? '1fr' : '0fr',
+          transition: 'grid-template-rows 0.25s ease',
+        }}
+      >
+        <div style={{ overflow: 'hidden' }}>
+          <div className="px-4 pb-6 pt-3 border-t border-slate-100">
+            {children}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -1106,7 +1121,8 @@ export function StatsPage() {
 
       {/* 1. Headline + hero metric */}
       <HeadlineSection
-        aliveCount={aliveCount}
+        heroNumber={aliveCount === 0 ? nonArchived.length : aliveCount}
+        heroLabel={aliveCount === 0 ? 'words in your collection' : 'alive in your vocabulary'}
         main={headline.main}
         sub={headline.sub}
       />

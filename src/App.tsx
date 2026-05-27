@@ -90,6 +90,7 @@ function PageSpinner() {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const location = useLocation()
   const { load, loaded } = useVocabStore()
   const { completed: onboardingCompleted, reset: resetOnboarding } = useOnboardingStore()
   const [showOnboarding, setShowOnboarding] = useState(false)
@@ -152,14 +153,16 @@ export default function App() {
       </main>
 
       {/* ── Global floating add button ── */}
-      {/* Sits above mobile nav bar (bottom-20) on small screens, bottom-right on desktop */}
-      <button
-        onClick={() => setShowQuickAdd(true)}
-        className="fixed bottom-[4.5rem] right-4 md:bottom-6 md:right-6 z-20 w-12 h-12 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 active:scale-95 transition-all flex items-center justify-center"
-        aria-label="Add word"
-      >
-        <Plus size={22} />
-      </button>
+      {/* Hidden on /progress — the observatory page is reflective, not additive */}
+      {location.pathname !== '/progress' && (
+        <button
+          onClick={() => setShowQuickAdd(true)}
+          className="fixed bottom-[4.5rem] right-4 md:bottom-6 md:right-6 z-20 w-12 h-12 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 active:scale-95 transition-all flex items-center justify-center"
+          aria-label="Add word"
+        >
+          <Plus size={22} />
+        </button>
+      )}
 
       {/* Deep Practice session indicator — visible app-wide except on /challenge */}
       <DeepPracticeIndicator />

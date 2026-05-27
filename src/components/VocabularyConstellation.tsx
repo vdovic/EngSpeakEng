@@ -297,10 +297,12 @@ function WordJourneyCard({ node, position, isMobile }: WordJourneyCardProps) {
       left: 0,
       right: 0,
       zIndex: 50,
-      // Pad out of the iPhone home-indicator safe area
-      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
-      padding: '0 16px',
+      // Pad out of the iPhone home-indicator safe area.
+      // Use longhands only — shorthand `padding` would override paddingBottom.
       paddingTop: 0,
+      paddingLeft: 16,
+      paddingRight: 16,
+      paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
     }
   } else {
     // Place card to the right of the star, offset slightly upward
@@ -762,7 +764,7 @@ export function VocabularyConstellation({ nodes, totalItems }: VocabularyConstel
             : `${nodes.length} word${nodes.length !== 1 ? 's' : ''}`}
         </p>
         <div className="flex items-center gap-3 flex-wrap justify-end">
-          {STAGES_ORDERED.map((stage) => {
+          {STAGES_ORDERED.filter((stage) => nodes.some((n) => n.stage === stage)).map((stage) => {
             const vis = STAGE_VISUAL[stage]
             return (
               <div key={stage} className="flex items-center gap-1.5">
