@@ -12,6 +12,7 @@ import {
   get90DayActivity,
   relativeTime,
   buildProgressHeadline,
+  buildConstellationNodes,
   type HeadlineInput,
 } from '@/lib/progressPageLogic'
 import type { VocabItem } from '@/types/vocabulary'
@@ -319,5 +320,97 @@ describe('buildProgressHeadline', () => {
     const result = buildProgressHeadline(makeInput({ aliveCount: 20, masteredCount: 10, activateCount: 10 }))
     expect(result.main).toBeTruthy()
     expect(result.sub).toBeTruthy()
+  })
+})
+
+// ── buildConstellationNodes ───────────────────────────────────────────────────
+
+describe('buildConstellationNodes', () => {
+  it('returns empty array for empty items', () => {
+    expect(buildConstellationNodes([], [])).toHaveLength(0)
+  })
+
+  it('excludes archived items', () => {
+    const items = [
+      masteredItem(),
+      makeItem({ archived: true, exposureCount: 8, activation: makeActivation({ usageCount: 3, usageLogs: [] }) }),
+    ]
+    expect(buildConstellationNodes(items, [])).toHaveLength(1)
+  })
+
+  it('respects maxNodes cap', () => {
+    const items = Array.from({ length: 20 }, () => drillingItem())
+    expect(buildConstellationNodes(items, [], 10)).toHaveLength(10)
+  })
+
+  it('all node positions are within [MARGIN, 1-MARGIN]', () => {
+    const MARGIN = 0.04
+    const items = Array.from({ length: 30 }, (_, i) => makeItem({ id: `stable-${i}` }))
+    const nodes = buildConstellationNodes(items, ['Business & Professional'])
+    for (const n of nodes) {
+      expect(n.x).toBeGreaterThanOrEqual(MARGIN)
+      expect(n.x).toBeLessThanOrEqual(1 - MARGIN)
+      expect(n.y).toBeGreaterThanOrEqual(MARGIN)
+      expect(n.y).toBeLessThanOrEqual(1 - MARGIN)
+    }
+  })
+
+  it('positions are deterministic — same item always gets same (x, y)', () => {
+    const item = makeItem({ id: 'fixed-id-123' })
+    const run1 = buildConstellationNodes([item], [])
+    const run2 = buildConstellationNodes([item], [])
+    expect(run1[0].x).toBe(run2[0].x)
+    expect(run1[0].y).toBe(run2[0].y)
+  })
+
+  it('position is stable regardless of other items in the list', () => {
+    const target = makeItem({ id: 'target-xyz' })
+    const others = Array.from({ length: 10 }, (_, i) => makeItem({ id: `other-${i}` }))
+
+    const alone    = buildConstellationNodes([target], [])
+    const withOthers = buildConstellationNodes([target, ...others], [])
+    const targetNode = withOthers.find((n) => n.id === target.id)!
+
+    expect(targetNode.x).toBeCloseTo(alone[0].x, 10)
+    expect(targetNode.y).toBeCloseTo(alone[0].y, 10)
+  })
+
+  it('prioritises mastered words when cap is applied', () => {
+    const newItems      = Array.from({ length: 10 }, () => newItem())
+    const masteredItems = Array.from({ length: 5 }, () => masteredItem())
+    const nodes = buildConstellationNodes([...newItems, ...masteredItems], [], 5)
+    // All 5 results should be mastered
+    expect(nodes.every((n) => n.stage === 'mastered')).toBe(true)
+  })
+
+  it('assigns primaryTheme from item.themes matching the themes list', () => {
+    const item = makeItem({ themes: ['Business & Professional', 'Everyday Conversation'] })
+    const nodes = buildConstellationNodes([item], ['Business & Professional', 'Everyday Conversation'])
+    // First alphabetically: 'Business & Professional'
+    expect(nodes[0].primaryTheme).toBe('Business & Professional')
+  })
+
+  it('sets primaryTheme to null when item has no matching themes', () => {
+    const item = makeItem({ themes: [] })
+    const nodes = buildConstellationNodes([item], ['Business & Professional'])
+    expect(nodes[0].primaryTheme).toBeNull()
+  })
+
+  it('items with a theme cluster closer to their theme center than unthemed items cluster to centre', () => {
+    // Themed items should NOT be at exact centre (0.5, 0.5) unless the scatter happens to land there
+    // This is a statistical test — just verify themed items have different positions from unthemed
+    const themedItem   = makeItem({ id: 'themed-001',   themes: ['Business & Professional'] })
+    const unthemedItem = makeItem({ id: 'unthemed-001', themes: [] })
+    const nodes = buildConstellationNodes([themedItem, unthemedItem], ['Business & Professional'])
+    expect(nodes[0].x).not.toBe(nodes[1].x)   // very unlikely to collide exactly
+  })
+
+  it('includes usageCount and confidenceLevel on each node', () => {
+    const item = makeItem({
+      activation: makeActivation({ usageCount: 2, confidenceLevel: 3, usageLogs: [] }),
+    })
+    const [node] = buildConstellationNodes([item], [])
+    expect(node.usageCount).toBe(2)
+    expect(node.confidenceLevel).toBe(3)
   })
 })

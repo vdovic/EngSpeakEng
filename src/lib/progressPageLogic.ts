@@ -275,3 +275,134 @@ export function buildProgressHeadline(input: HeadlineInput): ProgressHeadline {
       : `${activateCount} word${activateCount !== 1 ? 's' : ''} ready for real-life use.`,
   }
 }
+
+// ── Constellation (Phase 2) ───────────────────────────────────────────────────
+
+/**
+ * A single node in the Living Vocabulary Constellation.
+ * Positions are normalized 0–1 (multiply by viewBox dimensions to get SVG coords).
+ * Positions are fully deterministic — the same item ID always maps to the same point.
+ */
+export interface ConstellationNode {
+  id: string
+  term: string
+  stage: DisplayStage
+  /** First alphabetical theme the item belongs to, or null. */
+  primaryTheme: string | null
+  usageCount: number
+  confidenceLevel: number
+  /** Normalized x position, 0–1, stable across renders. */
+  x: number
+  /** Normalized y position, 0–1, stable across renders. */
+  y: number
+}
+
+/**
+ * FNV-1a hash of a string — maps an item ID to a stable integer seed.
+ * Produces good bit distribution from short strings.
+ */
+function hashId(id: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < id.length; i++) {
+    h ^= id.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return h >>> 0
+}
+
+/**
+ * Knuth multiplicative LCG seeded from a 32-bit integer.
+ * Returns a closure that yields numbers in [0, 1).
+ * Two calls produce two independent coordinates for the same node.
+ */
+function lcg(seed: number): () => number {
+  let s = seed === 0 ? 1 : seed >>> 0
+  return function () {
+    s = Math.imul(1664525, s) + 1013904223
+    s = s >>> 0
+    return s / 0x100000000
+  }
+}
+
+/** Stage rendering priority — higher = rendered last (on top). */
+const STAGE_RENDER_ORDER: Record<DisplayStage, number> = {
+  new:        0,
+  introduced: 1,
+  drilling:   2,
+  activate:   3,
+  mastered:   4,
+}
+
+/**
+ * Build constellation node data from vocabulary items and the user's theme list.
+ *
+ * Algorithm:
+ *   1. Sort themes alphabetically (stable — matches themesStore ordering).
+ *   2. Place each theme's cluster center on an ellipse around (0.5, 0.5).
+ *   3. Unthemed items cluster near the centre with a wider scatter radius.
+ *   4. Each item's final position = cluster_center + seededNoise(item.id).
+ *   5. Cap at maxNodes by priority (mastered first, then activate, etc.).
+ *
+ * All positions are deterministic — same ID always yields same (x, y).
+ */
+export function buildConstellationNodes(
+  items: VocabItem[],
+  themes: string[],
+  maxNodes = 300,
+): ConstellationNode[] {
+  const SCATTER   = 0.13   // normalized scatter radius within a cluster
+  const UNSCATTER = 0.18   // slightly wider scatter for unthemed words
+  const MARGIN    = 0.04   // keep nodes away from SVG edges
+
+  // Filter archived items; cap by stage priority then creation date
+  const active = items.filter((i) => !i.archived)
+  const capped = [...active]
+    .sort((a, b) => {
+      const pa = STAGE_RENDER_ORDER[getDisplayStage(a)]
+      const pb = STAGE_RENDER_ORDER[getDisplayStage(b)]
+      if (pa !== pb) return pb - pa           // higher priority first
+      return b.createdAt.localeCompare(a.createdAt)  // newer first within tier
+    })
+    .slice(0, maxNodes)
+
+  // Build cluster centres: themes on an ellipse
+  const sortedThemes = [...themes].sort()
+  const centers = new Map<string, { cx: number; cy: number }>()
+  centers.set('__unthemed__', { cx: 0.5, cy: 0.5 })
+
+  if (sortedThemes.length > 0) {
+    sortedThemes.forEach((theme, i) => {
+      // Distribute themes evenly around an ellipse; offset by -π/2 so first theme starts at top
+      const angle = (i / sortedThemes.length) * 2 * Math.PI - Math.PI / 2
+      centers.set(theme, {
+        cx: 0.5 + 0.33 * Math.cos(angle),
+        cy: 0.5 + 0.27 * Math.sin(angle),
+      })
+    })
+  }
+
+  return capped.map((item) => {
+    const stage        = getDisplayStage(item)
+    // Pick the first alphabetically-sorted theme that's in the user's theme list
+    const sortedItem   = [...(item.themes ?? [])].sort()
+    const primaryTheme = sortedItem.find((t) => centers.has(t)) ?? null
+    const clusterKey   = primaryTheme ?? '__unthemed__'
+    const center       = centers.get(clusterKey)!
+    const scatter      = primaryTheme ? SCATTER : UNSCATTER
+
+    const rng   = lcg(hashId(item.id))
+    const angle = rng() * 2 * Math.PI
+    const r     = Math.sqrt(rng()) * scatter   // sqrt gives uniform disc distribution
+
+    return {
+      id:             item.id,
+      term:           item.term,
+      stage,
+      primaryTheme,
+      usageCount:     item.activation?.usageCount ?? 0,
+      confidenceLevel: item.activation?.confidenceLevel ?? 0,
+      x: Math.max(MARGIN, Math.min(1 - MARGIN, center.cx + r * Math.cos(angle))),
+      y: Math.max(MARGIN, Math.min(1 - MARGIN, center.cy + r * Math.sin(angle))),
+    }
+  })
+}

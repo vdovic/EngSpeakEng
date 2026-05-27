@@ -1,15 +1,16 @@
 /**
- * StatsPage.tsx — Phase 1 Progress Page
+ * StatsPage.tsx — Phase 1 + Phase 2 Progress Page
  *
  * A reflective, emotionally meaningful view of the learner's vocabulary journey.
  * This page answers: "What does my learning look like right now?"
  *
  * Architecture:
- *   1. HeadlineSection   — hero metric + context-aware headline
- *   2. MomentumTrail     — 90-day SVG activity waveform
- *   3. StageSpectrum     — proportional stage distribution bar
- *   4. ActivationSpotlight — words ready for real-life use
- *   5. DeepInsights      — collapsed detailed analytics
+ *   1. HeadlineSection           — hero metric + context-aware headline
+ *   2. VocabularyConstellation   — Phase 2: living dark-sky vocabulary map
+ *   3. MomentumTrail             — 90-day SVG activity waveform
+ *   4. StageSpectrum             — proportional stage distribution bar
+ *   5. ActivationSpotlight       — words ready for real-life use
+ *   6. DeepInsights              — collapsed detailed analytics
  *
  * Design principles:
  *   • Show state, not scores
@@ -23,12 +24,14 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronUp, ArrowRight, Target } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
+import { useThemesStore } from '@/store/themesStore'
 import {
   getStageDistribution,
   getAliveVocabCount,
   getActivateStageItems,
   get90DayActivity,
   buildProgressHeadline,
+  buildConstellationNodes,
   relativeTime,
   type StageDistribution,
 } from '@/lib/progressPageLogic'
@@ -38,6 +41,7 @@ import {
   getUsageLogsThisWeek,
 } from '@/lib/statsLogic'
 import { DisplayStage } from '@/lib/progressionLogic'
+import { VocabularyConstellation } from '@/components/VocabularyConstellation'
 
 // ── Stage colour palette ───────────────────────────────────────────────────────
 
@@ -499,9 +503,14 @@ function DeepInsights({ items, gamification, usesThisWeek }: DeepInsightsProps) 
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 
+// ── Max nodes: mobile gets fewer to preserve atmosphere over clutter ──────────
+const CONSTELLATION_MAX_NODES =
+  typeof window !== 'undefined' && window.innerWidth < 640 ? 180 : 300
+
 export function StatsPage() {
   const navigate = useNavigate()
   const items    = useVocabStore((s) => s.items)
+  const themes   = useThemesStore((s) => s.themes)
   const {
     pointsHistory,
     points,
@@ -518,6 +527,12 @@ export function StatsPage() {
   const masteredCount   = useMemo(() => getMasteredWordsCount(nonArchived), [nonArchived])
   const activateItems   = useMemo(() => getActivateStageItems(nonArchived), [nonArchived])
   const usesThisWeek    = useMemo(() => getUsageLogsThisWeek(nonArchived), [nonArchived])
+
+  // Phase 2: constellation nodes — deterministic, stable
+  const constellationNodes = useMemo(
+    () => buildConstellationNodes(nonArchived, themes, CONSTELLATION_MAX_NODES),
+    [nonArchived, themes],
+  )
 
   const headline = useMemo(() => buildProgressHeadline({
     aliveCount,
@@ -548,20 +563,26 @@ export function StatsPage() {
         sub={headline.sub}
       />
 
-      {/* 2. 90-day momentum trail */}
+      {/* 2. Living Vocabulary Constellation (Phase 2) */}
+      <VocabularyConstellation
+        nodes={constellationNodes}
+        totalItems={nonArchived.length}
+      />
+
+      {/* 3. 90-day momentum trail */}
       <MomentumTrail pointsHistory={pointsHistory} />
 
-      {/* 3. Stage distribution spectrum */}
+      {/* 4. Stage distribution spectrum */}
       <StageSpectrum distribution={stageDistrib} />
 
-      {/* 4. Activation spotlight */}
+      {/* 5. Activation spotlight */}
       <ActivationSpotlight
         items={activateItems}
         allItems={nonArchived}
         onNavigate={(id) => navigate(`/library/${id}`)}
       />
 
-      {/* 5. Deep insights (collapsed) */}
+      {/* 6. Deep insights (collapsed) */}
       <DeepInsights
         items={nonArchived}
         gamification={gamification}
