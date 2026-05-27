@@ -413,4 +413,42 @@ describe('buildConstellationNodes', () => {
     expect(node.usageCount).toBe(2)
     expect(node.confidenceLevel).toBe(3)
   })
+
+  // ── Phase 3: createdAt + lastActiveAt ─────────────────────────────────────
+
+  it('includes createdAt on each node matching item.createdAt', () => {
+    const ts = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    const item = makeItem({ createdAt: ts })
+    const [node] = buildConstellationNodes([item], [])
+    expect(node.createdAt).toBe(ts)
+  })
+
+  it('sets lastActiveAt from activation.lastUsedAt when present', () => {
+    const lastUsedAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+    const item = makeItem({
+      activation: makeActivation({ lastUsedAt, usageLogs: [] }),
+    })
+    const [node] = buildConstellationNodes([item], [])
+    expect(node.lastActiveAt).toBe(lastUsedAt)
+  })
+
+  it('sets lastActiveAt to latest of lastUsedAt and lastExposureAt', () => {
+    const older  = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+    const newer  = new Date(Date.now() -  2 * 24 * 60 * 60 * 1000).toISOString()
+    const item = makeItem({
+      lastExposureAt: newer,
+      activation: makeActivation({ lastUsedAt: older, usageLogs: [] }),
+    })
+    const [node] = buildConstellationNodes([item], [])
+    expect(node.lastActiveAt).toBe(newer)
+  })
+
+  it('sets lastActiveAt to undefined for a brand-new untouched item', () => {
+    // No lastExposureAt, no lastUsedAt, no usageLogs
+    const item = makeItem({
+      activation: makeActivation({ lastUsedAt: undefined, usageLogs: [] }),
+    })
+    const [node] = buildConstellationNodes([item], [])
+    expect(node.lastActiveAt).toBeUndefined()
+  })
 })

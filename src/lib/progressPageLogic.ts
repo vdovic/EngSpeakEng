@@ -282,6 +282,8 @@ export function buildProgressHeadline(input: HeadlineInput): ProgressHeadline {
  * A single node in the Living Vocabulary Constellation.
  * Positions are normalized 0–1 (multiply by viewBox dimensions to get SVG coords).
  * Positions are fully deterministic — the same item ID always maps to the same point.
+ *
+ * Phase 3 additions: createdAt + lastActiveAt support the Word Journey Card.
  */
 export interface ConstellationNode {
   id: string
@@ -295,6 +297,14 @@ export interface ConstellationNode {
   x: number
   /** Normalized y position, 0–1, stable across renders. */
   y: number
+  /** ISO date string of when the item was added to the library. */
+  createdAt: string
+  /**
+   * ISO date string of the most recent meaningful interaction with this word
+   * (last confidence update, last usage log, or last challenge exposure).
+   * Undefined if the word has never been actively engaged with.
+   */
+  lastActiveAt?: string
 }
 
 /**
@@ -394,6 +404,15 @@ export function buildConstellationNodes(
     const angle = rng() * 2 * Math.PI
     const r     = Math.sqrt(rng()) * scatter   // sqrt gives uniform disc distribution
 
+    // Compute last meaningful interaction timestamp
+    const candidates: string[] = []
+    if (item.activation?.lastUsedAt)      candidates.push(item.activation.lastUsedAt)
+    if (item.lastExposureAt)              candidates.push(item.lastExposureAt)
+    const lastLog = item.activation?.usageLogs?.at?.(-1)
+    if (lastLog?.usedAt)                  candidates.push(lastLog.usedAt)
+    candidates.sort()
+    const lastActiveAt = candidates.at(-1)  // latest ISO string
+
     return {
       id:             item.id,
       term:           item.term,
@@ -403,6 +422,8 @@ export function buildConstellationNodes(
       confidenceLevel: item.activation?.confidenceLevel ?? 0,
       x: Math.max(MARGIN, Math.min(1 - MARGIN, center.cx + r * Math.cos(angle))),
       y: Math.max(MARGIN, Math.min(1 - MARGIN, center.cy + r * Math.sin(angle))),
+      createdAt:      item.createdAt,
+      lastActiveAt,
     }
   })
 }
