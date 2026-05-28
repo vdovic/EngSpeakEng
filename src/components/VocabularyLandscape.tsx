@@ -49,7 +49,7 @@ export interface VocabularyLandscapeProps {
 
 // ── Dimension types ───────────────────────────────────────────────────────────
 
-type XDim    = 'exposure' | 'age' | 'recency'
+type XDim    = 'exposure' | 'age' | 'recency' | 'month'
 type ColorDim = 'stage' | 'confidence' | 'vitality'
 
 // ── Stage metadata ────────────────────────────────────────────────────────────
@@ -125,13 +125,29 @@ interface DotDatum {
 
 // ── Compute normalised x for chosen dimension ─────────────────────────────────
 
-function computeXFrac(item: VocabItem, xDim: XDim, maxAgeDays: number): number {
+function computeXFrac(
+  item: VocabItem,
+  xDim: XDim,
+  maxAgeDays: number,
+  minMonthIdx: number,
+  monthSpan: number,
+): number {
   if (xDim === 'exposure') {
     return (item.exposureCount ?? 0) / 8
   }
   if (xDim === 'age') {
     const days = Math.max(0, (Date.now() - new Date(item.createdAt).getTime()) / 86_400_000)
     return maxAgeDays > 0 ? Math.min(1, days / maxAgeDays) : 0
+  }
+  if (xDim === 'month') {
+    const d  = new Date(item.createdAt)
+    const mi = d.getFullYear() * 12 + d.getMonth()   // absolute month index
+    // base position = which month slot (0 = oldest month, 1 = newest month)
+    const base = monthSpan > 0 ? (mi - minMonthIdx) / monthSpan : 0
+    // spread within the month by day-of-month so dots don't all stack
+    const dayFrac = (d.getDate() - 1) / 31           // 0–1 within month
+    const slotW   = monthSpan > 0 ? 1 / monthSpan : 1
+    return Math.min(1, base + dayFrac * slotW * 0.9) // 0.9 keeps within slot
   }
   // recency: 0 = active today, 1 = never / ≥ 90 days
   const lastLog = item.activation?.usageLogs?.at(-1)?.usedAt
@@ -142,9 +158,13 @@ function computeXFrac(item: VocabItem, xDim: XDim, maxAgeDays: number): number {
 
 // ── X-axis tick definitions ───────────────────────────────────────────────────
 
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 function buildXTicks(
   xDim: XDim,
   maxAgeDays: number,
+  minMonthIdx: number,
+  monthSpan: number,
 ): Array<{ frac: number; label: string }> {
   if (xDim === 'exposure') {
     return [0, 2, 4, 6, 8].map(v => ({ frac: v / 8, label: String(v) }))
@@ -157,6 +177,16 @@ function buildXTicks(
     }
     if (ticks[ticks.length - 1].frac < 1) {
       ticks.push({ frac: 1, label: `${maxAgeDays}d` })
+    }
+    return ticks
+  }
+  if (xDim === 'month') {
+    if (monthSpan === 0) return [{ frac: 0.5, label: MONTH_SHORT[minMonthIdx % 12] }]
+    const ticks: Array<{ frac: number; label: string }> = []
+    for (let i = 0; i <= monthSpan; i++) {
+      const mi    = minMonthIdx + i
+      const label = MONTH_SHORT[mi % 12]
+      ticks.push({ frac: i / monthSpan, label })
     }
     return ticks
   }
@@ -204,6 +234,8 @@ function drawCanvas(
   xDim          : XDim,
   colorDim      : ColorDim,
   maxAgeDays    : number,
+  minMonthIdx   : number,
+  monthSpan     : number,
   hoveredId     : string | null,
 ) {
   const plotW = canvasW - LABEL_W - PAD_R
@@ -227,7 +259,7 @@ function drawCanvas(
   })
 
   // ── X-axis ticks ──────────────────────────────────────────────────────────
-  const ticks = buildXTicks(xDim, maxAgeDays)
+  const ticks = buildXTicks(xDim, maxAgeDays, minMonthIdx, monthSpan)
   ctx.strokeStyle = 'rgba(203,213,225,0.45)'
   ctx.lineWidth   = 1
   ctx.font        = '9px system-ui,-apple-system,sans-serif'
@@ -335,11 +367,26 @@ export function VocabularyLandscape({ items }: VocabularyLandscapeProps) {
     return Math.max(Math.ceil(max), 7)
   }, [items])
 
-  // Dot positions — stable per items + xDim + maxAgeDays
+  // Month range — min/max absolute month index (year*12 + month)
+  const { minMonthIdx, monthSpan } = useMemo(() => {
+    let minMi = Infinity
+    let maxMi = -Infinity
+    for (const it of items) {
+      const d  = new Date(it.createdAt)
+      const mi = d.getFullYear() * 12 + d.getMonth()
+      if (mi < minMi) minMi = mi
+      if (mi > maxMi) maxMi = mi
+    }
+    const min  = isFinite(minMi) ? minMi : 0
+    const span = isFinite(maxMi) ? maxMi - min : 0
+    return { minMonthIdx: min, monthSpan: span }
+  }, [items])
+
+  // Dot positions — stable per items + xDim + relevant range values
   const dots = useMemo((): DotDatum[] => {
     return items.map(item => {
       const stage = getDisplayStage(item)
-      const xFrac = computeXFrac(item, xDim, maxAgeDays)
+      const xFrac = computeXFrac(item, xDim, maxAgeDays, minMonthIdx, monthSpan)
       const jx    = seededRand(item.id, 7) * 0.01 - 0.005  // ±0.5% jitter
       const yFrac = seededRand(item.id, 3)
       return {
@@ -349,7 +396,7 @@ export function VocabularyLandscape({ items }: VocabularyLandscapeProps) {
         stage,
       }
     })
-  }, [items, xDim, maxAgeDays])
+  }, [items, xDim, maxAgeDays, minMonthIdx, monthSpan])
 
   // ── Canvas internal resolution setup ───────────────────────────────────────
   // Only sets canvas.width / canvas.height (internal buffer size).
@@ -372,9 +419,9 @@ export function VocabularyLandscape({ items }: VocabularyLandscapeProps) {
     const dpr = window.devicePixelRatio || 1
     ctx.save()
     ctx.scale(dpr, dpr)
-    drawCanvas(ctx, canvasW, dots, activeBands, xDim, colorDim, maxAgeDays, hoveredIdRef.current)
+    drawCanvas(ctx, canvasW, dots, activeBands, xDim, colorDim, maxAgeDays, minMonthIdx, monthSpan, hoveredIdRef.current)
     ctx.restore()
-  }, [canvasW, dots, activeBands, xDim, colorDim, maxAgeDays])
+  }, [canvasW, dots, activeBands, xDim, colorDim, maxAgeDays, minMonthIdx, monthSpan])
 
   useEffect(() => {
     scheduleRedraw()
@@ -421,7 +468,7 @@ export function VocabularyLandscape({ items }: VocabularyLandscapeProps) {
           const dpr = window.devicePixelRatio || 1
           ctx.save()
           ctx.scale(dpr, dpr)
-          drawCanvas(ctx, canvasW, dots, activeBands, xDim, colorDim, maxAgeDays, newId)
+          drawCanvas(ctx, canvasW, dots, activeBands, xDim, colorDim, maxAgeDays, minMonthIdx, monthSpan, newId)
           ctx.restore()
         }
       }
@@ -432,7 +479,7 @@ export function VocabularyLandscape({ items }: VocabularyLandscapeProps) {
     } else {
       setTooltip(null)
     }
-  }, [findNearestDot, canvasW, dots, activeBands, xDim, colorDim, maxAgeDays])
+  }, [findNearestDot, canvasW, dots, activeBands, xDim, colorDim, maxAgeDays, minMonthIdx, monthSpan])
 
   const handleMouseLeave = useCallback(() => {
     if (hoveredIdRef.current !== null) {
@@ -457,6 +504,7 @@ export function VocabularyLandscape({ items }: VocabularyLandscapeProps) {
   const xAxisLabel =
     xDim === 'exposure' ? '← less practised · challenge exposure (0 – 8 steps) · more practised →'
     : xDim === 'age'    ? '← recently added · days in your library · older →'
+    : xDim === 'month'  ? '← older additions · calendar month added to library · newer →'
     :                     '← active recently · days since last practice · dormant / never →'
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -475,6 +523,7 @@ export function VocabularyLandscape({ items }: VocabularyLandscapeProps) {
               ['exposure', 'Exposure'],
               ['age',      'Age'],
               ['recency',  'Recency'],
+              ['month',    'Month'],
             ] as [XDim, string][]
           ).map(([id, label]) => (
             <button
