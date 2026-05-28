@@ -60,6 +60,7 @@ import {
 } from '@/lib/statsLogic'
 import type { DisplayStage } from '@/lib/progressionLogic'
 import { VocabularyConstellation } from '@/components/VocabularyConstellation'
+import { VocabularyLandscape } from '@/components/VocabularyLandscape'
 import type { VocabItem } from '@/types/vocabulary'
 
 // ── Stage colour palette ───────────────────────────────────────────────────────
@@ -1773,6 +1774,16 @@ function AnalyticsView({
         usesThisWeek={usesThisWeek}
         avgExposure={avgExposure}
       />
+
+      {/* ── Word Space ── */}
+      <div>
+        <AnalyticsSectionHeader
+          title="Word Space"
+          subtitle="Every word as a dot — hover to identify, click to open"
+        />
+        <VocabularyLandscape items={nonArchived} />
+      </div>
+
       <GrowthChart cohorts={cohorts} />
       <StageEvolutionChart cohorts={cohorts} />
       <ActivityCalendar pointsHistory={pointsHistory} />
