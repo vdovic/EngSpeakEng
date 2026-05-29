@@ -26,6 +26,7 @@ import {
   ExternalLink, Loader2, Info,
 } from 'lucide-react'
 import { useDriveSyncStore, isDriveConfigured } from '@/store/driveSyncStore'
+import { startOAuthFlow } from '@/lib/googleAuth'
 import { useVocabStore }        from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore }       from '@/store/themesStore'
@@ -160,7 +161,7 @@ function SetupInstructions() {
       </div>
 
       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-sm text-slate-600 space-y-2.5">
-        <p className="font-semibold text-slate-700">One-time setup (3 minutes)</p>
+        <p className="font-semibold text-slate-700">One-time setup (5 minutes)</p>
         <ol className="space-y-1.5 list-decimal list-inside text-slate-600">
           <li>
             Go to{' '}
@@ -174,28 +175,28 @@ function SetupInstructions() {
             </a>
           </li>
           <li>Create a project → Enable <strong>Google Drive API</strong></li>
-          <li>
-            Configure <strong>OAuth consent screen</strong> → add your Google account
-            as a test user
-          </li>
+          <li>Configure OAuth consent screen → add yourself as a test user</li>
           <li>Create OAuth credentials → <strong>Web Application</strong></li>
           <li>
             Add your app URL to <em>Authorised JavaScript origins</em>{' '}
-            <span className="text-slate-400">(no redirect URIs needed)</span>
+            and <em>Authorised redirect URIs</em>
           </li>
           <li>
             Copy the <strong>Client ID</strong> → add to{' '}
-            <code className="font-mono bg-slate-100 px-1 rounded text-xs">.env.local</code>:{' '}
-            <code className="font-mono bg-slate-100 px-1 rounded text-xs">
-              VITE_GOOGLE_CLIENT_ID=…
-            </code>
+            <code className="font-mono bg-slate-100 px-1 rounded text-xs">.env.local</code>{' '}
+            as{' '}
+            <code className="font-mono bg-slate-100 px-1 rounded text-xs">VITE_GOOGLE_CLIENT_ID=…</code>
           </li>
-          <li>Restart the dev server</li>
+          <li>
+            Copy the <strong>Client Secret</strong> → add to Vercel env vars as{' '}
+            <code className="font-mono bg-slate-100 px-1 rounded text-xs">GOOGLE_CLIENT_SECRET=…</code>{' '}
+            (also to <code className="font-mono bg-slate-100 px-1 rounded text-xs">.env.local</code> for local dev)
+          </li>
+          <li>Restart the dev server (or redeploy)</li>
         </ol>
         <p className="text-xs text-slate-400 pt-1">
-          No client secret required — authentication runs entirely in the browser via
-          Google's Identity Services. Sessions last ~1 hour; tapping Connect again
-          re-authorises instantly if your Google session is still active.
+          The client ID is safe to commit. The client secret stays server-side only —
+          token exchange runs through a serverless proxy so the secret never reaches the browser.
         </p>
       </div>
     </div>
@@ -261,7 +262,9 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
 
   function handleConnect() {
     if (!CLIENT_ID) return
-    store.connect().catch(() => { /* error already set in store */ })
+    startOAuthFlow(CLIENT_ID).catch(() => {
+      store.setError('Failed to start Google sign-in. Please try again.')
+    })
   }
 
   async function handleSync() {
@@ -304,10 +307,10 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
     return (
       <div className="space-y-3">
         <p className="text-sm text-slate-600 leading-relaxed">
-          Connect your Google account to save a sync copy of your library in your
-          Google Drive. The file is stored in a hidden app-private folder — invisible
-          in your Drive UI and inaccessible to other apps.
-          Sessions last ~1 hour; tapping Connect again re-authorises instantly.
+          Connect your Google account to enable automatic sync between your devices.
+          Changes are synced silently in the background whenever you open the app or
+          switch between devices. The file is stored in a hidden app-private folder —
+          invisible in your Drive UI and inaccessible to other apps.
         </p>
 
         <div className="flex items-center gap-3 p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-sm text-sky-800">
@@ -348,6 +351,12 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
   // Connected
   return (
     <div className="space-y-4">
+
+      {/* ── Auto-sync badge ── */}
+      <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full w-fit">
+        <RefreshCw size={11} className={store.status === 'pulling' || store.status === 'pushing' ? 'animate-spin' : ''} />
+        {store.status === 'pulling' || store.status === 'pushing' ? 'Syncing…' : 'Auto-sync on'}
+      </div>
 
       {/* ── Status row ── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">

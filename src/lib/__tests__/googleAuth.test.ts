@@ -1,186 +1,186 @@
 /**
  * googleAuth.test.ts
  *
- * Tests for the GIS token-client helpers.
- * window.google is mocked directly — no external script loading in tests.
- *
- * Timing note:
- *   requestGoogleAccessToken starts with `await loadGisScript()` which, even
- *   when it resolves immediately, yields to the microtask queue. We must
- *   therefore yield (`await Promise.resolve()`) before triggering the GIS
- *   callback so that initTokenClient has had a chance to run and capture it.
+ * Tests for the PKCE OAuth helpers and callback detection.
  *
  * @vitest-environment jsdom
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { requestGoogleAccessToken, revokeGoogleToken } from '../googleAuth'
+import {
+  detectOAuthCallback,
+  clearCallbackFromUrl,
+  exchangeCodeForTokens,
+} from '../googleAuth'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── detectOAuthCallback ───────────────────────────────────────────────────────
 
-type GisCallback   = (response: Record<string, unknown>) => void
-type ErrorCallback = (error: { type: string }) => void
+describe('detectOAuthCallback', () => {
+  const originalLocation = window.location
 
-interface MockTokenClient {
-  requestAccessToken: ReturnType<typeof vi.fn>
-  /** Call after `await Promise.resolve()` to let initTokenClient register. */
-  triggerCallback:   (response: Record<string, unknown>) => void
-  triggerError:      (type: string) => void
-}
-
-/** Install window.google mock. Returns a handle for triggering callbacks. */
-function installGoogleMock(): MockTokenClient {
-  let storedCallback:      GisCallback   | null = null
-  let storedErrorCallback: ErrorCallback | null = null
-
-  const handle: MockTokenClient = {
-    requestAccessToken: vi.fn(),
-    triggerCallback:    (res)  => storedCallback?.(res),
-    triggerError:       (type) => storedErrorCallback?.({ type }),
+  function setSearch(search: string) {
+    Object.defineProperty(window, 'location', {
+      value:    { ...originalLocation, search, href: `http://localhost${search}` },
+      writable: true,
+    })
   }
 
-  Object.defineProperty(window, 'google', {
-    value: {
-      accounts: {
-        oauth2: {
-          initTokenClient: vi.fn().mockImplementation((cfg: {
-            callback:        GisCallback
-            error_callback?: ErrorCallback
-          }) => {
-            storedCallback      = cfg.callback
-            storedErrorCallback = cfg.error_callback ?? null
-            return handle
-          }),
-          revoke: vi.fn(),
-        },
-      },
-    },
-    writable:     true,
-    configurable: true,
-  })
-
-  return handle
-}
-
-/** Yield to the microtask queue so that initTokenClient runs after loadGisScript resolves. */
-const tick = () => Promise.resolve()
-
-// ── requestGoogleAccessToken ──────────────────────────────────────────────────
-
-describe('requestGoogleAccessToken', () => {
-  let handle: MockTokenClient
-
-  beforeEach(() => {
-    handle = installGoogleMock()
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok:   true,
-      json: async () => ({ email: 'user@example.com' }),
-    }))
-  })
-
   afterEach(() => {
-    vi.unstubAllGlobals()
-    Object.defineProperty(window, 'google', {
-      value: undefined, writable: true, configurable: true,
+    Object.defineProperty(window, 'location', {
+      value:    originalLocation,
+      writable: true,
     })
   })
 
-  it('resolves with correct AuthTokens on success', async () => {
-    const promise = requestGoogleAccessToken('client-123')
-    await tick()  // let loadGisScript() resolve + initTokenClient register
-
-    handle.triggerCallback({
-      access_token: 'tok_abc',
-      expires_in:   3600,
-      scope:        'https://www.googleapis.com/auth/drive.appdata',
-      token_type:   'Bearer',
-    })
-
-    const tokens = await promise
-    expect(tokens.accessToken).toBe('tok_abc')
-    expect(tokens.refreshToken).toBeNull()
-    expect(tokens.userEmail).toBe('user@example.com')
-    expect(tokens.expiresAt).toBeGreaterThan(Date.now())
+  it('returns null when URL has no OAuth params', () => {
+    setSearch('')
+    expect(detectOAuthCallback()).toBeNull()
   })
 
-  it('passes clientId and scope to initTokenClient', async () => {
-    const promise = requestGoogleAccessToken('my-client-id')
-    await tick()
-    handle.triggerCallback({ access_token: 'x', expires_in: 3600, scope: '', token_type: 'Bearer' })
-    await promise
-
-    const initMock = window.google!.accounts.oauth2.initTokenClient as ReturnType<typeof vi.fn>
-    const cfg = initMock.mock.calls[0][0]
-    expect(cfg.client_id).toBe('my-client-id')
-    expect(cfg.scope).toContain('drive.appdata')
+  it('returns null when URL has unrelated params', () => {
+    setSearch('?foo=bar&baz=qux')
+    expect(detectOAuthCallback()).toBeNull()
   })
 
-  it('rejects when the GIS response contains an error field', async () => {
-    const promise = requestGoogleAccessToken('client-id')
-    await tick()
-    handle.triggerCallback({ error: 'access_denied', error_description: 'User denied access' })
-
-    await expect(promise).rejects.toThrow('User denied access')
+  it('returns success result when code + state are present', () => {
+    setSearch('?code=my-code&state=my-state')
+    const result = detectOAuthCallback()
+    expect(result).toEqual({ type: 'success', code: 'my-code', state: 'my-state' })
   })
 
-  it('uses error field when error_description is absent', async () => {
-    const promise = requestGoogleAccessToken('client-id')
-    await tick()
-    handle.triggerCallback({ error: 'access_denied' })
-
-    await expect(promise).rejects.toThrow('access_denied')
+  it('returns error result when error param is present', () => {
+    setSearch('?error=access_denied')
+    const result = detectOAuthCallback()
+    expect(result).toEqual({ type: 'error', error: 'access_denied' })
   })
 
-  it('rejects when error_callback fires (e.g. popup closed)', async () => {
-    const promise = requestGoogleAccessToken('client-id')
-    await tick()
-    handle.triggerError('popup_closed_by_user')
-
-    await expect(promise).rejects.toThrow('popup_closed_by_user')
+  it('prefers error over code when both are present', () => {
+    setSearch('?code=x&state=y&error=access_denied')
+    expect(detectOAuthCallback()?.type).toBe('error')
   })
 
-  it('resolves with null email when userinfo fetch fails', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')))
-
-    const promise = requestGoogleAccessToken('client-id')
-    await tick()
-    handle.triggerCallback({ access_token: 'tok_xyz', expires_in: 3600, scope: '', token_type: 'Bearer' })
-
-    const tokens = await promise
-    expect(tokens.accessToken).toBe('tok_xyz')
-    expect(tokens.userEmail).toBeNull()
-  })
-
-  it('calls requestAccessToken with empty prompt', async () => {
-    const promise = requestGoogleAccessToken('client-id')
-    await tick()
-    handle.triggerCallback({ access_token: 'tok', expires_in: 3600, scope: '', token_type: 'Bearer' })
-    await promise
-
-    expect(handle.requestAccessToken).toHaveBeenCalledWith({ prompt: '' })
+  it('returns null when only code is present (no state)', () => {
+    setSearch('?code=my-code')
+    expect(detectOAuthCallback()).toBeNull()
   })
 })
 
-// ── revokeGoogleToken ─────────────────────────────────────────────────────────
+// ── clearCallbackFromUrl ───────────────────────────────────────────────────────
 
-describe('revokeGoogleToken', () => {
-  beforeEach(() => installGoogleMock())
-
-  afterEach(() => {
-    Object.defineProperty(window, 'google', {
-      value: undefined, writable: true, configurable: true,
+describe('clearCallbackFromUrl', () => {
+  it('removes code, state, and error from the URL without reload', () => {
+    const replaceState = vi.fn()
+    Object.defineProperty(window, 'history', {
+      value:    { ...window.history, replaceState },
+      writable: true,
     })
+    Object.defineProperty(window, 'location', {
+      value: {
+        href:   'http://localhost/?code=abc&state=xyz&foo=bar',
+        search: '?code=abc&state=xyz&foo=bar',
+      },
+      writable: true,
+    })
+
+    clearCallbackFromUrl()
+
+    expect(replaceState).toHaveBeenCalledOnce()
+    const calledUrl = replaceState.mock.calls[0][2] as string
+    expect(calledUrl).not.toContain('code=')
+    expect(calledUrl).not.toContain('state=')
+    expect(calledUrl).toContain('foo=bar')
+  })
+})
+
+// ── exchangeCodeForTokens ─────────────────────────────────────────────────────
+
+describe('exchangeCodeForTokens', () => {
+  beforeEach(() => {
+    localStorage.clear()
   })
 
-  it('calls google.accounts.oauth2.revoke with the token', () => {
-    revokeGoogleToken('my-token')
-    expect(
-      window.google!.accounts.oauth2.revoke as ReturnType<typeof vi.fn>
-    ).toHaveBeenCalledWith('my-token')
+  it('throws if PKCE session is missing (expired or never started)', async () => {
+    await expect(
+      exchangeCodeForTokens('code', 'state', 'client-id'),
+    ).rejects.toThrow('Session expired')
   })
 
-  it('does not throw when window.google is unavailable', () => {
-    Object.defineProperty(window, 'google', { value: undefined, writable: true, configurable: true })
-    expect(() => revokeGoogleToken('tok')).not.toThrow()
+  it('throws on state mismatch (CSRF protection)', async () => {
+    const session = {
+      verifier:    'verifier123',
+      state:       'good-state',
+      redirectUri: 'http://localhost:5173',
+      expiresAt:   Date.now() + 60_000,
+    }
+    localStorage.setItem('esa_pkce', JSON.stringify(session))
+
+    await expect(
+      exchangeCodeForTokens('code', 'bad-state', 'client-id'),
+    ).rejects.toThrow('state mismatch')
+  })
+
+  it('calls /api/google-token proxy with correct params on valid session', async () => {
+    const session = {
+      verifier:    'my-verifier',
+      state:       'my-state',
+      redirectUri: 'http://localhost:5173',
+      expiresAt:   Date.now() + 60_000,
+    }
+    localStorage.setItem('esa_pkce', JSON.stringify(session))
+
+    // Response shape from /api/google-token (camelCase — server normalises)
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok:   true,
+      json: async () => ({
+        accessToken:  'at123',
+        refreshToken: 'rt456',
+        expiresIn:    3600,
+        email:        'user@example.com',
+      }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const tokens = await exchangeCodeForTokens('auth-code', 'my-state', 'client-id')
+
+    expect(tokens.accessToken).toBe('at123')
+    expect(tokens.refreshToken).toBe('rt456')
+    expect(tokens.userEmail).toBe('user@example.com')
+    expect(tokens.expiresAt).toBeGreaterThan(Date.now())
+
+    // Must have called the server proxy, not Google directly
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/google-token')
+    const body = JSON.parse(init.body as string)
+    expect(body.codeVerifier).toBe('my-verifier')
+    expect(body.clientId).toBe('client-id')
+    expect(body.redirectUri).toBe('http://localhost:5173')
+
+    // PKCE session cleared after successful exchange
+    expect(localStorage.getItem('esa_pkce')).toBeNull()
+
+    vi.unstubAllGlobals()
+  })
+
+  it('throws when the proxy returns an error response', async () => {
+    const session = {
+      verifier:    'v',
+      state:       's',
+      redirectUri: 'http://localhost:5173',
+      expiresAt:   Date.now() + 60_000,
+    }
+    localStorage.setItem('esa_pkce', JSON.stringify(session))
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok:     false,
+      status: 400,
+      json:   async () => ({ error: 'invalid_grant' }),
+    }))
+
+    await expect(
+      exchangeCodeForTokens('code', 's', 'client-id'),
+    ).rejects.toThrow('invalid_grant')
+
+    vi.unstubAllGlobals()
   })
 })

@@ -7,8 +7,12 @@ import { OnboardingModal } from '@/components/OnboardingModal'
 import { QuickAddModal } from '@/components/QuickAddModal'
 import { useVocabStore } from '@/store/vocabStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
+import { useGamificationStore } from '@/store/gamificationStore'
+import { useThemesStore } from '@/store/themesStore'
 import { loadTodaySession, PRACTICE_MODE_KEY } from '@/lib/challengeSession'
-import { useDriveSyncStore } from '@/store/driveSyncStore'
+import { useDriveSyncStore, type ConfirmMergeHelpers } from '@/store/driveSyncStore'
+import { detectOAuthCallback, clearCallbackFromUrl } from '@/lib/googleAuth'
+import type { ExportExtras, GamificationSnapshot } from '@/lib/vocabImportExport'
 
 // ── Eager-loaded pages (part of the initial bundle — fast critical paths) ───────
 
@@ -93,17 +97,121 @@ function PageSpinner() {
 
 export default function App() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { load, loaded } = useVocabStore()
   const { completed: onboardingCompleted, reset: resetOnboarding } = useOnboardingStore()
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showQuickAdd,   setShowQuickAdd]   = useState(false)
+  const syncNotification = useDriveSyncStore((s) => s.syncNotification)
 
-  // ── Drive sync store hydration ────────────────────────────────────────────────
-  // Runs once on mount. Restores Drive auth + metadata from localStorage.
-  // GIS token client uses a popup flow — no OAuth redirect callback to handle.
+  // ── Drive sync: hydrate + OAuth callback ─────────────────────────────────────
+  // Runs once on mount. Hydrates Drive store from localStorage.
+  // Handles the redirect back from Google's OAuth consent page (?code=&state=).
   useEffect(() => {
     useDriveSyncStore.getState().hydrate()
+
+    const callback = detectOAuthCallback()
+    if (!callback) return
+
+    clearCallbackFromUrl()
+
+    if (callback.type === 'error') {
+      useDriveSyncStore.getState().setError(
+        `Google Drive sign-in was declined: ${callback.error}`
+      )
+    } else {
+      useDriveSyncStore
+        .getState()
+        .completeOAuthCallback(callback.code, callback.state)
+        .catch(() => { /* error already set in store */ })
+    }
+
+    navigate('/settings', { replace: true })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Drive auto-sync ───────────────────────────────────────────────────────────
+  // Runs after vocab data is loaded.
+  //
+  // Triggers:
+  //   • Initial load  — pull from Drive, merge, push merged result back
+  //   • Page visible  — same (catches changes made on the other device)
+  //   • Page hidden   — push local state (saves before user switches apps)
+  //
+  // All operations are silent: no preview panel, errors logged but not surfaced.
+  // If a manual merge preview (pendingMerge) is open the auto-sync is skipped.
+  useEffect(() => {
+    if (!loaded) return
+
+    /** Build the current local state snapshot for a sync operation. */
+    function buildSyncArgs(): {
+      localItems: ReturnType<typeof useVocabStore.getState>['items']
+      extras:     ExportExtras
+      helpers:    ConfirmMergeHelpers
+    } {
+      const vocab  = useVocabStore.getState()
+      const gami   = useGamificationStore.getState()
+      const themes = useThemesStore.getState()
+      const ob     = useOnboardingStore.getState()
+
+      const extras: ExportExtras = {
+        gamification: {
+          points:               gami.points,
+          streakDays:           gami.streakDays,
+          lastChallengeDate:    gami.lastChallengeDate,
+          badges:               gami.badges,
+          challengeCompletions: gami.challengeCompletions,
+          pointsHistory:        gami.pointsHistory,
+          goalTarget:           gami.goalTarget,
+          goalStartDate:        gami.goalStartDate,
+          goalDeadline:         gami.goalDeadline,
+          gamesPlayed:          gami.gamesPlayed,
+          bestGameStreak:       gami.bestGameStreak,
+        } as GamificationSnapshot,
+        themes: themes.themes,
+        preferences: {
+          onboardingCompleted: ob.completed,
+          onboardingProfile:   ob.profile ?? undefined,
+        },
+      }
+
+      const helpers: ConfirmMergeHelpers = {
+        bulkImport:        vocab.bulkImport,
+        applyGamification: (snap) => useGamificationStore.setState(snap),
+        addTheme:          themes.addTheme,
+        currentThemes:     themes.themes,
+        localItems:        vocab.items,
+        extras,
+      }
+
+      return { localItems: vocab.items, extras, helpers }
+    }
+
+    function triggerSilentSync() {
+      const drive = useDriveSyncStore.getState()
+      if (!drive.isAuthenticated) return
+      const { localItems, extras, helpers } = buildSyncArgs()
+      void drive.silentSync(localItems, extras, helpers)
+    }
+
+    function triggerSilentPush() {
+      const drive = useDriveSyncStore.getState()
+      if (!drive.isAuthenticated || drive.status !== 'idle') return
+      const { localItems, extras } = buildSyncArgs()
+      // Fire-and-forget: page is hiding, best effort
+      void drive.push(localItems, extras)
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') triggerSilentSync()
+      else triggerSilentPush()
+    }
+
+    // Sync on first load
+    triggerSilentSync()
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     load()
@@ -177,6 +285,19 @@ export default function App() {
 
       {/* Deep Practice session indicator — visible app-wide except on /challenge */}
       <DeepPracticeIndicator />
+
+      {/* ── Auto-sync notification toast ── */}
+      {syncNotification && (
+        <div
+          key={syncNotification.id}
+          className="fixed bottom-[5.5rem] md:bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+        >
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-700 text-white text-sm font-medium rounded-full shadow-lg whitespace-nowrap animate-fade-in-up">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 shrink-0" aria-hidden="true" />
+            {syncNotification.message}
+          </div>
+        </div>
+      )}
 
       {showOnboarding && (
         <OnboardingModal onClose={() => setShowOnboarding(false)} />
