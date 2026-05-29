@@ -155,6 +155,10 @@ interface DriveSyncActions {
    * Silent bidirectional sync — pull, merge, push with no user confirmation.
    * Called automatically on app start and on page-visible events.
    * Errors are swallowed (logged to console) so auto-sync never interrupts the user.
+   *
+   * Safe because mergeImportedVocabItems guarantees that protected progress fields
+   * (exposureCount, review counters, sentenceProduced, usageLogs) can never
+   * decrease: it always takes the MAX across both devices.
    */
   silentSync(
     localItems: VocabItem[],

@@ -224,6 +224,183 @@ describe('mergeImportedVocabItems — usageLogs union merge', () => {
   })
 })
 
+// ── Progress-safety guarantee ─────────────────────────────────────────────────
+// Protected fields must NEVER decrease, even when the cloud version has a newer
+// updatedAt but was never practised on that device.
+
+describe('mergeImportedVocabItems — progress safety (protected fields)', () => {
+  it('never decreases exposureCount when cloud version is newer but unpractised', () => {
+    // Desktop: practised 5 times, but cloud version (mobile fresh install) has count 0
+    const desktop = makeItem({
+      id:           'x1',
+      term:         'leverage',
+      updatedAt:    '2024-06-01T00:00:00.000Z',  // older
+      exposureCount: 5,
+    })
+    const cloud = makeItem({
+      id:           'x1',
+      term:         'leverage',
+      updatedAt:    '2024-07-01T00:00:00.000Z',  // newer (mobile re-uploaded)
+      exposureCount: 0,
+    })
+
+    const { merged } = mergeImportedVocabItems([desktop], [cloud])
+    const result = merged.find((i) => i.id === 'x1')!
+
+    // exposureCount must stay at 5 — it was never 0 on desktop
+    expect(result.exposureCount).toBe(5)
+  })
+
+  it('takes the higher exposureCount when local wins the updatedAt comparison', () => {
+    const local = makeItem({
+      id:           'x2',
+      term:         'stakeholder',
+      updatedAt:    '2024-12-01T00:00:00.000Z',  // newer
+      exposureCount: 2,
+    })
+    const cloud = makeItem({
+      id:           'x2',
+      term:         'stakeholder',
+      updatedAt:    '2024-06-01T00:00:00.000Z',  // older
+      exposureCount: 7,  // but had more practice on the other device
+    })
+
+    const { merged } = mergeImportedVocabItems([local], [cloud])
+    const result = merged.find((i) => i.id === 'x2')!
+
+    expect(result.exposureCount).toBe(7)
+  })
+
+  it('never decreases review.reviewCount or review.successfulRecalls', () => {
+    const desktop = makeItem({
+      id:        'x3',
+      term:      'mitigate',
+      updatedAt: '2024-06-01T00:00:00.000Z',
+      review: {
+        intervalDays:      4,
+        ease:              2.5,
+        reviewCount:       10,
+        successfulRecalls: 8,
+        sentenceProduced:  false,
+      },
+    })
+    const cloud = makeItem({
+      id:        'x3',
+      term:      'mitigate',
+      updatedAt: '2024-07-15T00:00:00.000Z',  // newer
+      review: {
+        intervalDays:      1,
+        ease:              2.5,
+        reviewCount:       0,
+        successfulRecalls: 0,
+        sentenceProduced:  false,
+      },
+    })
+
+    const { merged } = mergeImportedVocabItems([desktop], [cloud])
+    const result = merged.find((i) => i.id === 'x3')!
+
+    expect(result.review.reviewCount).toBe(10)
+    expect(result.review.successfulRecalls).toBe(8)
+  })
+
+  it('sentenceProduced stays true once either device has produced a sentence', () => {
+    const withSentence = makeItem({
+      id:        'x4',
+      term:      'accountability',
+      updatedAt: '2024-06-01T00:00:00.000Z',
+      review: {
+        intervalDays:      7,
+        ease:              2.5,
+        reviewCount:       5,
+        successfulRecalls: 5,
+        sentenceProduced:  true,  // desktop produced a sentence
+      },
+    })
+    const withoutSentence = makeItem({
+      id:        'x4',
+      term:      'accountability',
+      updatedAt: '2024-07-01T00:00:00.000Z',  // newer cloud — never produced sentence
+      review: {
+        intervalDays:      1,
+        ease:              2.5,
+        reviewCount:       0,
+        successfulRecalls: 0,
+        sentenceProduced:  false,
+      },
+    })
+
+    const { merged } = mergeImportedVocabItems([withSentence], [withoutSentence])
+    const result = merged.find((i) => i.id === 'x4')!
+
+    // The mastery gate must never be unset
+    expect(result.review.sentenceProduced).toBe(true)
+  })
+
+  it('preserves mySentence from either device when the winner has none', () => {
+    const withSentenceDevice = makeItem({
+      id:         'x5',
+      term:       'bandwidth',
+      updatedAt:  '2024-06-01T00:00:00.000Z',
+      mySentence: 'We need more bandwidth for this project.',
+    })
+    const withoutSentenceDevice = makeItem({
+      id:        'x5',
+      term:      'bandwidth',
+      updatedAt: '2024-07-01T00:00:00.000Z',  // newer, but no sentence
+    })
+
+    const { merged } = mergeImportedVocabItems([withSentenceDevice], [withoutSentenceDevice])
+    const result = merged.find((i) => i.id === 'x5')!
+
+    expect(result.mySentence).toBe('We need more bandwidth for this project.')
+  })
+
+  it('real-world scenario: mobile fresh-install cannot wipe desktop challenge progress', () => {
+    // Simulates the exact bug: desktop has 8 words at exposureCount 3–7.
+    // Mobile auto-synced the cloud snapshot but never practised → all exposureCount = 0.
+    // Mobile's updatedAt is newer (it re-uploaded the file).
+    // After the fix, desktop's progress must be preserved.
+    const desktopItems = ['align on', 'leverage', 'stakeholder', 'bandwidth'].map((term, i) =>
+      makeItem({
+        id:           `d${i}`,
+        term,
+        updatedAt:    '2024-06-01T00:00:00.000Z',
+        exposureCount: i + 3,  // 3, 4, 5, 6
+        review: {
+          intervalDays:      i + 1,
+          ease:              2.5,
+          reviewCount:       i + 3,
+          successfulRecalls: i + 2,
+          sentenceProduced:  i > 2,
+        },
+      }),
+    )
+    const cloudItems = desktopItems.map((item) => ({
+      ...item,
+      updatedAt:    '2024-07-01T00:00:00.000Z',  // newer
+      exposureCount: 0,
+      review: {
+        intervalDays:      1,
+        ease:              2.5,
+        reviewCount:       0,
+        successfulRecalls: 0,
+        sentenceProduced:  false,
+      },
+    }))
+
+    const { merged } = mergeImportedVocabItems(desktopItems, cloudItems)
+
+    for (let i = 0; i < desktopItems.length; i++) {
+      const result = merged.find((m) => m.id === `d${i}`)!
+      expect(result.exposureCount).toBe(i + 3)
+      expect(result.review.reviewCount).toBe(i + 3)
+      expect(result.review.successfulRecalls).toBe(i + 2)
+      if (i > 2) expect(result.review.sentenceProduced).toBe(true)
+    }
+  })
+})
+
 // ── Standard merge behaviour (regression tests) ───────────────────────────────
 
 describe('mergeImportedVocabItems — standard behaviour', () => {

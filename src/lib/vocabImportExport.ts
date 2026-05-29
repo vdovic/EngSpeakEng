@@ -235,14 +235,24 @@ function unionMergeUsageLogs(winner: VocabItem, loser: VocabItem): VocabItem {
  *
  * Strategy:
  *   • Same ID + same content    → keep existing (no change)
- *   • Same ID + different       → keep whichever was updated most recently (updatedAt)
- *                                  + always union-merge usageLogs from both devices
+ *   • Same ID + different       → updatedAt winner takes structural fields,
+ *                                  BUT protected progress counters always take MAX
  *   • Different ID + same term  → skip imported (duplicate by name, prefer existing)
  *   • Different ID + new term   → add as new
  *
- * Usage logs are ALWAYS union-merged by log.id, regardless of which version
- * "wins" the updatedAt comparison. This ensures no real-life usage evidence
- * is ever lost across devices.
+ * Progress-safety guarantee:
+ *   The following fields are ALWAYS kept at the maximum value across both devices,
+ *   regardless of which device has the newer updatedAt:
+ *     • exposureCount          — challenge drilling progress (0–8)
+ *     • review.reviewCount     — total SRS attempts
+ *     • review.successfulRecalls — correct recalls
+ *     • review.sentenceProduced — mastery gate; once true, stays true forever
+ *     • mySentence             — learner's produced sentence (prefer non-null)
+ *
+ *   Usage logs are ALSO union-merged by log.id (via unionMergeUsageLogs).
+ *   Together these two guarantees ensure no learning history is ever lost
+ *   across devices, even when a fresh install on one device produces a newer
+ *   timestamp for items that were never practised there.
  */
 export function mergeImportedVocabItems(
   existing: VocabItem[],
@@ -269,8 +279,32 @@ export function mergeImportedVocabItems(
         ? [imp, cur]
         : [cur, imp]
 
-      // Always union-merge usage logs regardless of who won
-      const unified = unionMergeUsageLogs(winner, loser)
+      // Protected progress fields: numeric learning counters must NEVER decrease,
+      // even if the winning device (newer updatedAt) never practised the word.
+      // A fresh install on mobile re-uploads the cloud snapshot with its own
+      // timestamp, which can be newer than desktop's — without this guard, that
+      // would silently wipe all challenge progress on the desktop side.
+      const safeWinner: VocabItem = {
+        ...winner,
+        // Challenge drilling progress
+        exposureCount: Math.max(winner.exposureCount ?? 0, loser.exposureCount ?? 0),
+        // SRS counters — keep max; winner's scheduling state (ease, intervalDays,
+        // nextReviewAt, lastReviewedAt) is kept because it reflects the most recent
+        // review session on the winning device.
+        review: {
+          ...winner.review,
+          reviewCount:       Math.max(winner.review.reviewCount       ?? 0, loser.review.reviewCount       ?? 0),
+          successfulRecalls: Math.max(winner.review.successfulRecalls ?? 0, loser.review.successfulRecalls ?? 0),
+          // Once a sentence has been produced on any device, that fact is permanent.
+          sentenceProduced:  winner.review.sentenceProduced || loser.review.sentenceProduced,
+        },
+        // Preserve the learner's own sentence from either device
+        mySentence: winner.mySentence ?? loser.mySentence,
+      }
+
+      // Always union-merge usage logs regardless of who won.
+      // unionMergeUsageLogs also max-merges usageCount.
+      const unified = unionMergeUsageLogs(safeWinner, loser)
 
       if (unified !== cur) {
         // Something changed — update the merged map
