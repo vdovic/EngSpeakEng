@@ -11,8 +11,9 @@ import { useRef, useState } from 'react'
 import {
   Download, Upload, ShieldCheck, AlertTriangle, Info,
   CheckCircle2, XCircle, ChevronDown, ChevronUp, FileJson,
-  AlertCircle, Activity,
+  AlertCircle, Activity, Cloud,
 } from 'lucide-react'
+import { DriveSync } from '@/components/DriveSync'
 import { useVocabStore }       from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore }       from '@/store/themesStore'
@@ -603,6 +604,15 @@ export function SettingsPage() {
           Manage your library data — export backups, import from a file, validate content quality, and view app info.
         </p>
       </div>
+
+      <Section title="Google Drive Sync" icon={Cloud}>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Keep your vocabulary in sync across mobile and desktop. Data is stored in a
+          hidden app-private folder in your Google Drive — not visible to you or other
+          apps. Sync is always explicit: nothing uploads automatically.
+        </p>
+        <DriveSync items={allItems} />
+      </Section>
 
       <ExportSection items={allItems} />
       <ImportSection items={allItems} />

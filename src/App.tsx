@@ -8,6 +8,8 @@ import { QuickAddModal } from '@/components/QuickAddModal'
 import { useVocabStore } from '@/store/vocabStore'
 import { useOnboardingStore } from '@/store/onboardingStore'
 import { loadTodaySession, PRACTICE_MODE_KEY } from '@/lib/challengeSession'
+import { useDriveSyncStore } from '@/store/driveSyncStore'
+import { detectOAuthCallback, clearCallbackFromUrl } from '@/lib/googleAuth'
 
 // ── Eager-loaded pages (part of the initial bundle — fast critical paths) ───────
 
@@ -92,10 +94,39 @@ function PageSpinner() {
 
 export default function App() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { load, loaded } = useVocabStore()
   const { completed: onboardingCompleted, reset: resetOnboarding } = useOnboardingStore()
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [showQuickAdd,   setShowQuickAdd]   = useState(false)
+
+  // ── Google Drive OAuth callback + store hydration ─────────────────────────────
+  // Runs once on mount. Handles the redirect back from Google's OAuth page,
+  // and ensures the Drive sync store is hydrated from localStorage on every load.
+  useEffect(() => {
+    // Hydrate Drive auth + metadata from localStorage on every app start
+    useDriveSyncStore.getState().hydrate()
+
+    // Handle OAuth2 PKCE callback (?code=...&state=... in the URL)
+    const callback = detectOAuthCallback()
+    if (!callback) return
+
+    clearCallbackFromUrl()  // clean up URL before any other logic
+
+    if (callback.type === 'error') {
+      useDriveSyncStore.getState().setError(
+        `Google Drive sign-in was declined: ${callback.error}`
+      )
+    } else {
+      useDriveSyncStore
+        .getState()
+        .completeOAuthCallback(callback.code, callback.state)
+        .catch(() => { /* error already set in the store */ })
+    }
+
+    // Navigate to Settings so the user sees the connection result
+    navigate('/settings', { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     load()

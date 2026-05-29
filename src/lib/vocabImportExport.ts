@@ -14,7 +14,7 @@
  *     can continue using parseImportedVocabJson directly.
  */
 
-import type { Badge, VocabItem } from '@/types/vocabulary'
+import type { Badge, UsageLog, VocabItem } from '@/types/vocabulary'
 import { migrateItem } from '@/lib/migration'
 import { APP_VERSION } from '@/lib/appVersion'
 
@@ -188,6 +188,46 @@ export interface MergeResult {
   added:             number       // net new items added
   skippedDuplicates: number       // items skipped because term already exists (same id)
   updatedExisting:   number       // items where id matched but content differed (updatedAt wins)
+  /** Items where usage logs were union-merged from both devices (sacred history preserved) */
+  logsUnionMerged:   number
+}
+
+// ── Usage log union merge ──────────────────────────────────────────────────────
+
+/**
+ * Union-merge the usage logs of two versions of the same item.
+ * The winner's structural fields are preserved; logs from both devices are
+ * combined by ID so no history is ever discarded.
+ *
+ * This is the core of the "learner history is sacred" guarantee:
+ * even if the losing device was "newer" in other fields, its usage evidence
+ * (sentences produced, channels used) is always preserved.
+ */
+function unionMergeUsageLogs(winner: VocabItem, loser: VocabItem): VocabItem {
+  const loserLogs  = loser.activation?.usageLogs  ?? []
+  const winnerLogs = winner.activation?.usageLogs ?? []
+
+  if (loserLogs.length === 0) return winner  // fast path: nothing to add
+
+  const logById = new Map<string, UsageLog>()
+  // Loser's logs go in first; winner's override on duplicate IDs
+  for (const log of loserLogs)  logById.set(log.id, log)
+  for (const log of winnerLogs) logById.set(log.id, log)
+
+  const mergedLogs = Array.from(logById.values())
+    .sort((a, b) => a.usedAt.localeCompare(b.usedAt))
+
+  if (mergedLogs.length === winnerLogs.length) return winner  // no new logs
+
+  return {
+    ...winner,
+    activation: {
+      ...winner.activation,
+      usageLogs:  mergedLogs,
+      // usageCount must never decrease below actual evidence
+      usageCount: Math.max(winner.activation?.usageCount ?? 0, mergedLogs.length),
+    },
+  }
 }
 
 /**
@@ -195,20 +235,26 @@ export interface MergeResult {
  *
  * Strategy:
  *   • Same ID + same content    → keep existing (no change)
- *   • Same ID + different       → keep whichever was updated most recently
+ *   • Same ID + different       → keep whichever was updated most recently (updatedAt)
+ *                                  + always union-merge usageLogs from both devices
  *   • Different ID + same term  → skip imported (duplicate by name, prefer existing)
  *   • Different ID + new term   → add as new
+ *
+ * Usage logs are ALWAYS union-merged by log.id, regardless of which version
+ * "wins" the updatedAt comparison. This ensures no real-life usage evidence
+ * is ever lost across devices.
  */
 export function mergeImportedVocabItems(
   existing: VocabItem[],
   imported: VocabItem[],
 ): MergeResult {
-  const byId   = new Map(existing.map((i) => [i.id,                     i]))
+  const byId   = new Map(existing.map((i) => [i.id,                       i]))
   const byTerm = new Map(existing.map((i) => [i.term.trim().toLowerCase(), i]))
 
   let added             = 0
   let skippedDuplicates = 0
   let updatedExisting   = 0
+  let logsUnionMerged   = 0
 
   const merged = new Map(byId)  // start with all existing items
 
@@ -216,13 +262,24 @@ export function mergeImportedVocabItems(
     const termKey = imp.term.trim().toLowerCase()
 
     if (merged.has(imp.id)) {
-      // Same ID already in library — compare updatedAt to decide which wins
       const cur = merged.get(imp.id)!
-      if (imp.updatedAt > cur.updatedAt) {
-        merged.set(imp.id, imp)
-        updatedExisting++
+
+      // Determine structural winner by updatedAt
+      const [winner, loser] = imp.updatedAt > cur.updatedAt
+        ? [imp, cur]
+        : [cur, imp]
+
+      // Always union-merge usage logs regardless of who won
+      const unified = unionMergeUsageLogs(winner, loser)
+
+      if (unified !== cur) {
+        // Something changed — update the merged map
+        merged.set(imp.id, unified)
+        if (imp.updatedAt > cur.updatedAt) updatedExisting++
+        if (unified.activation.usageLogs.length > cur.activation?.usageLogs?.length) {
+          logsUnionMerged++
+        }
       }
-      // else: keep existing — no action needed
     } else if (byTerm.has(termKey)) {
       // Different ID but same term — treat as duplicate by name
       skippedDuplicates++
@@ -234,10 +291,11 @@ export function mergeImportedVocabItems(
   }
 
   return {
-    merged:            Array.from(merged.values()),
+    merged: Array.from(merged.values()),
     added,
     skippedDuplicates,
     updatedExisting,
+    logsUnionMerged,
   }
 }
 
