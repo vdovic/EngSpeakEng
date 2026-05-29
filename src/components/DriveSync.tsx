@@ -30,7 +30,6 @@ import { useVocabStore }        from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore }       from '@/store/themesStore'
 import { useOnboardingStore }   from '@/store/onboardingStore'
-import { startOAuthFlow }       from '@/lib/googleAuth'
 import type { ExportExtras }    from '@/lib/vocabImportExport'
 import type { GamificationSnapshot } from '@/lib/vocabImportExport'
 
@@ -161,7 +160,7 @@ function SetupInstructions() {
       </div>
 
       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-sm text-slate-600 space-y-2.5">
-        <p className="font-semibold text-slate-700">One-time setup (5 minutes)</p>
+        <p className="font-semibold text-slate-700">One-time setup (3 minutes)</p>
         <ol className="space-y-1.5 list-decimal list-inside text-slate-600">
           <li>
             Go to{' '}
@@ -175,10 +174,14 @@ function SetupInstructions() {
             </a>
           </li>
           <li>Create a project → Enable <strong>Google Drive API</strong></li>
+          <li>
+            Configure <strong>OAuth consent screen</strong> → add your Google account
+            as a test user
+          </li>
           <li>Create OAuth credentials → <strong>Web Application</strong></li>
           <li>
             Add your app URL to <em>Authorised JavaScript origins</em>{' '}
-            and <em>Authorised redirect URIs</em>
+            <span className="text-slate-400">(no redirect URIs needed)</span>
           </li>
           <li>
             Copy the <strong>Client ID</strong> → add to{' '}
@@ -187,20 +190,12 @@ function SetupInstructions() {
               VITE_GOOGLE_CLIENT_ID=…
             </code>
           </li>
-          <li>
-            Copy the <strong>Client Secret</strong> → add to Vercel environment variables
-            (or <code className="font-mono bg-slate-100 px-1 rounded text-xs">.env.local</code>{' '}
-            for local dev) as{' '}
-            <code className="font-mono bg-slate-100 px-1 rounded text-xs">
-              GOOGLE_CLIENT_SECRET=…
-            </code>{' '}
-            — never prefix with <code className="font-mono bg-slate-100 px-1 rounded text-xs">VITE_</code>
-          </li>
           <li>Restart the dev server</li>
         </ol>
         <p className="text-xs text-slate-400 pt-1">
-          The client ID is safe to commit. The client secret is kept server-side only —
-          token exchange is proxied through a serverless function so the secret never reaches the browser.
+          No client secret required — authentication runs entirely in the browser via
+          Google's Identity Services. Sessions last ~1 hour; tapping Connect again
+          re-authorises instantly if your Google session is still active.
         </p>
       </div>
     </div>
@@ -266,9 +261,7 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
 
   function handleConnect() {
     if (!CLIENT_ID) return
-    startOAuthFlow(CLIENT_ID).catch(() => {
-      store.setError('Failed to start Google sign-in. Please try again.')
-    })
+    store.connect().catch(() => { /* error already set in store */ })
   }
 
   async function handleSync() {
@@ -314,6 +307,7 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
           Connect your Google account to save a sync copy of your library in your
           Google Drive. The file is stored in a hidden app-private folder — invisible
           in your Drive UI and inaccessible to other apps.
+          Sessions last ~1 hour; tapping Connect again re-authorises instantly.
         </p>
 
         <div className="flex items-center gap-3 p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-sm text-sky-800">

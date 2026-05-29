@@ -2,21 +2,27 @@
  * driveSyncStore.ts — Google Drive sync state and actions
  *
  * Architecture:
- *   • Auth tokens and sync metadata are stored in localStorage directly
+ *   • Auth tokens and sync metadata stored in localStorage directly
  *     (not via Zustand persist) so we control exactly what is written and when.
- *   • Token refresh is handled transparently in _getValidToken().
- *   • Push/pull/sync operations update both localStorage and Zustand state.
- *   • No auto-sync: every Drive operation requires explicit user action.
+ *   • Token validity is checked lazily in _getValidToken(). Expired tokens are
+ *     cleared and the user is prompted to reconnect.
+ *   • All Drive operations require explicit user action — no auto-sync.
  *
- * OAuth2 client ID is read from import.meta.env.VITE_GOOGLE_CLIENT_ID.
- * If absent, the store is effectively a no-op and the UI shows setup instructions.
+ * Auth model (GIS token client — no backend):
+ *   • Access tokens last ~1 hour. No refresh tokens.
+ *   • connect() opens Google's popup; resolves immediately if session is active.
+ *   • When a token expires the store reverts to not-authenticated; the UI shows
+ *     the Connect button again. One tap re-authorises without a full redirect.
+ *
+ * OAuth client ID read from import.meta.env.VITE_GOOGLE_CLIENT_ID.
+ * If absent the store is a no-op and the UI shows setup instructions.
  */
 
 import { create } from 'zustand'
 import {
   type AuthTokens,
-  exchangeCodeForTokens,
-  refreshAccessToken,
+  requestGoogleAccessToken,
+  revokeGoogleToken,
 } from '@/lib/googleAuth'
 import {
   findSyncFile,
@@ -44,12 +50,12 @@ const META_KEY = 'esa_drive_meta'   // PersistedMeta
 
 // ── Persisted shapes ───────────────────────────────────────────────────────────
 
-type PersistedAuth = AuthTokens  // { accessToken, refreshToken, expiresAt, userEmail }
+type PersistedAuth = AuthTokens  // { accessToken, refreshToken: null, expiresAt, userEmail }
 
 interface PersistedMeta {
-  fileId:          string | null  // cached Drive file ID
-  lastSyncedAt:    string | null  // ISO — when we last successfully pushed/pulled
-  cloudModifiedAt: string | null  // ISO — last known Drive file modifiedTime
+  fileId:          string | null
+  lastSyncedAt:    string | null  // ISO
+  cloudModifiedAt: string | null  // ISO
 }
 
 function loadAuth(): PersistedAuth | null {
@@ -88,11 +94,9 @@ function clearMeta(): void {
 
 // ── Pending merge ──────────────────────────────────────────────────────────────
 
-/** A computed merge preview waiting for user confirmation. */
 export interface PendingMerge {
   preview:              MergeResult
   cloudPayload:         FullExportParseResult
-  /** If true (Sync flow), push merged result back to Drive after local apply. */
   shouldPushAfterApply: boolean
 }
 
@@ -115,7 +119,6 @@ interface DriveSyncState {
   error:           string | null
   pendingMerge:    PendingMerge | null
   isAuthenticated: boolean
-  /** True when cloudModifiedAt is set and newer than lastSyncedAt */
   hasNewerCloud:   boolean
 }
 
@@ -131,63 +134,55 @@ interface ConfirmMergeHelpers {
 interface DriveSyncActions {
   /**
    * Load auth + meta from localStorage.
-   * Call once on app init (in App.tsx useEffect).
+   * Discards any stored token that has already expired.
+   * Call once on app init.
    */
   hydrate(): void
 
   /**
-   * Complete the OAuth2 PKCE callback after the Google redirect.
-   * Called by App.tsx when it detects ?code=...&state=... in the URL.
+   * Open the Google consent popup and store the resulting access token.
+   * Fast if the user has an active Google session (typically one click).
    */
-  completeOAuthCallback(code: string, state: string): Promise<void>
+  connect(): Promise<void>
 
-  /** Set an error message from outside (e.g. OAuth decline callback). */
+  /** Set an error message from outside. */
   setError(msg: string): void
 
-  /** Disconnect — wipe auth + sync metadata from memory and localStorage. */
+  /** Disconnect — revoke token, wipe auth + sync metadata. */
   disconnect(): void
 
   /**
-   * Lightweight cloud version check.
-   * Fetches only the file's modifiedTime — no content transfer.
+   * Lightweight cloud version check — fetches only modifiedTime.
    * Updates hasNewerCloud if cloud is ahead of lastSyncedAt.
-   * Safe to call when the Settings page opens.
    */
   checkCloudVersion(): Promise<void>
 
   /**
-   * Pull — fetch cloud file, compute merge preview, expose as pendingMerge.
+   * Pull cloud file, compute merge preview, expose as pendingMerge.
    * Nothing is written locally until confirmMerge() is called.
-   *
-   * @param shouldPushAfterApply  true for Sync flow (push merged result back to Drive)
    */
-  pull(
-    localItems:           VocabItem[],
-    shouldPushAfterApply: boolean,
-  ): Promise<void>
+  pull(localItems: VocabItem[], shouldPushAfterApply: boolean): Promise<void>
 
   /**
-   * Push — serialize current local state and write to Drive.
+   * Serialize local state and write to Drive.
    * Does NOT pull or merge — overwrites cloud with local data.
-   * Callers should show a confirmation dialog before calling this.
    */
   push(localItems: VocabItem[], extras: ExportExtras): Promise<void>
 
   /**
    * Apply the pending merge to local stores, then (for Sync) push back to Drive.
-   * All the stores needed for the full apply are passed as helpers.
    */
   confirmMerge(helpers: ConfirmMergeHelpers): Promise<void>
 
   cancelMerge(): void
-  clearError(): void
+  clearError():  void
 
   // ── Internal ──────────────────────────────────────────────────────────────────
 
-  /** Get a valid access token, auto-refreshing if it's about to expire. */
+  /** Return valid access token or throw (clears auth + sets error on expiry). */
   _getValidToken(): Promise<string>
 
-  /** Return the cached fileId or search Drive for the sync file. */
+  /** Return cached fileId or search Drive for the sync file. */
   _ensureFileId(accessToken: string): Promise<string | null>
 }
 
@@ -198,7 +193,7 @@ type DriveSyncStore = DriveSyncState & DriveSyncActions
 const CLIENT_ID: string =
   (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? ''
 
-// ── Derived helper ────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function deriveHasNewerCloud(
   cloudModifiedAt: string | null,
@@ -211,10 +206,16 @@ function deriveHasNewerCloud(
   )
 }
 
+const TWO_MINUTES = 2 * 60 * 1000
+
+/** Returns true if the token has more than 2 minutes of life left. */
+function isTokenValid(auth: PersistedAuth): boolean {
+  return auth.expiresAt - Date.now() > TWO_MINUTES
+}
+
 // ── Store ──────────────────────────────────────────────────────────────────────
 
 export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
-  // ── Initial state ────────────────────────────────────────────────────────────
   auth:            null,
   fileId:          null,
   lastSyncedAt:    null,
@@ -227,26 +228,31 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
 
   // ── hydrate ──────────────────────────────────────────────────────────────────
   hydrate() {
-    const auth = loadAuth()
+    const raw  = loadAuth()
     const meta = loadMeta()
+
+    // Discard already-expired tokens on startup so UI shows "Connect" immediately
+    const auth = raw && isTokenValid(raw) ? raw : null
+    if (raw && !auth) clearAuth()
+
     set({
       auth,
       fileId:          meta.fileId,
       lastSyncedAt:    meta.lastSyncedAt,
       cloudModifiedAt: meta.cloudModifiedAt,
-      isAuthenticated: auth !== null && auth.refreshToken !== null,
+      isAuthenticated: auth !== null,
       hasNewerCloud:   deriveHasNewerCloud(meta.cloudModifiedAt, meta.lastSyncedAt),
       status:          'idle',
       error:           null,
     })
   },
 
-  // ── completeOAuthCallback ─────────────────────────────────────────────────────
-  async completeOAuthCallback(code, state) {
+  // ── connect ───────────────────────────────────────────────────────────────────
+  async connect() {
     if (!CLIENT_ID) return
     set({ status: 'connecting', error: null })
     try {
-      const tokens = await exchangeCodeForTokens(code, state, CLIENT_ID)
+      const tokens = await requestGoogleAccessToken(CLIENT_ID)
       saveAuth(tokens)
       set({ auth: tokens, isAuthenticated: true, status: 'idle', error: null })
     } catch (e) {
@@ -261,6 +267,8 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
 
   // ── disconnect ────────────────────────────────────────────────────────────────
   disconnect() {
+    const { auth } = get()
+    if (auth) revokeGoogleToken(auth.accessToken)
     clearAuth()
     clearMeta()
     set({
@@ -285,12 +293,10 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
     try {
       const accessToken = await get()._getValidToken()
 
-      // Try cached fileId first (avoids a search round-trip)
       let meta: DriveFileMeta | null = null
       if (fileId) {
         meta = await getSyncFileMeta(accessToken, fileId).catch(() => null)
       }
-      // Fall back to search if no cached ID or file was deleted
       if (!meta) {
         meta = await findSyncFile(accessToken)
         if (meta) {
@@ -302,14 +308,13 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
 
       const cloudModifiedAt = meta?.modifiedTime ?? null
       const { lastSyncedAt } = get()
-      const hasNewerCloud = deriveHasNewerCloud(cloudModifiedAt, lastSyncedAt)
+      const hasNewerCloud    = deriveHasNewerCloud(cloudModifiedAt, lastSyncedAt)
 
       const persisted = loadMeta()
       saveMeta({ ...persisted, cloudModifiedAt })
       set({ cloudModifiedAt, hasNewerCloud, status: 'idle' })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not check cloud version'
-      // Non-fatal: revert to idle, show error
       set({ status: 'error', error: msg })
     }
   },
@@ -322,7 +327,6 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
       const resolvedId  = await get()._ensureFileId(accessToken)
 
       if (!resolvedId) {
-        // No cloud file yet — nothing to pull, transition back to idle
         set({ status: 'idle' })
         return
       }
@@ -332,7 +336,7 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
       const preview      = mergeImportedVocabItems(localItems, cloudPayload.items)
 
       set({
-        status:      'idle',
+        status:       'idle',
         pendingMerge: { preview, cloudPayload, shouldPushAfterApply },
       })
     } catch (e) {
@@ -383,10 +387,8 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
     set({ pendingMerge: null, status: 'pulling' })
 
     try {
-      // 1. Apply vocab items (union-merged, as computed in preview.merged)
       await helpers.bulkImport(preview.merged)
 
-      // 2. Apply gamification — max-wins merge
       let mergedGamification = helpers.extras.gamification
       if (cloudPayload.gamification) {
         if (helpers.extras.gamification) {
@@ -400,7 +402,6 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
         helpers.applyGamification(mergedGamification!)
       }
 
-      // 3. Apply themes — union
       const allThemes = [...helpers.currentThemes]
       if (cloudPayload.themes) {
         for (const t of cloudPayload.themes) {
@@ -413,7 +414,6 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
 
       set({ status: 'idle' })
 
-      // 4. If Sync flow: push the fully-merged result back to Drive
       if (shouldPushAfterApply) {
         const mergedExtras: ExportExtras = {
           ...helpers.extras,
@@ -442,24 +442,17 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
     if (!auth) throw new Error('Not connected to Google Drive.')
     if (!CLIENT_ID) throw new Error('Google Drive is not configured (VITE_GOOGLE_CLIENT_ID missing).')
 
-    // Refresh early — don't wait until the last second
-    const TWO_MINUTES = 2 * 60 * 1000
-    if (auth.expiresAt - Date.now() > TWO_MINUTES) {
-      return auth.accessToken
-    }
+    if (isTokenValid(auth)) return auth.accessToken
 
-    if (!auth.refreshToken) {
-      clearAuth()
-      set({ isAuthenticated: false, auth: null, error: 'Session expired — please reconnect.' })
-      throw new Error('Session expired — please reconnect Google Drive.')
-    }
-
-    const refreshed = await refreshAccessToken(auth.refreshToken, CLIENT_ID)
-    // Preserve userEmail (not returned by the refresh endpoint)
-    const updated: PersistedAuth = { ...refreshed, userEmail: auth.userEmail ?? refreshed.userEmail }
-    saveAuth(updated)
-    set({ auth: updated })
-    return updated.accessToken
+    // GIS tokens cannot be refreshed silently — clear and ask user to reconnect
+    clearAuth()
+    set({
+      isAuthenticated: false,
+      auth:            null,
+      status:          'error',
+      error:           'Google session expired — tap Connect to continue.',
+    })
+    throw new Error('Google session expired — tap Connect to continue.')
   },
 
   // ── _ensureFileId ─────────────────────────────────────────────────────────────

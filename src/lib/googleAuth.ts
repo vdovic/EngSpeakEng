@@ -1,252 +1,158 @@
 /**
- * googleAuth.ts — OAuth2 PKCE flow for Google Drive
+ * googleAuth.ts — Google Identity Services (GIS) token client
  *
- * Browser-only PKCE implementation.
- * Token exchange and refresh are proxied through Vercel serverless endpoints
- * so that GOOGLE_CLIENT_SECRET never reaches the browser.
+ * Browser-only. No backend, no client_secret, no redirect URI required.
  *
- * Why a server proxy:
- *   Google's "Web Application" OAuth2 credentials are confidential clients.
- *   The token endpoint requires client_secret even when PKCE is used.
- *   /api/google-token and /api/google-refresh hold client_secret server-side.
- *   The browser still generates and owns the PKCE code_verifier — security is
- *   preserved because Google validates the verifier before issuing tokens.
+ * Uses Google's GIS library (https://accounts.google.com/gsi/client) to obtain
+ * OAuth2 access tokens directly in the browser via a popup/overlay flow.
+ *
+ * Trade-off vs authorisation-code + backend:
+ *   • No refresh tokens — access tokens expire in ~1 hour.
+ *   • When expired, user taps "Connect" again — typically a one-click popup if
+ *     their Google session is still active in the browser.
+ *   • No GOOGLE_CLIENT_SECRET, no Vercel serverless functions needed.
+ *
+ * Google Cloud Console setup:
+ *   • OAuth 2.0 credentials → Web Application
+ *   • Authorised JavaScript origins: your app URL(s)
+ *   • Redirect URIs: not required for the token-client flow
  *
  * Flow:
- *   1. startOAuthFlow(clientId)   — generate verifier+state, redirect to Google
- *   2. detectOAuthCallback()      — read ?code=&state= from the redirect URL
- *   3. exchangeCodeForTokens()    — POST to /api/google-token (server adds secret)
- *   4. refreshAccessToken()       — POST to /api/google-refresh (server adds secret)
- *
- * PKCE session storage:
- *   localStorage with 5-min TTL — survives iOS PWA external-page navigation.
- *   sessionStorage is intentionally avoided (lost when iOS PWA navigates away).
+ *   1. requestGoogleAccessToken(clientId)
+ *      → loads GIS script on first call (cached for the session)
+ *      → opens Google's consent popup
+ *      → resolves with AuthTokens on success
+ *      → rejects on cancel or error
+ *   2. revokeGoogleToken(accessToken)
+ *      → best-effort revoke (called on Disconnect)
  */
 
-export const GOOGLE_SCOPES =
-  'openid email https://www.googleapis.com/auth/drive.appdata'
-
-const PKCE_STORAGE_KEY = 'esa_pkce'
-
-interface PkceSession {
-  verifier:    string
-  state:       string
-  redirectUri: string  // window.location.origin at flow start — passed to server
-  expiresAt:   number  // unix ms
-}
+export const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.appdata'
 
 export interface AuthTokens {
   accessToken:  string
-  refreshToken: string | null
-  expiresAt:    number        // unix ms
+  refreshToken: null   // GIS never provides refresh tokens
+  expiresAt:    number // unix ms
   userEmail:    string | null
 }
 
-// ── Crypto helpers ─────────────────────────────────────────────────────────────
+// ── GIS ambient types ─────────────────────────────────────────────────────────
 
-function base64UrlEncode(buffer: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '')
+interface GisTokenResponse {
+  access_token:       string
+  expires_in:         number
+  scope:              string
+  token_type:         string
+  error?:             string
+  error_description?: string
 }
 
-function generateRandom(byteLength: number): string {
-  const array = new Uint8Array(byteLength)
-  crypto.getRandomValues(array)
-  return base64UrlEncode(array.buffer)
+interface GisTokenClientConfig {
+  client_id:       string
+  scope:           string
+  callback:        (response: GisTokenResponse) => void
+  error_callback?: (error: { type: string }) => void
 }
 
-async function sha256Base64Url(plain: string): Promise<string> {
-  const data   = new TextEncoder().encode(plain)
-  const digest = await crypto.subtle.digest('SHA-256', data)
-  return base64UrlEncode(digest)
+interface GisTokenClient {
+  requestAccessToken(config?: { prompt?: string }): void
 }
 
-// ── PKCE session ──────────────────────────────────────────────────────────────
-
-function storePkceSession(session: PkceSession): void {
-  localStorage.setItem(PKCE_STORAGE_KEY, JSON.stringify(session))
-}
-
-function loadPkceSession(): PkceSession | null {
-  try {
-    const raw = localStorage.getItem(PKCE_STORAGE_KEY)
-    if (!raw) return null
-    const session = JSON.parse(raw) as PkceSession
-    if (Date.now() > session.expiresAt) {
-      localStorage.removeItem(PKCE_STORAGE_KEY)
-      return null
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        oauth2: {
+          initTokenClient(config: GisTokenClientConfig): GisTokenClient
+          revoke(accessToken: string, done?: () => void):  void
+        }
+      }
     }
-    return session
-  } catch {
-    return null
   }
 }
 
-function clearPkceSession(): void {
-  localStorage.removeItem(PKCE_STORAGE_KEY)
+// ── GIS script loader ─────────────────────────────────────────────────────────
+
+let _gisScriptPromise: Promise<void> | null = null
+
+/** Load the GIS script once per page load. Returns immediately if already loaded. */
+export function loadGisScript(): Promise<void> {
+  if (window.google?.accounts?.oauth2) return Promise.resolve()
+  if (_gisScriptPromise) return _gisScriptPromise
+  _gisScriptPromise = new Promise<void>((resolve, reject) => {
+    const script    = document.createElement('script')
+    script.src      = 'https://accounts.google.com/gsi/client'
+    script.async    = true
+    script.onload   = () => resolve()
+    script.onerror  = () => {
+      _gisScriptPromise = null
+      reject(new Error('Failed to load Google Identity Services. Check your connection.'))
+    }
+    document.head.appendChild(script)
+  })
+  return _gisScriptPromise
 }
 
-// ── OAuth redirect ─────────────────────────────────────────────────────────────
+// ── Token request ─────────────────────────────────────────────────────────────
 
 /**
- * Start the OAuth2 PKCE redirect flow.
- * Stores code_verifier, CSRF state, and redirect_uri in localStorage,
- * then navigates to Google's authorisation page.
+ * Request an OAuth2 access token via the GIS token client.
  *
- * The redirect_uri stored here will be forwarded to /api/google-token
- * and must match an Authorised redirect URI in the Google Cloud Console.
+ * Opens Google's consent popup (fast if the user has an active Google session).
+ * Resolves with AuthTokens. Rejects if the user cancels or an error occurs.
  */
-export async function startOAuthFlow(clientId: string): Promise<void> {
-  const verifier     = generateRandom(32)
-  const state        = generateRandom(16)
-  const challenge    = await sha256Base64Url(verifier)
-  const redirectUri  = window.location.origin
-
-  storePkceSession({
-    verifier,
-    state,
-    redirectUri,
-    expiresAt: Date.now() + 5 * 60 * 1000,
-  })
-
-  const params = new URLSearchParams({
-    client_id:             clientId,
-    redirect_uri:          redirectUri,
-    response_type:         'code',
-    scope:                 GOOGLE_SCOPES,
-    code_challenge:        challenge,
-    code_challenge_method: 'S256',
-    access_type:           'offline',
-    prompt:                'consent',
-    state,
-  })
-
-  window.location.href =
-    `https://accounts.google.com/o/oauth2/v2/auth?${params}`
-}
-
-// ── Callback detection ─────────────────────────────────────────────────────────
-
-type OAuthCallbackResult =
-  | { type: 'success'; code: string; state: string }
-  | { type: 'error';   error: string }
-
-/** Detect an OAuth2 callback payload in the current URL. */
-export function detectOAuthCallback(): OAuthCallbackResult | null {
-  const params = new URLSearchParams(window.location.search)
-  const code   = params.get('code')
-  const state  = params.get('state')
-  const error  = params.get('error')
-
-  if (error)          return { type: 'error', error }
-  if (code && state)  return { type: 'success', code, state }
-  return null
-}
-
-/** Strip OAuth params from the URL bar without a page reload. */
-export function clearCallbackFromUrl(): void {
-  const url = new URL(window.location.href)
-  url.searchParams.delete('code')
-  url.searchParams.delete('state')
-  url.searchParams.delete('error')
-  window.history.replaceState({}, '', url.toString())
-}
-
-// ── Token exchange (via server proxy) ─────────────────────────────────────────
-
-/**
- * Exchange an authorization code for tokens.
- *
- * Posts to /api/google-token — a Vercel serverless function that appends
- * GOOGLE_CLIENT_SECRET before forwarding to Google. The client_secret never
- * reaches the browser. PKCE is still fully validated by Google.
- *
- * Validates the CSRF state token before sending any request.
- */
-export async function exchangeCodeForTokens(
-  code:     string,
-  state:    string,
+export async function requestGoogleAccessToken(
   clientId: string,
 ): Promise<AuthTokens> {
-  const session = loadPkceSession()
-  if (!session) {
-    throw new Error('Session expired — please try connecting again.')
-  }
-  if (session.state !== state) {
-    clearPkceSession()
-    throw new Error('Security check failed (state mismatch). Please try again.')
-  }
-  clearPkceSession()
+  await loadGisScript()
 
-  const res = await fetch('/api/google-token', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({
-      code,
-      codeVerifier: session.verifier,
-      redirectUri:  session.redirectUri,
-      clientId,
-    }),
+  return new Promise<AuthTokens>((resolve, reject) => {
+    const client = window.google!.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope:     GOOGLE_SCOPES,
+
+      callback: async (response) => {
+        if (response.error) {
+          reject(new Error(response.error_description ?? response.error))
+          return
+        }
+
+        // Fetch email from userinfo — cosmetic, failure is non-fatal
+        let userEmail: string | null = null
+        try {
+          const res  = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${response.access_token}` },
+          })
+          const info = await res.json() as { email?: string }
+          userEmail  = info.email ?? null
+        } catch { /* ignore — email display is optional */ }
+
+        resolve({
+          accessToken:  response.access_token,
+          refreshToken: null,
+          expiresAt:    Date.now() + response.expires_in * 1000,
+          userEmail,
+        })
+      },
+
+      error_callback: (error) => {
+        reject(new Error(`Google authorisation failed: ${error.type}`))
+      },
+    })
+
+    // Empty prompt reuses existing consent if scopes haven't changed.
+    client.requestAccessToken({ prompt: '' })
   })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as Record<string, string>
-    throw new Error(err.error ?? `Token exchange failed (${res.status})`)
-  }
-
-  const data = await res.json() as {
-    accessToken:  string
-    refreshToken: string | null
-    expiresIn:    number
-    email:        string | null
-  }
-
-  return {
-    accessToken:  data.accessToken,
-    refreshToken: data.refreshToken ?? null,
-    expiresAt:    Date.now() + (data.expiresIn * 1000),
-    userEmail:    data.email,
-  }
 }
 
-// ── Token refresh (via server proxy) ──────────────────────────────────────────
+// ── Token revocation ──────────────────────────────────────────────────────────
 
 /**
- * Obtain a fresh access token using the stored refresh token.
- *
- * Posts to /api/google-refresh — a Vercel serverless function that appends
- * GOOGLE_CLIENT_SECRET. The client_secret never reaches the browser.
- *
- * Google may return a new refresh token on rotation — always persist
- * the returned value, replacing the previous one.
+ * Ask Google to revoke the access token. Best-effort — never throws.
+ * Called on Disconnect so Drive permission is immediately dropped server-side.
  */
-export async function refreshAccessToken(
-  refreshToken: string,
-  clientId:     string,
-): Promise<AuthTokens> {
-  const res = await fetch('/api/google-refresh', {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ refreshToken, clientId }),
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({})) as Record<string, string>
-    throw new Error(err.error ?? `Token refresh failed (${res.status})`)
-  }
-
-  const data = await res.json() as {
-    accessToken:  string
-    refreshToken: string | null
-    expiresIn:    number
-  }
-
-  return {
-    accessToken:  data.accessToken,
-    refreshToken: data.refreshToken ?? refreshToken,
-    expiresAt:    Date.now() + (data.expiresIn * 1000),
-    userEmail:    null,  // not returned on refresh — caller preserves original
-  }
+export function revokeGoogleToken(accessToken: string): void {
+  try {
+    window.google?.accounts.oauth2.revoke(accessToken)
+  } catch { /* ignore */ }
 }
