@@ -435,7 +435,8 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
       const { enriched } = (await res.json()) as { enriched: EnrichmentProfile }
 
       // ── Separate API-only fields from VocabItem-compatible fields ────────────
-      const { suggestedTags, ...vocabFields } = enriched
+      // translations is handled explicitly below to guard against null values
+      const { suggestedTags, translations: rawTranslations, ...vocabFields } = enriched
 
       // Merge suggested tags with existing tags (deduplicate, lowercase)
       const freshItem = get().items.find((i) => i.id === id)
@@ -445,10 +446,23 @@ export const useVocabStore = create<VocabStore>((set, get) => ({
         .filter((t) => t.length > 0)
       const mergedTags = [...new Set([...existingTags, ...normalizedSuggested])]
 
+      // Build translations patch — normalise null/undefined to '' so the display
+      // guard (truthy check) still hides empty values, but the field is defined.
+      const translationsPatch = rawTranslations
+        ? {
+            translations: {
+              uk: rawTranslations.uk ?? '',
+              pl: rawTranslations.pl ?? '',
+              ru: rawTranslations.ru ?? '',
+            },
+          }
+        : {}
+
       await applyPatch(
         id,
         {
           ...vocabFields,
+          ...translationsPatch,
           tags:             mergedTags,
           generationStatus: 'complete',
           generationError:  undefined,

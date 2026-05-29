@@ -35,7 +35,12 @@ Required JSON structure:
   "memoryCue": "A vivid mnemonic, visual image, or memory hook to make this word stick",
   "commonMistakes": "The most common learner error or confusion with this word; empty string if none notable",
   "realLifeTask": "One specific, actionable speaking or writing challenge — e.g. 'Use this word in your next stand-up when describing a blocker.'",
-  "suggestedTags": ["2–4 lowercase kebab-case searchable tags that describe this word's domain or function — e.g. 'business', 'formal', 'meetings', 'writing', 'transitions', 'phrasal-verb', 'idiom', 'negotiation'"]
+  "suggestedTags": ["2–4 lowercase kebab-case searchable tags that describe this word's domain or function — e.g. 'business', 'formal', 'meetings', 'writing', 'transitions', 'phrasal-verb', 'idiom', 'negotiation'"],
+  "translations": {
+    "uk": "Ukrainian gloss — the most natural 1–4 word equivalent in Ukrainian",
+    "pl": "Polish gloss — the most natural 1–4 word equivalent in Polish",
+    "ru": "Russian gloss — the most natural 1–4 word equivalent in Russian"
+  }
 }
 
 Rules:
@@ -43,7 +48,8 @@ Rules:
 - Keep examples natural and workplace-useful where possible.
 - For idioms and phrasal verbs, focus on usage context and register.
 - If the term is ambiguous, use the most common B2-C1 professional meaning.
-- suggestedTags must be generic, reusable, lowercase, hyphenated where multi-word.`
+- suggestedTags must be generic, reusable, lowercase, hyphenated where multi-word.
+- For translations: give a short natural-language gloss in each target language — not a dictionary definition, just the most natural 1–4 word equivalent. If genuinely uncertain, use an empty string rather than guessing.`
 
 export default async function handler(req: any, res: any) {
   // ── Method guard ────────────────────────────────────────────────────────────

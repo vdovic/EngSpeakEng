@@ -386,6 +386,12 @@ export interface EnrichmentProfile {
   memoryCue?: string
   /** AI-suggested kebab-case tags — auto-merged into item.tags after enrichment. */
   suggestedTags?: string[]
+  /** Short natural-language glosses in the learner's native languages. */
+  translations?: {
+    uk?: string
+    pl?: string
+    ru?: string
+  }
 }
 
 // ── Legacy stats ──────────────────────────────────────────────────────────────
