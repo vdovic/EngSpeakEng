@@ -1,41 +1,38 @@
 /**
  * googleAuth.ts — OAuth2 PKCE flow for Google Drive
  *
- * Pure browser implementation — no backend required.
- * Uses PKCE (Proof Key for Code Exchange) — the correct OAuth2 flow for SPAs.
+ * Browser-only PKCE implementation.
+ * Token exchange and refresh are proxied through Vercel serverless endpoints
+ * so that GOOGLE_CLIENT_SECRET never reaches the browser.
+ *
+ * Why a server proxy:
+ *   Google's "Web Application" OAuth2 credentials are confidential clients.
+ *   The token endpoint requires client_secret even when PKCE is used.
+ *   /api/google-token and /api/google-refresh hold client_secret server-side.
+ *   The browser still generates and owns the PKCE code_verifier — security is
+ *   preserved because Google validates the verifier before issuing tokens.
  *
  * Flow:
- *   1. startOAuthFlow()     — generate verifier, redirect to Google
- *   2. detectOAuthCallback() — check URL params on return
- *   3. exchangeCodeForTokens() — POST verifier + code to Google token endpoint
- *   4. refreshAccessToken()  — use refresh_token when access_token expires
+ *   1. startOAuthFlow(clientId)   — generate verifier+state, redirect to Google
+ *   2. detectOAuthCallback()      — read ?code=&state= from the redirect URL
+ *   3. exchangeCodeForTokens()    — POST to /api/google-token (server adds secret)
+ *   4. refreshAccessToken()       — POST to /api/google-refresh (server adds secret)
  *
- * Storage:
- *   PKCE session  → localStorage with 5-min TTL (survives iOS PWA external navigation)
- *   Auth tokens   → managed by driveSyncStore (also localStorage)
- *
- * Mobile notes:
- *   - Uses redirect flow, not popup — works on iOS Safari PWA
- *   - sessionStorage intentionally avoided (lost when iOS PWA navigates externally)
+ * PKCE session storage:
+ *   localStorage with 5-min TTL — survives iOS PWA external-page navigation.
+ *   sessionStorage is intentionally avoided (lost when iOS PWA navigates away).
  */
 
-const GOOGLE_AUTH_URL  = 'https://accounts.google.com/o/oauth2/v2/auth'
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
-
-/**
- * Required scopes:
- *   openid + email    — get user's email from id_token (cosmetic, for display)
- *   drive.appdata     — access to hidden app-private folder only, not full Drive
- */
 export const GOOGLE_SCOPES =
   'openid email https://www.googleapis.com/auth/drive.appdata'
 
-const PKCE_STORAGE_KEY = 'esa_pkce'  // stores { verifier, state, expiresAt }
+const PKCE_STORAGE_KEY = 'esa_pkce'
 
 interface PkceSession {
-  verifier:  string
-  state:     string
-  expiresAt: number  // unix ms
+  verifier:    string
+  state:       string
+  redirectUri: string  // window.location.origin at flow start — passed to server
+  expiresAt:   number  // unix ms
 }
 
 export interface AuthTokens {
@@ -91,36 +88,43 @@ function clearPkceSession(): void {
   localStorage.removeItem(PKCE_STORAGE_KEY)
 }
 
-// ── OAuth flow ─────────────────────────────────────────────────────────────────
+// ── OAuth redirect ─────────────────────────────────────────────────────────────
 
 /**
- * Kick off the OAuth2 PKCE redirect flow.
- * Generates a code_verifier + CSRF state token, stores them in localStorage,
- * then navigates the browser to Google's authorisation page.
+ * Start the OAuth2 PKCE redirect flow.
+ * Stores code_verifier, CSRF state, and redirect_uri in localStorage,
+ * then navigates to Google's authorisation page.
  *
- * The user will return to window.location.origin with ?code=...&state=...
- * which must then be handled by detectOAuthCallback() + exchangeCodeForTokens().
+ * The redirect_uri stored here will be forwarded to /api/google-token
+ * and must match an Authorised redirect URI in the Google Cloud Console.
  */
 export async function startOAuthFlow(clientId: string): Promise<void> {
-  const verifier   = generateRandom(32)
-  const state      = generateRandom(16)
-  const challenge  = await sha256Base64Url(verifier)
+  const verifier     = generateRandom(32)
+  const state        = generateRandom(16)
+  const challenge    = await sha256Base64Url(verifier)
+  const redirectUri  = window.location.origin
 
-  storePkceSession({ verifier, state, expiresAt: Date.now() + 5 * 60 * 1000 })
+  storePkceSession({
+    verifier,
+    state,
+    redirectUri,
+    expiresAt: Date.now() + 5 * 60 * 1000,
+  })
 
   const params = new URLSearchParams({
     client_id:             clientId,
-    redirect_uri:          window.location.origin,
+    redirect_uri:          redirectUri,
     response_type:         'code',
     scope:                 GOOGLE_SCOPES,
     code_challenge:        challenge,
     code_challenge_method: 'S256',
     access_type:           'offline',
-    prompt:                'consent',  // ensures refresh_token is always issued
+    prompt:                'consent',
     state,
   })
 
-  window.location.href = `${GOOGLE_AUTH_URL}?${params}`
+  window.location.href =
+    `https://accounts.google.com/o/oauth2/v2/auth?${params}`
 }
 
 // ── Callback detection ─────────────────────────────────────────────────────────
@@ -129,19 +133,19 @@ type OAuthCallbackResult =
   | { type: 'success'; code: string; state: string }
   | { type: 'error';   error: string }
 
-/** Check if the current URL contains an OAuth2 callback payload. */
+/** Detect an OAuth2 callback payload in the current URL. */
 export function detectOAuthCallback(): OAuthCallbackResult | null {
   const params = new URLSearchParams(window.location.search)
   const code   = params.get('code')
   const state  = params.get('state')
   const error  = params.get('error')
 
-  if (error)             return { type: 'error', error }
-  if (code && state)     return { type: 'success', code, state }
+  if (error)          return { type: 'error', error }
+  if (code && state)  return { type: 'success', code, state }
   return null
 }
 
-/** Remove OAuth callback params from the URL bar without a page reload. */
+/** Strip OAuth params from the URL bar without a page reload. */
 export function clearCallbackFromUrl(): void {
   const url = new URL(window.location.href)
   url.searchParams.delete('code')
@@ -150,12 +154,16 @@ export function clearCallbackFromUrl(): void {
   window.history.replaceState({}, '', url.toString())
 }
 
-// ── Token exchange ─────────────────────────────────────────────────────────────
+// ── Token exchange (via server proxy) ─────────────────────────────────────────
 
 /**
- * Exchange an auth code for tokens via PKCE.
- * Must be called with the code + state received from Google's redirect.
- * Validates the state token to prevent CSRF attacks.
+ * Exchange an authorization code for tokens.
+ *
+ * Posts to /api/google-token — a Vercel serverless function that appends
+ * GOOGLE_CLIENT_SECRET before forwarding to Google. The client_secret never
+ * reaches the browser. PKCE is still fully validated by Google.
+ *
+ * Validates the CSRF state token before sending any request.
  */
 export async function exchangeCodeForTokens(
   code:     string,
@@ -172,82 +180,73 @@ export async function exchangeCodeForTokens(
   }
   clearPkceSession()
 
-  const res = await fetch(GOOGLE_TOKEN_URL, {
+  const res = await fetch('/api/google-token', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    new URLSearchParams({
-      client_id:     clientId,
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({
       code,
-      code_verifier: session.verifier,
-      grant_type:    'authorization_code',
-      redirect_uri:  window.location.origin,
+      codeVerifier: session.verifier,
+      redirectUri:  session.redirectUri,
+      clientId,
     }),
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}) as Record<string, string>)
-    throw new Error(
-      (err as Record<string, string>).error_description ??
-      `Token exchange failed (${res.status})`,
-    )
+    const err = await res.json().catch(() => ({})) as Record<string, string>
+    throw new Error(err.error ?? `Token exchange failed (${res.status})`)
   }
 
-  const data = await res.json() as Record<string, unknown>
-
-  // Decode id_token to get email — no verification needed (HTTPS transport + direct from Google)
-  let userEmail: string | null = null
-  const idToken = data.id_token as string | undefined
-  if (idToken) {
-    try {
-      const payload = JSON.parse(atob(idToken.split('.')[1])) as Record<string, string>
-      userEmail = payload.email ?? null
-    } catch { /* cosmetic — ignore */ }
+  const data = await res.json() as {
+    accessToken:  string
+    refreshToken: string | null
+    expiresIn:    number
+    email:        string | null
   }
 
   return {
-    accessToken:  data.access_token  as string,
-    refreshToken: (data.refresh_token as string) ?? null,
-    expiresAt:    Date.now() + (Number(data.expires_in) * 1000),
-    userEmail,
+    accessToken:  data.accessToken,
+    refreshToken: data.refreshToken ?? null,
+    expiresAt:    Date.now() + (data.expiresIn * 1000),
+    userEmail:    data.email,
   }
 }
 
-// ── Token refresh ──────────────────────────────────────────────────────────────
+// ── Token refresh (via server proxy) ──────────────────────────────────────────
 
 /**
- * Obtain a new access token using the stored refresh token.
- * Google occasionally issues a new refresh token — the returned value should
- * always be persisted, replacing the previous one.
+ * Obtain a fresh access token using the stored refresh token.
+ *
+ * Posts to /api/google-refresh — a Vercel serverless function that appends
+ * GOOGLE_CLIENT_SECRET. The client_secret never reaches the browser.
+ *
+ * Google may return a new refresh token on rotation — always persist
+ * the returned value, replacing the previous one.
  */
 export async function refreshAccessToken(
   refreshToken: string,
   clientId:     string,
 ): Promise<AuthTokens> {
-  const res = await fetch(GOOGLE_TOKEN_URL, {
+  const res = await fetch('/api/google-refresh', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body:    new URLSearchParams({
-      client_id:     clientId,
-      refresh_token: refreshToken,
-      grant_type:    'refresh_token',
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ refreshToken, clientId }),
   })
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}) as Record<string, string>)
-    throw new Error(
-      (err as Record<string, string>).error_description ??
-      `Token refresh failed (${res.status})`,
-    )
+    const err = await res.json().catch(() => ({})) as Record<string, string>
+    throw new Error(err.error ?? `Token refresh failed (${res.status})`)
   }
 
-  const data = await res.json() as Record<string, unknown>
+  const data = await res.json() as {
+    accessToken:  string
+    refreshToken: string | null
+    expiresIn:    number
+  }
 
   return {
-    accessToken:  data.access_token as string,
-    // Google may issue a new refresh token; preserve the old one as fallback
-    refreshToken: (data.refresh_token as string) ?? refreshToken,
-    expiresAt:    Date.now() + (Number(data.expires_in) * 1000),
+    accessToken:  data.accessToken,
+    refreshToken: data.refreshToken ?? refreshToken,
+    expiresAt:    Date.now() + (data.expiresIn * 1000),
     userEmail:    null,  // not returned on refresh — caller preserves original
   }
 }

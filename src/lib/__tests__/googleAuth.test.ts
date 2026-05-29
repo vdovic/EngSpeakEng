@@ -128,26 +128,27 @@ describe('exchangeCodeForTokens', () => {
     ).rejects.toThrow('state mismatch')
   })
 
-  it('calls the token endpoint with correct params on valid session', async () => {
+  it('calls /api/google-token proxy with correct params on valid session', async () => {
     const session = {
-      verifier:  'my-verifier',
-      state:     'my-state',
-      expiresAt: Date.now() + 60_000,
+      verifier:    'my-verifier',
+      state:       'my-state',
+      redirectUri: 'http://localhost:5173',
+      expiresAt:   Date.now() + 60_000,
     }
     localStorage.setItem('esa_pkce', JSON.stringify(session))
 
-    // Mock successful token exchange
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+    // Mock successful token exchange — response shape matches /api/google-token (camelCase)
+    const fetchMock = vi.fn().mockResolvedValue({
       ok:   true,
       json: async () => ({
-        access_token:  'at123',
-        refresh_token: 'rt456',
-        expires_in:    3600,
-        id_token:      null,
+        accessToken:  'at123',
+        refreshToken: 'rt456',
+        expiresIn:    3600,
+        email:        'user@example.com',
       }),
-    }))
+    })
+    vi.stubGlobal('fetch', fetchMock)
 
-    // Also mock window.location.origin
     Object.defineProperty(window, 'location', {
       value:    { ...window.location, origin: 'http://localhost:5173' },
       writable: true,
@@ -156,9 +157,18 @@ describe('exchangeCodeForTokens', () => {
     const tokens = await exchangeCodeForTokens('auth-code', 'my-state', 'client-id')
     expect(tokens.accessToken).toBe('at123')
     expect(tokens.refreshToken).toBe('rt456')
+    expect(tokens.userEmail).toBe('user@example.com')
     expect(tokens.expiresAt).toBeGreaterThan(Date.now())
 
-    // PKCE session should be cleared after successful exchange
+    // Must have called the server proxy, not Google directly
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/google-token')
+    const body = JSON.parse(init.body as string)
+    expect(body.codeVerifier).toBe('my-verifier')
+    expect(body.clientId).toBe('client-id')
+
+    // PKCE session must be cleared after successful exchange
     expect(localStorage.getItem('esa_pkce')).toBeNull()
 
     vi.unstubAllGlobals()

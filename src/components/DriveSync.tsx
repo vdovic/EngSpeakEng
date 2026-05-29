@@ -181,17 +181,26 @@ function SetupInstructions() {
             and <em>Authorised redirect URIs</em>
           </li>
           <li>
-            Copy the Client ID → add to{' '}
+            Copy the <strong>Client ID</strong> → add to{' '}
             <code className="font-mono bg-slate-100 px-1 rounded text-xs">.env.local</code>:{' '}
             <code className="font-mono bg-slate-100 px-1 rounded text-xs">
               VITE_GOOGLE_CLIENT_ID=…
             </code>
           </li>
+          <li>
+            Copy the <strong>Client Secret</strong> → add to Vercel environment variables
+            (or <code className="font-mono bg-slate-100 px-1 rounded text-xs">.env.local</code>{' '}
+            for local dev) as{' '}
+            <code className="font-mono bg-slate-100 px-1 rounded text-xs">
+              GOOGLE_CLIENT_SECRET=…
+            </code>{' '}
+            — never prefix with <code className="font-mono bg-slate-100 px-1 rounded text-xs">VITE_</code>
+          </li>
           <li>Restart the dev server</li>
         </ol>
         <p className="text-xs text-slate-400 pt-1">
-          The client ID is not a secret — it can be committed to the repo.
-          Never commit the full OAuth client secret.
+          The client ID is safe to commit. The client secret is kept server-side only —
+          token exchange is proxied through a serverless function so the secret never reaches the browser.
         </p>
       </div>
     </div>
