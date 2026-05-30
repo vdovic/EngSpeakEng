@@ -3,9 +3,10 @@ import { NavLink, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, RefreshCw, Library,
   Target, BarChart2, Zap, Layers, GraduationCap, Sparkles,
-  MoreHorizontal, X, Settings, Globe2,
+  MoreHorizontal, X, Settings, Globe2, Search,
   type LucideIcon,
 } from 'lucide-react'
+import { GlobalSearch } from '@/components/GlobalSearch'
 
 interface NavLinkDef {
   to: string
@@ -95,6 +96,38 @@ function SidebarValueCard() {
 
 // ── MoreDrawer ─────────────────────────────────────────────────────────────────
 
+function SearchModal({
+  open,
+  onClose,
+}: {
+  open: boolean
+  onClose: () => void
+}) {
+  useEffect(() => {
+    if (open) document.body.style.overflow = 'hidden'
+    else document.body.style.overflow = ''
+    return () => { document.body.style.overflow = '' }
+  }, [open])
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-white">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
+        <div className="flex-1">
+          <GlobalSearch autoFocus placeholder="Search vocabulary…" onResultSelect={onClose} />
+        </div>
+        <button
+          onClick={onClose}
+          className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+        >
+          <X size={18} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function MoreDrawer({
   open,
   onClose,
@@ -175,7 +208,8 @@ function MoreDrawer({
 
 export function NavBar() {
   const location  = useLocation()
-  const [moreOpen, setMoreOpen] = useState(false)
+  const [moreOpen,   setMoreOpen]   = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const pathname = location.pathname
 
   // Is the current route inside the "More" overflow group?
@@ -220,6 +254,11 @@ export function NavBar() {
             <span className="block text-[9px] text-slate-400 tracking-wide mt-0.5">Advanced Vocabulary, Tailored to You</span>
           </div>
         </Link>
+
+        {/* Search */}
+        <div className="px-1 mb-4">
+          <GlobalSearch placeholder="Search vocabulary…" />
+        </div>
 
         {/* Primary links */}
         <div className="flex flex-col gap-0.5 mb-4">
@@ -271,6 +310,16 @@ export function NavBar() {
           )
         })}
 
+        {/* Search button */}
+        <button
+          onClick={() => setSearchOpen(true)}
+          className="relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-xl text-[10px] font-medium transition-colors min-w-0 text-slate-500 hover:text-slate-800"
+          aria-label="Search vocabulary"
+        >
+          <Search size={20} />
+          <span>Search</span>
+        </button>
+
         {/* "More" tab */}
         <button
           onClick={() => setMoreOpen((o) => !o)}
@@ -290,6 +339,14 @@ export function NavBar() {
         <MoreDrawer
           open={moreOpen}
           onClose={() => setMoreOpen(false)}
+        />
+      </div>
+
+      {/* ── Mobile search overlay ── */}
+      <div className="md:hidden">
+        <SearchModal
+          open={searchOpen}
+          onClose={() => setSearchOpen(false)}
         />
       </div>
     </>

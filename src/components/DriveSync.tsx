@@ -268,7 +268,28 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
   }
 
   async function handleSync() {
-    await store.pull(items, /* shouldPushAfterApply */ true)
+    // Instant bidirectional sync — no preview panel, applies and pushes in one click.
+    // Uses the same safe merge as auto-sync (protected progress fields, union logs).
+    await store.silentSync(items, extras, {
+      bulkImport,
+      applyGamification: (snap) => { useGamificationStore.setState(snap) },
+      addTheme,
+      currentThemes: themes,
+      localItems:    items,
+      extras,
+    })
+    // If silent sync showed no toast (nothing changed), show a brief "up to date" message.
+    if (!useDriveSyncStore.getState().syncNotification) {
+      const id = Date.now()
+      useDriveSyncStore.setState({
+        syncNotification: { message: 'Already up to date', id },
+      })
+      setTimeout(() => {
+        if (useDriveSyncStore.getState().syncNotification?.id === id) {
+          useDriveSyncStore.setState({ syncNotification: null })
+        }
+      }, 3000)
+    }
   }
 
   async function handlePull() {
@@ -307,16 +328,11 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
     return (
       <div className="space-y-3">
         <p className="text-sm text-slate-600 leading-relaxed">
-          Connect your Google account to enable automatic sync between your devices.
-          Changes are synced silently in the background whenever you open the app or
-          switch between devices. The file is stored in a hidden app-private folder —
-          invisible in your Drive UI and inaccessible to other apps.
+          Connect your Google account to keep your vocabulary in sync across all your devices.
+          Changes are merged automatically whenever you open the app or switch between devices.
+          Your data is stored in a hidden app-private folder — invisible in Drive UI and
+          inaccessible to other apps.
         </p>
-
-        <div className="flex items-center gap-3 p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-sm text-sky-800">
-          <Info size={15} className="shrink-0 text-sky-600" />
-          <span>Sync is always explicit — nothing is uploaded automatically.</span>
-        </div>
 
         {store.status === 'error' && store.error && (
           <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-800">
@@ -449,16 +465,16 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
       {/* ── Action buttons ── */}
       {!store.pendingMerge && (
         <div className="flex flex-wrap gap-2.5">
-          {/* Sync now — pull + merge + push */}
+          {/* Sync now — instant bidirectional sync, no preview required */}
           <button
             onClick={handleSync}
             disabled={isBusy}
             className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
-            title="Pull cloud version, merge with local, push merged result back"
+            title="Merge cloud and local, then upload — no confirmation needed"
           >
             {store.status === 'pulling' || store.status === 'pushing' ? (
               <><Loader2 size={14} className="animate-spin" />
-                {store.status === 'pulling' ? 'Pulling…' : 'Uploading…'}
+                {store.status === 'pulling' ? 'Syncing…' : 'Uploading…'}
               </>
             ) : store.status === 'checking' ? (
               <><Loader2 size={14} className="animate-spin" /> Checking…</>
@@ -467,12 +483,12 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
             )}
           </button>
 
-          {/* Pull only */}
+          {/* Pull only — shows merge preview before applying */}
           <button
             onClick={handlePull}
             disabled={isBusy}
             className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-50 disabled:opacity-60 text-slate-700 text-sm font-semibold border border-slate-200 rounded-xl transition-colors"
-            title="Pull cloud version and merge preview (no upload)"
+            title="Preview what's in the cloud before applying (no upload)"
           >
             <Download size={14} /> Pull latest
           </button>
