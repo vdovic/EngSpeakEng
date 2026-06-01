@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, X, ArrowRight } from 'lucide-react'
+import { Search, X, ArrowRight, Plus } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import {
   searchVocabulary,
@@ -138,6 +138,8 @@ interface Props {
   /** Called after the user selects a result (useful to close parent modals). */
   onResultSelect?: () => void
   autoFocus?: boolean
+  /** Called when the user clicks "+ Add '…'" in the no-results state. */
+  onAddWord?: (term: string) => void
 }
 
 const DEBOUNCE_MS = 180
@@ -148,6 +150,7 @@ export function GlobalSearch({
   className = '',
   onResultSelect,
   autoFocus = false,
+  onAddWord,
 }: Props) {
   const navigate = useNavigate()
   const items = useVocabStore((s) => s.items)
@@ -271,13 +274,27 @@ export function GlobalSearch({
       {showDropdown && (
         <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
           {results.length === 0 ? (
-            <div className="px-4 py-6 text-center">
+            <div className="px-4 py-5 text-center">
               <p className="text-sm font-medium text-slate-600">
                 No results for &ldquo;{query}&rdquo;
               </p>
               <p className="text-xs text-slate-400 mt-1">
                 Try a synonym, definition fragment, or partial word.
               </p>
+              {onAddWord && (
+                <button
+                  onClick={() => {
+                    onAddWord(query.trim())
+                    setQuery('')
+                    setIsOpen(false)
+                    onResultSelect?.()
+                  }}
+                  className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 border border-brand-200 rounded-lg px-3 py-1.5 transition-colors"
+                >
+                  <Plus size={12} />
+                  Add &ldquo;{query.trim()}&rdquo; to your library
+                </button>
+              )}
             </div>
           ) : (
             <>

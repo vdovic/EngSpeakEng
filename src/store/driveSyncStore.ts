@@ -419,10 +419,14 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
   // ── silentSync (auto-sync path) ───────────────────────────────────────────────
   async silentSync(localItems, extras, helpers) {
     const { isAuthenticated, status, pendingMerge } = get()
-    // Skip if not connected, already busy, or user is reviewing a manual merge
-    if (!isAuthenticated || status !== 'idle' || pendingMerge !== null) return
+    // Skip if not connected, actively busy (mid-push/pull/oauth), or reviewing manual merge.
+    // Importantly: status==='error' does NOT block auto-sync — a stale error from
+    // checkCloudVersion should not lock the sync loop indefinitely.
+    const busy = status === 'pulling' || status === 'pushing' || status === 'connecting'
+    if (!isAuthenticated || busy || pendingMerge !== null) return
 
-    set({ status: 'pulling' })
+    // Clear any stale error so the status badge resets after a successful auto-sync
+    set({ status: 'pulling', error: null })
 
     try {
       const accessToken = await get()._getValidToken()
@@ -458,8 +462,10 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
         }, 4000)
       }
     } catch (e) {
-      // Silent failure — never interrupt the user for auto-sync errors
-      console.warn('[DriveSync] Auto-sync failed:', e instanceof Error ? e.message : e)
+      // Silent failure — never interrupt the user for auto-sync errors.
+      // "Load failed" is iOS Safari's generic network error for a cancelled/failed fetch.
+      const raw = e instanceof Error ? e.message : String(e)
+      console.warn('[DriveSync] Auto-sync failed:', raw)
       set({ status: 'idle' })
     }
   },

@@ -40,8 +40,8 @@ import { useThemesStore } from '@/store/themesStore'
 import { VocabItem, ItemType } from '@/types/vocabulary'
 import {
   findExactDuplicate,
-  findNearDuplicates,
-  fuzzySpellingSuggestions,
+  searchVocabulary,
+  SearchResult,
 } from '@/utils/vocabSearch'
 import { suggestThemes } from '@/lib/themeSuggestion'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
@@ -54,6 +54,8 @@ type ConfidenceLevel = 0 | 1 | 2 | 3
 
 interface Props {
   onClose: () => void
+  /** Pre-fill the term input (e.g. launched from GlobalSearch "Add this word"). */
+  initialTerm?: string
 }
 
 // PERFORMANCE NOTE — suggestion calculation runs on every debounce tick.
@@ -118,7 +120,7 @@ function Overlay({ children }: { children: React.ReactNode }) {
 
 // ── QuickAddModal ─────────────────────────────────────────────────────────────
 
-export function QuickAddModal({ onClose }: Props) {
+export function QuickAddModal({ onClose, initialTerm = '' }: Props) {
   const navigate           = useNavigate()
   const addItem            = useVocabStore((s) => s.addItem)
   const enrichItem         = useVocabStore((s) => s.enrichItem)
@@ -133,8 +135,8 @@ export function QuickAddModal({ onClose }: Props) {
 
   // ── Phase 1 state ─────────────────────────────────────────────────────────
   const [phase, setPhase]                   = useState<Phase>('add')
-  const [term, setTerm]                     = useState('')
-  const [debouncedTerm, setDebouncedTerm]   = useState('')
+  const [term, setTerm]                     = useState(initialTerm)
+  const [debouncedTerm, setDebouncedTerm]   = useState(initialTerm)
   const [saving, setSaving]                 = useState(false)
   const [savedCount, setSavedCount]         = useState(0)
   const [error, setError]                   = useState<string | null>(null)
@@ -194,24 +196,16 @@ export function QuickAddModal({ onClose }: Props) {
     [items, debouncedTerm],
   )
 
-  /** "Did you mean…" — character-level typo corrections (min 4 chars to avoid noise) */
-  const spellSuggestions = useMemo<VocabItem[]>(
-    () =>
-      debouncedTerm.trim().length >= 4 && !exactDuplicate
-        ? fuzzySpellingSuggestions(items, debouncedTerm)
-        : [],
-    [items, debouncedTerm, exactDuplicate],
-  )
-
   /**
-   * "Similar entries" — structural near-duplicates via Dice coefficient.
-   * Only runs when spell suggestions found nothing — avoids a full Dice scan
-   * (O(n) bigram map per item) on top of an already-expensive Levenshtein pass.
+   * Library matches — uses the same ranked search engine as GlobalSearch.
+   * Shown when the user has typed something that already exists (or partly exists)
+   * in the library, so they can open the existing entry instead of adding a duplicate.
+   * The exact-duplicate case is handled separately (hard block above the input).
    */
-  const nearDuplicates = useMemo<VocabItem[]>(() => {
-    if (!debouncedTerm.trim() || exactDuplicate || spellSuggestions.length > 0) return []
-    return findNearDuplicates(items, debouncedTerm, 0.62, 3)
-  }, [items, debouncedTerm, exactDuplicate, spellSuggestions])
+  const searchSuggestions = useMemo<SearchResult[]>(() => {
+    if (!debouncedTerm.trim() || exactDuplicate) return []
+    return searchVocabulary(items, debouncedTerm, 5)
+  }, [items, debouncedTerm, exactDuplicate])
 
   /** Auto-detect type (word / phrase / phrasal-verb) — not shown in UI */
   const detectedType = useMemo<ItemType>(() => {
@@ -424,42 +418,43 @@ export function QuickAddModal({ onClose }: Props) {
             className={`w-full px-4 py-4 text-lg font-medium border-2 rounded-2xl focus:outline-none placeholder:text-slate-300 transition-colors ${
               exactDuplicate || error
                 ? 'border-red-400 focus:border-red-500'
-                : nearDuplicates.length > 0
-                ? 'border-amber-400 focus:border-amber-500'
-                : spellSuggestions.length > 0
-                ? 'border-sky-400 focus:border-sky-500'
+                : searchSuggestions.length > 0
+                ? 'border-amber-300 focus:border-amber-400'
                 : 'border-slate-200 focus:border-brand-500'
             }`}
           />
 
-          {/* "Did you mean…" — fuzzy spell suggestions (Levenshtein ≤ 2).
-              These are always EXISTING library items — clicking opens the word
-              directly so the user sees its enriched data immediately, without
-              needing to press Add → only to get a duplicate error. */}
-          {spellSuggestions.length > 0 && (
-            <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-2.5">
-              <p className="text-xs font-semibold text-sky-700 mb-1.5">Did you mean…</p>
+          {/* Already-in-library suggestions — same ranked search as GlobalSearch.
+              Shows when the current input matches existing vocabulary, letting
+              the user open the entry instead of creating a duplicate. */}
+          {searchSuggestions.length > 0 && (
+            <div className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5">
+              <p className="text-xs font-semibold text-slate-500 mb-1.5">Already in your library</p>
               <div className="space-y-1">
-                {spellSuggestions.slice(0, 3).map((sug) => (
+                {searchSuggestions.map((r) => (
                   <button
-                    key={sug.id}
-                    onClick={() => openExisting(sug.id)}
-                    className="w-full flex items-center justify-between gap-2 bg-white border border-sky-200 rounded-lg px-2.5 py-1.5 hover:border-sky-400 hover:bg-sky-50 transition-colors group text-left"
+                    key={r.item.id}
+                    onClick={() => openExisting(r.item.id)}
+                    className="w-full flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 hover:border-brand-300 hover:bg-brand-50 transition-colors group text-left"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-semibold text-slate-800 truncate">{sug.term}</span>
-                      {sug.definitionEn && (
+                      <span className="text-xs font-semibold text-slate-800 truncate">{r.item.term}</span>
+                      <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded capitalize shrink-0">
+                        {r.item.type}
+                      </span>
+                      {r.item.definitionEn && (
                         <span className="text-[10px] text-slate-400 truncate hidden sm:inline">
-                          {sug.definitionEn.slice(0, 45)}…
+                          {r.item.definitionEn.slice(0, 50)}…
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] font-semibold text-sky-600 group-hover:text-sky-700 shrink-0 flex items-center gap-0.5">
+                    <span className="text-[10px] font-semibold text-brand-600 group-hover:text-brand-700 shrink-0 flex items-center gap-0.5">
                       View <ArrowRight size={10} />
                     </span>
                   </button>
                 ))}
               </div>
+              <p className="text-[10px] text-slate-400 mt-2">You can still add if this is a different word.</p>
             </div>
           )}
 
@@ -479,34 +474,6 @@ export function QuickAddModal({ onClose }: Props) {
               >
                 Open <ArrowRight size={11} />
               </button>
-            </div>
-          )}
-
-          {/* Similar entries — structural near-duplicates */}
-          {nearDuplicates.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-              <div className="flex items-center gap-1.5 mb-2">
-                <AlertTriangle size={13} className="text-amber-600 shrink-0" />
-                <p className="text-xs font-semibold text-amber-800">Similar entries found</p>
-              </div>
-              <div className="space-y-1">
-                {nearDuplicates.slice(0, 3).map((dup) => (
-                  <button
-                    key={dup.id}
-                    onClick={() => openExisting(dup.id)}
-                    className="w-full flex items-center justify-between gap-2 bg-white border border-amber-200 rounded-lg px-2.5 py-1.5 hover:border-amber-400 hover:bg-amber-50 transition-colors group"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-xs font-semibold text-slate-800 truncate">{dup.term}</span>
-                      <span className="text-[10px] text-slate-400 capitalize shrink-0">{dup.status}</span>
-                    </div>
-                    <span className="text-[10px] font-semibold text-amber-600 group-hover:text-amber-700 shrink-0 flex items-center gap-0.5">
-                      View <ArrowRight size={10} />
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[10px] text-amber-600 mt-2">You can still save if this is a different word.</p>
             </div>
           )}
 

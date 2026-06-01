@@ -7,6 +7,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { GlobalSearch } from '@/components/GlobalSearch'
+import { QuickAddModal } from '@/components/QuickAddModal'
 
 interface NavLinkDef {
   to: string
@@ -99,9 +100,11 @@ function SidebarValueCard() {
 function SearchModal({
   open,
   onClose,
+  onAddWord,
 }: {
   open: boolean
   onClose: () => void
+  onAddWord: (term: string) => void
 }) {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden'
@@ -115,7 +118,7 @@ function SearchModal({
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-200">
         <div className="flex-1">
-          <GlobalSearch autoFocus placeholder="Search vocabulary…" onResultSelect={onClose} />
+          <GlobalSearch autoFocus placeholder="Search vocabulary…" onResultSelect={onClose} onAddWord={onAddWord} />
         </div>
         <button
           onClick={onClose}
@@ -208,9 +211,15 @@ function MoreDrawer({
 
 export function NavBar() {
   const location  = useLocation()
-  const [moreOpen,   setMoreOpen]   = useState(false)
-  const [searchOpen, setSearchOpen] = useState(false)
+  const [moreOpen,      setMoreOpen]      = useState(false)
+  const [searchOpen,    setSearchOpen]    = useState(false)
+  const [quickAddTerm,  setQuickAddTerm]  = useState<string | null>(null)
   const pathname = location.pathname
+
+  function handleAddWord(term: string) {
+    setSearchOpen(false)   // close mobile search overlay if open
+    setQuickAddTerm(term)
+  }
 
   // Is the current route inside the "More" overflow group?
   const moreIsActive =
@@ -257,7 +266,7 @@ export function NavBar() {
 
         {/* Search */}
         <div className="px-1 mb-4">
-          <GlobalSearch placeholder="Search vocabulary…" />
+          <GlobalSearch placeholder="Search vocabulary…" onAddWord={handleAddWord} />
         </div>
 
         {/* Primary links */}
@@ -347,8 +356,17 @@ export function NavBar() {
         <SearchModal
           open={searchOpen}
           onClose={() => setSearchOpen(false)}
+          onAddWord={handleAddWord}
         />
       </div>
+
+      {/* ── QuickAddModal — opened from search "Add this word" ── */}
+      {quickAddTerm !== null && (
+        <QuickAddModal
+          initialTerm={quickAddTerm}
+          onClose={() => setQuickAddTerm(null)}
+        />
+      )}
     </>
   )
 }

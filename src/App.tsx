@@ -133,16 +133,22 @@ export default function App() {
   // Runs after vocab data is loaded.
   //
   // Triggers:
-  //   • Initial load  — pull from Drive, merge, push merged result back
-  //   • Page visible  — same (catches changes made on the other device)
-  //   • Page hidden   — push local state (saves before user switches apps)
+  //   • Initial load     — pull from Drive, merge, push merged result back
+  //   • Page visible     — same (catches changes made on the other device)
+  //   • Page hidden      — push local state (saves before user switches apps)
+  //   • After add/edit   — silentSync 1.5 s after items.length increases (most
+  //                        reliable mobile path: doesn't depend on visibility events)
+  //   • Every 2 minutes  — periodic fallback for iOS where visibilitychange is
+  //                        unreliable when the app is backgrounded
   //
   // All operations are silent: no preview panel, errors logged but not surfaced.
   // If a manual merge preview (pendingMerge) is open the auto-sync is skipped.
   useEffect(() => {
     if (!loaded) return
 
-    /** Build the current local state snapshot for a sync operation. */
+    /** Build the current local state snapshot for a sync operation.
+     *  Reads exclusively from store.getState() so it is safe to call
+     *  from any context (effects, timers, subscriptions). */
     function buildSyncArgs(): {
       localItems: ReturnType<typeof useVocabStore.getState>['items']
       extras:     ExportExtras
@@ -209,8 +215,34 @@ export default function App() {
     // Sync on first load
     triggerSilentSync()
 
+    // Visibility-change sync (catches tab-switching and app-switching)
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+
+    // Periodic fallback — fires every 2 minutes while the app is open.
+    // Handles iOS Safari where visibilitychange is unreliable on background.
+    const periodicId = setInterval(triggerSilentSync, 2 * 60 * 1000)
+
+    // Push-after-save — most reliable mobile path.
+    // When items.length grows (word added), trigger a full silentSync after 1.5 s.
+    // This gets the new word to Drive before the user switches apps,
+    // without relying on visibilitychange firing (which iOS can suppress).
+    let saveTimer: ReturnType<typeof setTimeout> | null = null
+    let prevItemCount = useVocabStore.getState().items.length
+    const unsubItems = useVocabStore.subscribe((state) => {
+      const n = state.items.length
+      if (n > prevItemCount) {
+        prevItemCount = n
+        if (saveTimer) clearTimeout(saveTimer)
+        saveTimer = setTimeout(triggerSilentSync, 1500)
+      }
+    })
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      clearInterval(periodicId)
+      unsubItems()
+      if (saveTimer) clearTimeout(saveTimer)
+    }
   }, [loaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
