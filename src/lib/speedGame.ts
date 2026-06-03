@@ -22,6 +22,29 @@
 import type { VocabItem } from '@/types/vocabulary'
 import { MAX_EXPOSURE } from '@/lib/constants'
 
+// ── Result record ─────────────────────────────────────────────────────────────
+
+/**
+ * A single completed speed game session.
+ * Stored in speedGameStore and included in Drive sync exports.
+ * Never stores a "score" label — just objective counts.
+ */
+export interface SpeedGameResult {
+  /** Stable unique ID (crypto.randomUUID). */
+  id:             string
+  /** ISO timestamp of when the game ended. */
+  playedAt:       string
+  durationSecs:   number
+  correct:        number
+  wrong:          number
+  /** 0–100 integer, pre-computed to avoid division in display. */
+  accuracy:       number
+  wordsPracticed: number
+  /** Words that received a recordExposure(true) call this session. */
+  wordsGained:    number
+  focusOnly:      boolean
+}
+
 // ── Durations ──────────────────────────────────────────────────────────────────
 
 export const SPEED_GAME_DURATIONS = [60, 180, 300, 420, 600] as const

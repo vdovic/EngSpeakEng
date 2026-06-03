@@ -33,11 +33,13 @@ import {
   parseFullExport,
   mergeImportedVocabItems,
   mergeGamificationSnapshot,
+  mergeSpeedGameResults,
   type FullExportParseResult,
   type MergeResult,
   type ExportExtras,
   type GamificationSnapshot,
 } from '@/lib/vocabImportExport'
+import type { SpeedGameResult } from '@/lib/speedGame'
 import type { VocabItem } from '@/types/vocabulary'
 
 // ── localStorage keys ──────────────────────────────────────────────────────────
@@ -107,12 +109,13 @@ export interface SyncNotification {
 // ── Helpers passed in for merge operations ─────────────────────────────────────
 
 export interface ConfirmMergeHelpers {
-  bulkImport:        (items: VocabItem[]) => Promise<void>
-  applyGamification: (snap: GamificationSnapshot) => void
-  addTheme:          (theme: string) => void
-  currentThemes:     string[]
-  localItems:        VocabItem[]
-  extras:            ExportExtras
+  bulkImport:             (items: VocabItem[]) => Promise<void>
+  applyGamification:      (snap: GamificationSnapshot) => void
+  applySpeedGameResults:  (results: SpeedGameResult[]) => void
+  addTheme:               (theme: string) => void
+  currentThemes:          string[]
+  localItems:             VocabItem[]
+  extras:                 ExportExtras
 }
 
 // ── Store shape ────────────────────────────────────────────────────────────────
@@ -386,11 +389,22 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
       }
     }
 
+    // 4. Merge speed game results — union by ID, sorted newest-first
+    let mergedSpeedGameResults = helpers.extras.speedGameResults ?? []
+    if (cloudPayload.speedGameResults?.length) {
+      mergedSpeedGameResults = mergeSpeedGameResults(
+        mergedSpeedGameResults,
+        cloudPayload.speedGameResults,
+      )
+      helpers.applySpeedGameResults(mergedSpeedGameResults)
+    }
+
     return {
       mergedExtras: {
         ...helpers.extras,
-        gamification: mergedGamification,
-        themes:       allThemes,
+        gamification:      mergedGamification,
+        themes:            allThemes,
+        speedGameResults:  mergedSpeedGameResults,
       } as ExportExtras,
     }
   },

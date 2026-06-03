@@ -26,6 +26,7 @@ import {
   ExternalLink, Loader2, Info,
 } from 'lucide-react'
 import { useDriveSyncStore, isDriveConfigured } from '@/store/driveSyncStore'
+import { useSpeedGameStore } from '@/store/speedGameStore'
 import { startOAuthFlow } from '@/lib/googleAuth'
 import { useVocabStore }        from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -226,6 +227,8 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
   const { themes, addTheme }        = useThemesStore()
   const { profile: obProfile, completed: obDone } = useOnboardingStore()
   const { bulkImport }              = useVocabStore()
+  const speedGameResults            = useSpeedGameStore((s) => s.results)
+  const setSpeedGameResults         = useSpeedGameStore((s) => s.setResults)
 
   const extras: ExportExtras = {
     gamification,
@@ -234,6 +237,7 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
       onboardingCompleted: obDone,
       onboardingProfile:   obProfile ?? undefined,
     },
+    speedGameResults,
   }
 
   // Track whether this is the first render after authentication
@@ -272,7 +276,8 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
     // Uses the same safe merge as auto-sync (protected progress fields, union logs).
     await store.silentSync(items, extras, {
       bulkImport,
-      applyGamification: (snap) => { useGamificationStore.setState(snap) },
+      applyGamification:     (snap) => { useGamificationStore.setState(snap) },
+      applySpeedGameResults: setSpeedGameResults,
       addTheme,
       currentThemes: themes,
       localItems:    items,
@@ -304,10 +309,8 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
   async function handleConfirmMerge() {
     await store.confirmMerge({
       bulkImport,
-      applyGamification: (snap) => {
-        // Zustand's static setState merges the snapshot into the store
-        useGamificationStore.setState(snap)
-      },
+      applyGamification:     (snap) => { useGamificationStore.setState(snap) },
+      applySpeedGameResults: setSpeedGameResults,
       addTheme,
       currentThemes: themes,
       localItems:    items,

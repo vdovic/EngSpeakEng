@@ -13,6 +13,7 @@ import { loadTodaySession, PRACTICE_MODE_KEY } from '@/lib/challengeSession'
 import { useDriveSyncStore, type ConfirmMergeHelpers } from '@/store/driveSyncStore'
 import { detectOAuthCallback, clearCallbackFromUrl } from '@/lib/googleAuth'
 import type { ExportExtras, GamificationSnapshot } from '@/lib/vocabImportExport'
+import { useSpeedGameStore } from '@/store/speedGameStore'
 
 // ── Eager-loaded pages (part of the initial bundle — fast critical paths) ───────
 
@@ -157,10 +158,11 @@ export default function App() {
       extras:     ExportExtras
       helpers:    ConfirmMergeHelpers
     } {
-      const vocab  = useVocabStore.getState()
-      const gami   = useGamificationStore.getState()
-      const themes = useThemesStore.getState()
-      const ob     = useOnboardingStore.getState()
+      const vocab     = useVocabStore.getState()
+      const gami      = useGamificationStore.getState()
+      const themes    = useThemesStore.getState()
+      const ob        = useOnboardingStore.getState()
+      const speedGame = useSpeedGameStore.getState()
 
       const extras: ExportExtras = {
         gamification: {
@@ -181,14 +183,16 @@ export default function App() {
           onboardingCompleted: ob.completed,
           onboardingProfile:   ob.profile ?? undefined,
         },
+        speedGameResults: speedGame.results,
       }
 
       const helpers: ConfirmMergeHelpers = {
-        bulkImport:        vocab.bulkImport,
-        applyGamification: (snap) => useGamificationStore.setState(snap),
-        addTheme:          themes.addTheme,
-        currentThemes:     themes.themes,
-        localItems:        vocab.items,
+        bulkImport:            vocab.bulkImport,
+        applyGamification:     (snap) => useGamificationStore.setState(snap),
+        applySpeedGameResults: (results) => useSpeedGameStore.getState().setResults(results),
+        addTheme:              themes.addTheme,
+        currentThemes:         themes.themes,
+        localItems:            vocab.items,
         extras,
       }
 

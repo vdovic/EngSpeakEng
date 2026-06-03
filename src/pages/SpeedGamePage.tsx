@@ -22,13 +22,15 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Timer, CheckCircle2, XCircle, ChevronRight,
-  Zap, RotateCcw, BookOpen,
+  Zap, RotateCcw, BookOpen, History, ChevronDown,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
+import { useSpeedGameStore } from '@/store/speedGameStore'
 import {
   SPEED_GAME_DURATIONS,
   SPEED_GAME_DURATION_LABELS,
   type SpeedGameDuration,
+  type SpeedGameResult,
   type SpeedQuestion,
   selectPool,
   countFocusPool,
@@ -94,11 +96,14 @@ function TimerBar({
 export function SpeedGamePage() {
   const navigate  = useNavigate()
   const { items, recordExposure } = useVocabStore()
+  const addResult   = useSpeedGameStore((s) => s.addResult)
+  const pastResults = useSpeedGameStore((s) => s.results)
 
   // ── Phase state ──────────────────────────────────────────────────────────
-  const [phase,     setPhase]     = useState<Phase>('setup')
-  const [duration,  setDuration]  = useState<SpeedGameDuration>(180)
-  const [focusOnly, setFocusOnly] = useState(false)
+  const [phase,       setPhase]       = useState<Phase>('setup')
+  const [duration,    setDuration]    = useState<SpeedGameDuration>(180)
+  const [focusOnly,   setFocusOnly]   = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   // ── Game state ───────────────────────────────────────────────────────────
   const [timeLeft,  setTimeLeft]  = useState(0)
@@ -116,6 +121,33 @@ export function SpeedGamePage() {
    */
   const wordsGainedExposure = useRef<Set<string>>(new Set())
 
+  /**
+   * Mirror of the latest correct/wrong/practiced state — readable inside
+   * timer callbacks without stale-closure issues.
+   */
+  const latestStats = useRef({ correct: 0, wrong: 0, practiced: new Set<string>() })
+
+  // ── Save result when game ends ────────────────────────────────────────────
+  const saveResult = useCallback((
+    finalCorrect:  number,
+    finalWrong:    number,
+    finalPracticed: Set<string>,
+  ) => {
+    const total = finalCorrect + finalWrong
+    const result: SpeedGameResult = {
+      id:             crypto.randomUUID(),
+      playedAt:       new Date().toISOString(),
+      durationSecs:   duration,
+      correct:        finalCorrect,
+      wrong:          finalWrong,
+      accuracy:       total > 0 ? Math.round((finalCorrect / total) * 100) : 0,
+      wordsPracticed: finalPracticed.size,
+      wordsGained:    wordsGainedExposure.current.size,
+      focusOnly,
+    }
+    addResult(result)
+  }, [duration, focusOnly, addResult])
+
   // ── Timer ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (phase !== 'playing') return
@@ -124,6 +156,9 @@ export function SpeedGamePage() {
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(id)
+          // Read from ref — always current, no stale-closure issue
+          const { correct: c, wrong: w, practiced: p } = latestStats.current
+          saveResult(c, w, p)
           setPhase('results')
           return 0
         }
@@ -132,7 +167,7 @@ export function SpeedGamePage() {
     }, 1000)
 
     return () => clearInterval(id)
-  }, [phase])
+  }, [phase, saveResult])
 
   // ── Auto-advance after feedback flash ────────────────────────────────────
   useEffect(() => {
@@ -160,6 +195,7 @@ export function SpeedGamePage() {
   // ── Start game ────────────────────────────────────────────────────────────
   const startGame = useCallback(() => {
     wordsGainedExposure.current = new Set()
+    latestStats.current = { correct: 0, wrong: 0, practiced: new Set() }
     setCorrect(0)
     setWrong(0)
     setPracticed(new Set())
@@ -180,11 +216,15 @@ export function SpeedGamePage() {
     const q          = questions[qIndex]
     const isCorrect  = choiceIndex === q.correctIndex
 
-    // Track unique words practiced
-    setPracticed((prev) => new Set([...prev, q.itemId]))
+    // Track unique words practiced (state + ref mirror)
+    setPracticed((prev) => {
+      const next = new Set([...prev, q.itemId])
+      latestStats.current.practiced = next
+      return next
+    })
 
     if (isCorrect) {
-      setCorrect((c) => c + 1)
+      setCorrect((c) => { latestStats.current.correct = c + 1; return c + 1 })
       // Session cap: only give exposure credit on first correct answer per word
       if (
         canGainExposure(items.find((i) => i.id === q.itemId) ?? { exposureCount: 0 } as any) &&
@@ -194,7 +234,7 @@ export function SpeedGamePage() {
         void recordExposure(q.itemId, true)
       }
     } else {
-      setWrong((w) => w + 1)
+      setWrong((w) => { latestStats.current.wrong = w + 1; return w + 1 })
       // Wrong answers do NOT call recordExposure — speed game errors should
       // not reset a word's SRS schedule.
     }
@@ -359,6 +399,62 @@ export function SpeedGamePage() {
           </p>
         </div>
 
+        {/* Session history */}
+        {pastResults.length > 0 && (
+          <div className="mb-5 border border-slate-200 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setHistoryOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+            >
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <History size={13} />
+                Recent sessions
+                <span className="text-slate-400 font-normal">({pastResults.length})</span>
+              </div>
+              <ChevronDown
+                size={13}
+                className={`text-slate-400 transition-transform duration-200 ${historyOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            {historyOpen && (
+              <div className="divide-y divide-slate-100">
+                {pastResults.slice(0, 10).map((r) => (
+                  <div key={r.id} className="px-4 py-2.5 flex items-center gap-3 text-xs">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-slate-500">
+                        {new Date(r.playedAt).toLocaleDateString('en-GB', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                        })}
+                      </span>
+                      <span className="mx-1.5 text-slate-300">·</span>
+                      <span className="text-slate-500">
+                        {new Date(r.playedAt).toLocaleTimeString('en-GB', {
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </span>
+                      {r.focusOnly && (
+                        <span className="ml-1.5 text-[10px] font-semibold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full">
+                          Focus
+                        </span>
+                      )}
+                    </div>
+                    <span className="font-mono text-slate-500 shrink-0">
+                      {SPEED_GAME_DURATION_LABELS[r.durationSecs as SpeedGameDuration] ?? `${r.durationSecs}s`}
+                    </span>
+                    <span className="font-semibold text-emerald-600 shrink-0">
+                      {r.correct}✓
+                    </span>
+                    <span className="text-slate-400 shrink-0">
+                      {r.accuracy}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           onClick={startGame}
           disabled={noWords}
@@ -467,7 +563,11 @@ export function SpeedGamePage() {
       {/* ── Top bar ── */}
       <div className="flex items-center gap-3 mb-3">
         <button
-          onClick={() => setPhase('results')}
+          onClick={() => {
+            const { correct: c, wrong: w, practiced: p } = latestStats.current
+            saveResult(c, w, p)
+            setPhase('results')
+          }}
           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
           title="End game"
         >

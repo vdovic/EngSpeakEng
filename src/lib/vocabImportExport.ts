@@ -15,6 +15,7 @@
  */
 
 import type { Badge, UsageLog, VocabItem } from '@/types/vocabulary'
+import type { SpeedGameResult } from '@/lib/speedGame'
 import { migrateItem } from '@/lib/migration'
 import { APP_VERSION } from '@/lib/appVersion'
 
@@ -55,21 +56,23 @@ export interface PreferencesSnapshot {
 // ── Export payload ─────────────────────────────────────────────────────────────
 
 export interface VocabExportPayload {
-  exportedAt:    string        // ISO timestamp
-  appVersion?:   string        // semver string
-  itemCount:     number
-  items:         VocabItem[]
+  exportedAt:         string        // ISO timestamp
+  appVersion?:        string        // semver string
+  itemCount:          number
+  items:              VocabItem[]
   // Optional sections — absent in exports from versions before Phase 10
-  gamification?: GamificationSnapshot
-  themes?:       string[]
-  preferences?:  PreferencesSnapshot
+  gamification?:      GamificationSnapshot
+  themes?:            string[]
+  preferences?:       PreferencesSnapshot
+  speedGameResults?:  SpeedGameResult[]
 }
 
 /** Optional extra sections passed to exportVocabToJson. */
 export interface ExportExtras {
-  gamification?: GamificationSnapshot
-  themes?:       string[]
-  preferences?:  PreferencesSnapshot
+  gamification?:     GamificationSnapshot
+  themes?:           string[]
+  preferences?:      PreferencesSnapshot
+  speedGameResults?: SpeedGameResult[]
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
@@ -340,10 +343,11 @@ export function mergeImportedVocabItems(
  * Missing sections (from older exports) will be undefined.
  */
 export interface FullExportParseResult {
-  items:        VocabItem[]
-  gamification?: GamificationSnapshot
-  themes?:       string[]
-  preferences?:  PreferencesSnapshot
+  items:              VocabItem[]
+  gamification?:      GamificationSnapshot
+  themes?:            string[]
+  preferences?:       PreferencesSnapshot
+  speedGameResults?:  SpeedGameResult[]
 }
 
 /**
@@ -384,6 +388,16 @@ export function parseFullExport(raw: string): FullExportParseResult {
   }
   if (obj.preferences != null && typeof obj.preferences === 'object' && !Array.isArray(obj.preferences)) {
     result.preferences = obj.preferences as PreferencesSnapshot
+  }
+  if (Array.isArray(obj.speedGameResults)) {
+    // Light validation: keep only entries that look like SpeedGameResult
+    result.speedGameResults = (obj.speedGameResults as unknown[]).filter(
+      (r): r is SpeedGameResult =>
+        r !== null &&
+        typeof r === 'object' &&
+        typeof (r as SpeedGameResult).id === 'string' &&
+        typeof (r as SpeedGameResult).playedAt === 'string',
+    )
   }
 
   return result
@@ -447,4 +461,21 @@ export function mergeGamificationSnapshot(
     gamesPlayed:          Math.max(current.gamesPlayed,           imported.gamesPlayed),
     bestGameStreak:       Math.max(current.bestGameStreak,        imported.bestGameStreak),
   }
+}
+
+// ── Speed game results merge ───────────────────────────────────────────────────
+
+/**
+ * Merge two arrays of SpeedGameResult by unioning on `id`.
+ *
+ * Results are immutable once recorded — there is no conflict to resolve.
+ * The combined set is de-duplicated by ID and sorted newest-first.
+ */
+export function mergeSpeedGameResults(
+  local:  SpeedGameResult[],
+  remote: SpeedGameResult[],
+): SpeedGameResult[] {
+  const map = new Map<string, SpeedGameResult>()
+  for (const r of [...local, ...remote]) map.set(r.id, r)
+  return [...map.values()].sort((a, b) => b.playedAt.localeCompare(a.playedAt))
 }
