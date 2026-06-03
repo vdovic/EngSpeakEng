@@ -51,6 +51,9 @@ const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 )
 const AtlasPage = lazy(() => import('@/pages/AtlasPage'))
+const SpeedGamePage = lazy(() =>
+  import('@/pages/SpeedGamePage').then((m) => ({ default: m.SpeedGamePage }))
+)
 
 // ── DeepPracticeIndicator ─────────────────────────────────────────────────────
 // Shown across the whole app (except on /challenge itself) when a Deep Practice
@@ -293,7 +296,8 @@ export default function App() {
             <Route path="/themes/:themeName" element={<ThemeDetailPage />} />
             <Route path="/settings"  element={<SettingsPage />} />
 
-            <Route path="/atlas"     element={<AtlasPage />} />
+            <Route path="/atlas"       element={<AtlasPage />} />
+            <Route path="/game/speed"  element={<SpeedGamePage />} />
 
             {/* Legacy aliases — redirect to canonical routes */}
             <Route path="/inbox"  element={<Navigate to="/library"  replace />} />

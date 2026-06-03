@@ -13,7 +13,7 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Flame, Gamepad2, Plus, RotateCw, SlidersHorizontal, TrendingUp } from 'lucide-react'
+import { ChevronDown, ChevronRight, Flame, Gamepad2, Plus, RotateCw, SlidersHorizontal, TrendingUp, Zap } from 'lucide-react'
 import { clearSession, getUniqueWordProgress, loadTodaySession, PRACTICE_MODE_KEY } from '@/lib/challengeSession'
 import { CHALLENGE_SESSION_CAP, MAX_EXPOSURE } from '@/lib/constants'
 import { usagePoints } from '@/lib/mastery'
@@ -536,32 +536,56 @@ function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
 }
 
 function GamesSection() {
-  if (!isEseGameExperimentEnabled) return null
+  const navigate = useNavigate()
 
   return (
-    <div className="mt-3">
-      <a
-        href={ESE_GAME_EXPERIMENT_ROUTE}
-        className="group flex min-h-[84px] flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-teal-200 hover:bg-teal-50/30 sm:flex-row sm:items-center sm:justify-between"
+    <div className="mt-3 space-y-2">
+      {/* Speed Practice — always available */}
+      <button
+        onClick={() => navigate('/game/speed')}
+        className="group w-full flex min-h-[84px] flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm text-left transition-all hover:border-rose-200 hover:bg-rose-50/30 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="flex min-w-0 gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition-colors group-hover:bg-teal-100 group-hover:text-teal-700">
-            <Gamepad2 size={18} aria-hidden="true" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition-colors group-hover:bg-rose-100">
+            <Zap size={18} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-bold text-slate-900">Practice Games</p>
-            </div>
-            <p className="mt-0.5 text-sm leading-snug text-slate-600">
-              Optional fluency drills for mission vocabulary: sentence repair, recall, and phrase precision.
+            <p className="text-sm font-bold text-slate-900">Speed Practice</p>
+            <p className="mt-0.5 text-xs leading-snug text-slate-500">
+              Answer as many questions as you can in 1–10 minutes.
+              Definitions, fill-in-the-blank, synonyms.
             </p>
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 self-start text-xs font-semibold text-teal-700 sm:self-center">
-          Open Practice Games
+        <span className="inline-flex items-center gap-1 self-start text-xs font-semibold text-rose-600 sm:self-center shrink-0">
+          Play
           <ChevronRight size={13} aria-hidden="true" />
         </span>
-      </a>
+      </button>
+
+      {/* Experimental games — feature-flagged */}
+      {isEseGameExperimentEnabled && (
+        <a
+          href={ESE_GAME_EXPERIMENT_ROUTE}
+          className="group flex min-h-[84px] flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-teal-200 hover:bg-teal-50/30 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex min-w-0 gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 transition-colors group-hover:bg-teal-100 group-hover:text-teal-700">
+              <Gamepad2 size={18} aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900">Practice Games</p>
+              <p className="mt-0.5 text-sm leading-snug text-slate-600">
+                Optional fluency drills for mission vocabulary: sentence repair, recall, and phrase precision.
+              </p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1 self-start text-xs font-semibold text-teal-700 sm:self-center">
+            Open Practice Games
+            <ChevronRight size={13} aria-hidden="true" />
+          </span>
+        </a>
+      )}
     </div>
   )
 }
