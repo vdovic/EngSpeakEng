@@ -2,15 +2,19 @@
  * speedGame.ts — Pure logic for the Speed Practice game
  *
  * Responsibilities:
- *   • Select eligible vocabulary items from the library
+ *   • Select eligible vocabulary items by scope (focus / active / full)
  *   • Generate randomised multiple-choice questions from existing word data
- *   • Define durations and session types — no React, no side effects
+ *   • Define durations, scopes, and result types — no React, no side effects
+ *
+ * Word scope model:
+ *   'focus'  — words in My Current Focus (inFocus / weeklyFocus) — 20–50 words
+ *   'active' — all words currently in training (inbox → activate) — ~100–200 words
+ *   'full'   — entire library including mastered words — 1000+ words
  *
  * Progress rule:
- *   Correct answers contribute one exposure increment per word per session.
- *   This is enforced by the caller (SpeedGamePage) via a per-session Set —
- *   the second correct answer for the same word only updates the session
- *   score, never calls recordExposure again.
+ *   Correct answers call recordExposure(id, true) at most once per word per session.
+ *   Enforced by the caller (SpeedGamePage) via a per-session Set.
+ *   canGainExposure() gates the call — mastered/maxed words are not advanced.
  *
  * CLAUDE.md compliance:
  *   • No AI calls — questions are built from existing word data only
@@ -21,6 +25,23 @@
 
 import type { VocabItem } from '@/types/vocabulary'
 import { MAX_EXPOSURE } from '@/lib/constants'
+
+// ── Word scope ─────────────────────────────────────────────────────────────────
+
+/**
+ * The set of words the speed game draws from in a given session.
+ *
+ *   focus  — words currently in My Current Focus (inFocus / weeklyFocus)
+ *   active — all words being actively learned (not mastered, not archived)
+ *   full   — entire library including mastered words (good for general review)
+ */
+export type WordScope = 'focus' | 'active' | 'full'
+
+export const WORD_SCOPE_LABELS: Record<WordScope, string> = {
+  focus:  'Focus',
+  active: 'Active learning',
+  full:   'Everything',
+}
 
 // ── Result record ─────────────────────────────────────────────────────────────
 
@@ -42,7 +63,14 @@ export interface SpeedGameResult {
   wordsPracticed: number
   /** Words that received a recordExposure(true) call this session. */
   wordsGained:    number
-  focusOnly:      boolean
+  /** Word pool scope used for this session. */
+  scope:          WordScope
+  /**
+   * @deprecated  Use scope instead.
+   * Kept for backward compatibility with results saved before the scope field
+   * was introduced.  New results never set this.
+   */
+  focusOnly?:     boolean
 }
 
 // ── Durations ──────────────────────────────────────────────────────────────────
@@ -63,33 +91,27 @@ export const SPEED_GAME_DURATION_LABELS: Record<SpeedGameDuration, string> = {
 // All types require active retrieval — no "do you recognise this word?" allowed.
 
 export type SpeedQuestionType =
-  | 'fill-blank'        // sentence with word removed → pick the word from 4 choices
+  | 'fill-blank'         // sentence with word removed → pick the word from 4 choices
   | 'definition-to-term' // definition shown → pick the correct term
   | 'term-to-definition' // term shown → pick the correct definition
   | 'synonym-to-term'    // synonym shown → pick the matching term
 
 export interface SpeedQuestion {
-  /** The word this question is about */
-  itemId: string
-  term:   string
-  type:   SpeedQuestionType
-  /** Main prompt shown to the learner */
-  prompt: string
-  /** Exactly 4 choices (always) */
-  choices: string[]
-  /** Index into choices[] that is correct */
+  itemId:      string
+  term:        string
+  type:        SpeedQuestionType
+  prompt:      string
+  choices:     string[]
   correctIndex: number
 }
 
-// ── Word eligibility ───────────────────────────────────────────────────────────
+// ── Eligibility ────────────────────────────────────────────────────────────────
 
 /**
- * A word is eligible for the speed game if:
- *   • Not archived
- *   • Not mastered (mastered words have graduated from active practice)
- *   • Has a definition (required for question generation)
+ * Eligible for 'active' scope: not archived, not mastered, has a definition.
+ * This is the baseline requirement for any meaningful question.
  */
-export function isEligible(item: VocabItem): boolean {
+export function isEligibleActive(item: VocabItem): boolean {
   return (
     !item.archived &&
     item.status !== 'mastered' &&
@@ -98,71 +120,93 @@ export function isEligible(item: VocabItem): boolean {
 }
 
 /**
+ * Eligible for 'full' scope: not archived, has a definition.
+ * Mastered words are included — good for general vocabulary review.
+ * The game does not advance their exposure (canGainExposure returns false).
+ */
+export function isEligibleFull(item: VocabItem): boolean {
+  return !item.archived && Boolean(item.definitionEn?.trim())
+}
+
+/** @deprecated Use isEligibleActive. Kept for any external callers. */
+export const isEligible = isEligibleActive
+
+/**
  * True when calling recordExposure(id, true) would advance the exposure count.
- * Words already at MAX_EXPOSURE (8) are still playable for reinforcement,
- * but there is nothing to advance — the caller should skip recordExposure.
+ * Words at MAX_EXPOSURE (8) are still playable for reinforcement,
+ * but recordExposure should be skipped — there is nothing to advance.
  */
 export function canGainExposure(item: VocabItem): boolean {
   return (item.exposureCount ?? 0) < MAX_EXPOSURE
 }
 
+// ── Pool selection ─────────────────────────────────────────────────────────────
+
 /**
- * Select and shuffle words for a speed game session.
- *
- * @param focusOnly  When true, restrict to focus words (inFocus / weeklyFocus).
- *                   Falls back to the full eligible pool if focus yields < 4 items
- *                   so question generation (which needs 3 distractors) never fails.
- *
- * Priority order when focusOnly = false:
- *   1. Focus words first
- *   2. Rest of eligible library
- *
- * Returns up to `maxPool` items; caller re-uses pool when questions run out.
+ * Return the word count for a given scope — used by the setup screen
+ * to show availability next to each scope button.
  */
-export function selectPool(
-  items:     VocabItem[],
-  maxPool    = 80,
-  focusOnly  = false,
-): VocabItem[] {
-  const eligible = items.filter(isEligible)
-  const focus    = eligible.filter((i) => i.inFocus || i.weeklyFocus)
-
-  if (focusOnly) {
-    // Need at least 4 items for distractor generation; silently widen if not met
-    const pool = focus.length >= 4 ? focus : eligible
-    return shuffle(pool).slice(0, maxPool)
+export function countScope(items: VocabItem[], scope: WordScope): number {
+  switch (scope) {
+    case 'focus':
+      return items.filter((i) => isEligibleActive(i) && (i.inFocus || i.weeklyFocus)).length
+    case 'active':
+      return items.filter(isEligibleActive).length
+    case 'full':
+      return items.filter(isEligibleFull).length
   }
-
-  const rest = eligible.filter((i) => !i.inFocus && !i.weeklyFocus)
-  const pool = [...shuffle(focus), ...shuffle(rest)].slice(0, maxPool)
-  return pool.length > 0 ? pool : shuffle(eligible).slice(0, maxPool)
 }
 
 /**
- * Count how many focus words are eligible for the speed game.
- * Used by the setup screen to show availability and enable/disable the toggle.
+ * Select and shuffle words for a speed game session.
+ *
+ * No upper cap — returns the full eligible set for the chosen scope so the
+ * game can cycle through the entire library in long sessions.
+ *
+ * Focus words are sorted first in the 'active' scope so they appear more
+ * often in the early question batches before the pool is shuffled for refills.
+ *
+ * Falls back to a wider scope when the requested scope yields < 4 items
+ * (distractor generation requires at least 4 candidates).
+ */
+export function selectPool(items: VocabItem[], scope: WordScope = 'active'): VocabItem[] {
+  switch (scope) {
+    case 'focus': {
+      const focus = items.filter((i) => isEligibleActive(i) && (i.inFocus || i.weeklyFocus))
+      // Need ≥ 4 for distractor generation; widen to active if not met
+      if (focus.length >= 4) return shuffle(focus)
+      return shuffle(items.filter(isEligibleActive))
+    }
+    case 'active': {
+      const eligible = items.filter(isEligibleActive)
+      // Focus words first — they appear in early batches before pool reshuffles
+      const focus = eligible.filter((i) => i.inFocus || i.weeklyFocus)
+      const rest  = eligible.filter((i) => !i.inFocus && !i.weeklyFocus)
+      return [...shuffle(focus), ...shuffle(rest)]
+    }
+    case 'full': {
+      return shuffle(items.filter(isEligibleFull))
+    }
+  }
+}
+
+/**
+ * Count how many focus words are eligible.
+ * @deprecated Use countScope(items, 'focus').
  */
 export function countFocusPool(items: VocabItem[]): number {
-  return items.filter((i) => isEligible(i) && (i.inFocus || i.weeklyFocus)).length
+  return countScope(items, 'focus')
 }
 
 // ── Question generation ────────────────────────────────────────────────────────
 
 /**
- * Generate a single question for `item` using distractor items from `pool`.
- *
- * Returns null when the item lacks the data needed for any question type
- * (shouldn't happen since eligibility requires definitionEn, but guards exist).
+ * Generate a single question for `item` using distractors from `pool`.
+ * Returns null when the item lacks sufficient data for any question type.
  */
-export function generateQuestion(
-  item:  VocabItem,
-  pool:  VocabItem[],
-): SpeedQuestion | null {
-  // Build the ordered list of types to try, best first
+export function generateQuestion(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   const types = preferredTypes(item)
-
-  // Shuffle so all eligible question types get used across many calls,
-  // keeping variety high rather than always returning the first type.
+  // Shuffle so all eligible types appear across repeated calls
   for (const type of shuffle(types)) {
     const q = tryBuildQuestion(type, item, pool)
     if (q) return q
@@ -171,7 +215,7 @@ export function generateQuestion(
 }
 
 /**
- * Build a sequence of questions from the pool, cycling through items randomly.
+ * Build a sequence of questions from the pool, cycling randomly.
  * Suitable for pre-generating a batch at game start.
  */
 export function generateBatch(pool: VocabItem[], count: number): SpeedQuestion[] {
@@ -186,8 +230,7 @@ export function generateBatch(pool: VocabItem[], count: number): SpeedQuestion[]
     idx++
     const q = generateQuestion(item, pool)
     if (q) questions.push(q)
-    // Safety: if pool is too small to generate enough questions, stop
-    if (idx > count * 3) break
+    if (idx > count * 3) break  // safety: prevent infinite loop on tiny pools
   }
 
   return questions
@@ -197,27 +240,10 @@ export function generateBatch(pool: VocabItem[], count: number): SpeedQuestion[]
 
 function preferredTypes(item: VocabItem): SpeedQuestionType[] {
   const types: SpeedQuestionType[] = []
-
-  // fill-blank is the most engaging — requires contextual placement
-  if (item.exampleSentence || item.workSentence) {
-    types.push('fill-blank')
-  }
-
-  // definition-to-term: requires active recall of the word itself
-  if (item.definitionEn) {
-    types.push('definition-to-term')
-  }
-
-  // synonym-to-term: semantic understanding
-  if ((item.synonyms?.length ?? 0) > 0) {
-    types.push('synonym-to-term')
-  }
-
-  // term-to-definition: comprehension, lower bar — use as fallback
-  if (item.definitionEn) {
-    types.push('term-to-definition')
-  }
-
+  if (item.exampleSentence || item.workSentence) types.push('fill-blank')
+  if (item.definitionEn)                         types.push('definition-to-term')
+  if ((item.synonyms?.length ?? 0) > 0)          types.push('synonym-to-term')
+  if (item.definitionEn)                         types.push('term-to-definition')
   return types
 }
 
@@ -227,118 +253,71 @@ function tryBuildQuestion(
   pool: VocabItem[],
 ): SpeedQuestion | null {
   switch (type) {
-    case 'fill-blank':        return buildFillBlank(item, pool)
-    case 'definition-to-term': return buildDefinitionToTerm(item, pool)
-    case 'synonym-to-term':   return buildSynonymToTerm(item, pool)
-    case 'term-to-definition': return buildTermToDefinition(item, pool)
+    case 'fill-blank':          return buildFillBlank(item, pool)
+    case 'definition-to-term':  return buildDefinitionToTerm(item, pool)
+    case 'synonym-to-term':     return buildSynonymToTerm(item, pool)
+    case 'term-to-definition':  return buildTermToDefinition(item, pool)
   }
 }
 
-/** "Complete the sentence: She tried to ___ with her colleagues." */
 function buildFillBlank(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   const sentence = item.exampleSentence || item.workSentence
   if (!sentence) return null
-
-  // Replace the term in the sentence with a blank (case-insensitive)
   const re = new RegExp(`\\b${escapeRegex(item.term)}\\b`, 'i')
   if (!re.test(sentence)) return null
-
-  const prompt = sentence.replace(re, '___')
-
+  const prompt      = sentence.replace(re, '___')
   const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
   if (distractors.length < 3) return null
-
-  return makeQuestion(
-    item,
-    'fill-blank',
-    `Complete the sentence:\n"${prompt}"`,
-    [item.term, ...distractors.map((d) => d.term)],
-  )
+  return makeQuestion(item, 'fill-blank', `Complete the sentence:\n"${prompt}"`,
+    [item.term, ...distractors.map((d) => d.term)])
 }
 
-/** "Which word means: [definition]?" */
 function buildDefinitionToTerm(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   if (!item.definitionEn) return null
-
-  const definition = truncate(item.definitionEn, 120)
   const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
   if (distractors.length < 3) return null
-
-  return makeQuestion(
-    item,
-    'definition-to-term',
-    `Which word matches this meaning?\n"${definition}"`,
-    [item.term, ...distractors.map((d) => d.term)],
-  )
+  return makeQuestion(item, 'definition-to-term',
+    `Which word matches this meaning?\n"${truncate(item.definitionEn, 120)}"`,
+    [item.term, ...distractors.map((d) => d.term)])
 }
 
-/** "What does [term] mean?" */
 function buildTermToDefinition(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   if (!item.definitionEn) return null
-
   const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
   if (distractors.length < 3) return null
-
-  const correctDef = truncate(item.definitionEn, 100)
-  const wrongDefs  = distractors.map((d) => truncate(d.definitionEn!, 100))
-
-  return makeQuestion(
-    item,
-    'term-to-definition',
+  return makeQuestion(item, 'term-to-definition',
     `What does "${item.term}" mean?`,
-    [correctDef, ...wrongDefs],
-  )
+    [item.definitionEn, ...distractors.map((d) => d.definitionEn!)].map((d) => truncate(d, 100)))
 }
 
-/** "Which word is synonymous with [synonym]?" */
 function buildSynonymToTerm(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   const synonyms = item.synonyms?.filter((s) => s.trim().length > 0)
-  if (!synonyms || synonyms.length === 0) return null
-
+  if (!synonyms?.length) return null
   const syn = synonyms[Math.floor(Math.random() * synonyms.length)]
   const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
   if (distractors.length < 3) return null
-
-  return makeQuestion(
-    item,
-    'synonym-to-term',
+  return makeQuestion(item, 'synonym-to-term',
     `Which word is synonymous with "${syn}"?`,
-    [item.term, ...distractors.map((d) => d.term)],
-  )
+    [item.term, ...distractors.map((d) => d.term)])
 }
 
-/**
- * Construct a SpeedQuestion with shuffled choices and a resolved correctIndex.
- * `rawChoices[0]` must always be the correct answer before shuffling.
- */
 function makeQuestion(
   item:       VocabItem,
   type:       SpeedQuestionType,
   prompt:     string,
-  rawChoices: string[],    // rawChoices[0] = correct answer
+  rawChoices: string[],   // rawChoices[0] = correct answer
 ): SpeedQuestion {
   const shuffled = shuffleIndexed(rawChoices)
-  return {
-    itemId:       item.id,
-    term:         item.term,
-    type,
-    prompt,
-    choices:      shuffled.items,
-    correctIndex: shuffled.originalFirstIndex,
-  }
+  return { itemId: item.id, term: item.term, type, prompt, choices: shuffled.items, correctIndex: shuffled.originalFirstIndex }
 }
 
-/** Pick `n` distractors from the pool — not the target item, with an optional filter. */
 function pickDistractors(
-  target:  VocabItem,
-  pool:    VocabItem[],
-  n:       number,
+  target: VocabItem,
+  pool:   VocabItem[],
+  n:      number,
   filter?: (item: VocabItem) => boolean,
 ): VocabItem[] {
-  const candidates = pool.filter(
-    (i) => i.id !== target.id && (!filter || filter(i)),
-  )
-  return shuffle(candidates).slice(0, n)
+  return shuffle(pool.filter((i) => i.id !== target.id && (!filter || filter(i)))).slice(0, n)
 }
 
 // ── Utilities ──────────────────────────────────────────────────────────────────
@@ -352,16 +331,13 @@ export function shuffle<T>(arr: T[]): T[] {
   return copy
 }
 
-/** Shuffle an array and report where index 0 ended up (for correctIndex). */
 function shuffleIndexed<T>(arr: T[]): { items: T[]; originalFirstIndex: number } {
   const copy = [...arr]
   for (let i = copy.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[copy[i], copy[j]] = [copy[j], copy[i]]
   }
-  // Find where the original first element landed
-  const originalFirstIndex = copy.indexOf(arr[0])
-  return { items: copy, originalFirstIndex }
+  return { items: copy, originalFirstIndex: copy.indexOf(arr[0]) }
 }
 
 function truncate(s: string, max: number): string {

@@ -30,11 +30,13 @@ import { useSpeedGameStore } from '@/store/speedGameStore'
 import {
   SPEED_GAME_DURATIONS,
   SPEED_GAME_DURATION_LABELS,
+  WORD_SCOPE_LABELS,
   type SpeedGameDuration,
   type SpeedGameResult,
   type SpeedQuestion,
+  type WordScope,
   selectPool,
-  countFocusPool,
+  countScope,
   generateBatch,
   canGainExposure,
 } from '@/lib/speedGame'
@@ -97,9 +99,9 @@ export function SpeedGamePage() {
   const pastResults          = useSpeedGameStore((s) => s.results)
 
   // ── Phase ────────────────────────────────────────────────────────────────
-  const [phase,     setPhase]     = useState<Phase>('setup')
-  const [duration,  setDuration]  = useState<SpeedGameDuration>(180)
-  const [focusOnly, setFocusOnly] = useState(false)
+  const [phase,    setPhase]    = useState<Phase>('setup')
+  const [duration, setDuration] = useState<SpeedGameDuration>(180)
+  const [scope,    setScope]    = useState<WordScope>('active')
 
   // ── Game state ───────────────────────────────────────────────────────────
   const [timeLeft,  setTimeLeft]  = useState(0)
@@ -135,9 +137,9 @@ export function SpeedGamePage() {
       accuracy:       total > 0 ? Math.round((finalCorrect / total) * 100) : 0,
       wordsPracticed: finalPracticed.size,
       wordsGained:    wordsGainedExposure.current.size,
-      focusOnly,
+      scope,
     })
-  }, [duration, focusOnly, addResult])
+  }, [duration, scope, addResult])
 
   // ── Timer ─────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -172,11 +174,11 @@ export function SpeedGamePage() {
   useEffect(() => {
     if (phase !== 'playing') return
     if (questions.length - qIndex >= 5) return
-    const pool     = selectPool(items, 80, focusOnly)
+    const pool     = selectPool(items, scope)
     const newBatch = generateBatch(pool, BATCH_SIZE)
     setQuestions((prev) => [...prev.slice(qIndex), ...newBatch])
     setQIndex(0)
-  }, [qIndex, questions.length, phase, items, focusOnly])
+  }, [qIndex, questions.length, phase, items, scope])
 
   // ── Start game ────────────────────────────────────────────────────────────
   const startGame = useCallback(() => {
@@ -189,12 +191,12 @@ export function SpeedGamePage() {
     setFeedback(null)
     setQIndex(0)
 
-    const pool  = selectPool(items, 80, focusOnly)
+    const pool  = selectPool(items, scope)
     const batch = generateBatch(pool, BATCH_SIZE)
     setQuestions(batch)
     setTimeLeft(duration)
     setPhase(batch.length === 0 ? 'results' : 'playing')
-  }, [duration, focusOnly, items])
+  }, [duration, scope, items])
 
   // End game manually (← button while playing)
   const endGame = useCallback(() => {
@@ -249,12 +251,7 @@ export function SpeedGamePage() {
 
   // ── Setup phase ───────────────────────────────────────────────────────────
   if (phase === 'setup') {
-    const focusCount    = countFocusPool(items)
-    const allPool       = selectPool(items)
-    const focusDisabled = focusCount < 4
-    const focusWarning  = focusOnly && focusCount < 4
-    const activeCount   = focusOnly && !focusDisabled ? focusCount : allPool.length
-    const noWords       = activeCount < 4
+    const noWords = countScope(items, scope) < 4 && selectPool(items, scope).length < 4
 
     return (
       <div className="max-w-lg mx-auto px-4 py-6">
@@ -273,39 +270,46 @@ export function SpeedGamePage() {
           </div>
         </div>
 
-        {/* Word scope */}
+        {/* Word scope — three buttons */}
         <div className="mb-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Word selection</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setFocusOnly(false)}
-              className={`px-4 py-3 rounded-xl border text-sm font-semibold text-left transition-colors ${
-                !focusOnly
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-brand-300 hover:bg-brand-50'
-              }`}>
-              <span className="block">All vocabulary</span>
-              <span className={`text-xs font-normal mt-0.5 block ${!focusOnly ? 'text-brand-100' : 'text-slate-400'}`}>
-                {allPool.length} eligible words
-              </span>
-            </button>
-            <button onClick={() => !focusDisabled && setFocusOnly(true)} disabled={focusDisabled}
-              className={`px-4 py-3 rounded-xl border text-sm font-semibold text-left transition-colors disabled:cursor-not-allowed ${
-                focusOnly && !focusDisabled
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : focusDisabled
-                  ? 'bg-slate-50 text-slate-400 border-slate-200'
-                  : 'bg-white text-slate-700 border-slate-200 hover:border-brand-300 hover:bg-brand-50'
-              }`}>
-              <span className="block">Focus words only</span>
-              <span className={`text-xs font-normal mt-0.5 block ${focusOnly && !focusDisabled ? 'text-brand-100' : focusDisabled ? 'text-slate-300' : 'text-slate-400'}`}>
-                {focusCount > 0 ? `${focusCount} word${focusCount !== 1 ? 's' : ''} in focus` : 'No focus words yet'}
-              </span>
-            </button>
+          <div className="grid grid-cols-3 gap-2">
+            {(['focus', 'active', 'full'] as WordScope[]).map((s) => {
+              const cnt      = countScope(items, s)
+              const isActive = scope === s
+              const disabled = cnt < 4
+              const subtitle: Record<WordScope, string> = {
+                focus:  cnt > 0 ? `${cnt} in focus` : 'None in focus',
+                active: `${cnt} words`,
+                full:   `${cnt.toLocaleString()} words`,
+              }
+              return (
+                <button
+                  key={s}
+                  onClick={() => !disabled && setScope(s)}
+                  disabled={disabled}
+                  className={`px-3 py-3 rounded-xl border text-sm font-semibold text-left transition-colors disabled:cursor-not-allowed ${
+                    isActive
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : disabled
+                      ? 'bg-slate-50 text-slate-400 border-slate-200'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-brand-300 hover:bg-brand-50'
+                  }`}
+                >
+                  <span className="block">{WORD_SCOPE_LABELS[s]}</span>
+                  <span className={`text-xs font-normal mt-0.5 block ${
+                    isActive ? 'text-brand-100' : disabled ? 'text-slate-300' : 'text-slate-400'
+                  }`}>
+                    {subtitle[s]}
+                  </span>
+                </button>
+              )
+            })}
           </div>
-          {focusWarning && (
+          {scope === 'focus' && countScope(items, 'focus') < 4 && countScope(items, 'active') >= 4 && (
             <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5">
               <BookOpen size={12} className="shrink-0" />
-              Fewer than 4 focus words — using full library instead.
+              Fewer than 4 focus words — using active learning pool instead.
             </p>
           )}
         </div>
@@ -363,8 +367,11 @@ export function SpeedGamePage() {
                       <span className="text-slate-400 ml-1.5">
                         {new Date(r.playedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      {r.focusOnly && (
-                        <span className="ml-1.5 text-[10px] font-semibold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full">Focus</span>
+                      {/* scope label — with fallback for results saved before scope field existed */}
+                      {(r.scope ?? (r.focusOnly ? 'focus' : 'active')) !== 'active' && (
+                        <span className="ml-1.5 text-[10px] font-semibold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full capitalize">
+                          {WORD_SCOPE_LABELS[r.scope ?? (r.focusOnly ? 'focus' : 'active')]}
+                        </span>
                       )}
                     </div>
                     <span className="text-slate-400 shrink-0 font-mono">
@@ -401,10 +408,7 @@ export function SpeedGamePage() {
         <button onClick={startGame} disabled={noWords}
           className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white text-sm font-bold rounded-2xl transition-colors flex items-center justify-center gap-2">
           <Zap size={16} />
-          Start {SPEED_GAME_DURATION_LABELS[duration]} game
-          {focusOnly && !focusWarning && (
-            <span className="text-brand-200 font-normal text-xs ml-1">· focus words</span>
-          )}
+          Start {SPEED_GAME_DURATION_LABELS[duration]} · {WORD_SCOPE_LABELS[scope]}
         </button>
       </div>
     )
@@ -416,10 +420,10 @@ export function SpeedGamePage() {
     const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0
     const gained   = wordsGainedExposure.current.size
 
-    // Compare against previous best for this duration (excluding current game).
+    // Compare against previous best for this duration (any scope), excluding current game.
     // pastResults[0] is the current game (just saved). Slice past it.
     const prevResults = pastResults.slice(1)
-    const prevBest    = bestForDuration(prevResults.filter(r => r.durationSecs === duration), duration)
+    const prevBest    = bestForDuration(prevResults, duration)
     const isPersonalBest = prevBest === null
       ? (total > 0)               // first ever game for this duration — always a "best"
       : correct > prevBest
