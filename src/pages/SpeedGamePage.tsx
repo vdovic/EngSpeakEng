@@ -31,6 +31,7 @@ import {
   type SpeedGameDuration,
   type SpeedQuestion,
   selectPool,
+  countFocusPool,
   generateBatch,
   canGainExposure,
 } from '@/lib/speedGame'
@@ -95,8 +96,9 @@ export function SpeedGamePage() {
   const { items, recordExposure } = useVocabStore()
 
   // ── Phase state ──────────────────────────────────────────────────────────
-  const [phase,    setPhase]    = useState<Phase>('setup')
-  const [duration, setDuration] = useState<SpeedGameDuration>(180)
+  const [phase,     setPhase]     = useState<Phase>('setup')
+  const [duration,  setDuration]  = useState<SpeedGameDuration>(180)
+  const [focusOnly, setFocusOnly] = useState(false)
 
   // ── Game state ───────────────────────────────────────────────────────────
   const [timeLeft,  setTimeLeft]  = useState(0)
@@ -148,12 +150,12 @@ export function SpeedGamePage() {
     if (phase !== 'playing') return
     const remaining = questions.length - qIndex
     if (remaining < 5) {
-      const pool     = selectPool(items)
+      const pool     = selectPool(items, 80, focusOnly)
       const newBatch = generateBatch(pool, BATCH_SIZE)
       setQuestions((prev) => [...prev.slice(qIndex), ...newBatch])
       setQIndex(0)
     }
-  }, [qIndex, questions.length, phase, items])
+  }, [qIndex, questions.length, phase, items, focusOnly])
 
   // ── Start game ────────────────────────────────────────────────────────────
   const startGame = useCallback(() => {
@@ -164,12 +166,12 @@ export function SpeedGamePage() {
     setFeedback(null)
     setQIndex(0)
 
-    const pool  = selectPool(items)
+    const pool  = selectPool(items, 80, focusOnly)
     const batch = generateBatch(pool, BATCH_SIZE)
     setQuestions(batch)
     setTimeLeft(duration)
     setPhase(batch.length === 0 ? 'results' : 'playing')
-  }, [duration, items])
+  }, [duration, focusOnly, items])
 
   // ── Answer handler ────────────────────────────────────────────────────────
   const handleAnswer = useCallback((choiceIndex: number) => {
@@ -223,8 +225,13 @@ export function SpeedGamePage() {
 
   // ── Phase: setup ──────────────────────────────────────────────────────────
   if (phase === 'setup') {
-    const pool = selectPool(items)
-    const noWords = pool.length < 4
+    const focusCount = countFocusPool(items)
+    const allPool    = selectPool(items)
+    const focusDisabled = focusCount < 4
+    // If focus toggle is on but focus pool is too small, show a warning
+    const focusWarning = focusOnly && focusCount < 4
+    const activePool = focusOnly && !focusDisabled ? focusCount : allPool.length
+    const noWords = activePool < 4
 
     return (
       <div className="max-w-lg mx-auto px-4 py-6">
@@ -244,10 +251,64 @@ export function SpeedGamePage() {
           </div>
         </div>
 
-        <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+        <p className="text-sm text-slate-500 mb-5 leading-relaxed">
           Answer quick questions about your vocabulary. Each correct answer
           counts once per word toward your progress.
         </p>
+
+        {/* Word scope toggle */}
+        <div className="mb-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            Word selection
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setFocusOnly(false)}
+              className={`px-4 py-3 rounded-xl border text-sm font-semibold text-left transition-colors ${
+                !focusOnly
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-brand-300 hover:bg-brand-50'
+              }`}
+            >
+              <span className="block">All vocabulary</span>
+              <span className={`text-xs font-normal mt-0.5 block ${!focusOnly ? 'text-brand-100' : 'text-slate-400'}`}>
+                {allPool.length} eligible words
+              </span>
+            </button>
+
+            <button
+              onClick={() => !focusDisabled && setFocusOnly(true)}
+              disabled={focusDisabled}
+              className={`px-4 py-3 rounded-xl border text-sm font-semibold text-left transition-colors disabled:cursor-not-allowed ${
+                focusOnly && !focusDisabled
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : focusDisabled
+                  ? 'bg-slate-50 text-slate-400 border-slate-200'
+                  : 'bg-white text-slate-700 border-slate-200 hover:border-brand-300 hover:bg-brand-50'
+              }`}
+            >
+              <span className="block">Focus words only</span>
+              <span className={`text-xs font-normal mt-0.5 block ${
+                focusOnly && !focusDisabled
+                  ? 'text-brand-100'
+                  : focusDisabled
+                  ? 'text-slate-300'
+                  : 'text-slate-400'
+              }`}>
+                {focusCount > 0
+                  ? `${focusCount} word${focusCount !== 1 ? 's' : ''} in focus`
+                  : 'No focus words yet'}
+              </span>
+            </button>
+          </div>
+
+          {focusWarning && (
+            <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5">
+              <BookOpen size={12} className="shrink-0" />
+              Fewer than 4 focus words — using full library instead.
+            </p>
+          )}
+        </div>
 
         {noWords && (
           <div className="mb-5 flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
@@ -260,9 +321,9 @@ export function SpeedGamePage() {
         )}
 
         {/* Duration picker */}
-        <div className="mb-6">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-            Select duration
+        <div className="mb-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            Duration
           </p>
           <div className="grid grid-cols-5 gap-2">
             {SPEED_GAME_DURATIONS.map((d) => (
@@ -285,10 +346,6 @@ export function SpeedGamePage() {
         <div className="mb-6 space-y-2 text-xs text-slate-500">
           <p className="flex items-start gap-2">
             <span className="text-brand-500 font-bold shrink-0">·</span>
-            Questions pick from your {pool.length} eligible words
-          </p>
-          <p className="flex items-start gap-2">
-            <span className="text-brand-500 font-bold shrink-0">·</span>
             Fill blanks, match definitions, synonyms, and more
           </p>
           <p className="flex items-start gap-2">
@@ -309,6 +366,9 @@ export function SpeedGamePage() {
         >
           <Zap size={16} />
           Start {SPEED_GAME_DURATION_LABELS[duration]} game
+          {focusOnly && !focusWarning && (
+            <span className="text-brand-200 font-normal text-xs ml-1">· focus words</span>
+          )}
         </button>
       </div>
     )

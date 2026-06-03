@@ -16,6 +16,7 @@ import {
   isEligible,
   canGainExposure,
   selectPool,
+  countFocusPool,
   generateQuestion,
   generateBatch,
   shuffle,
@@ -167,6 +168,62 @@ describe('selectPool', () => {
   it('returns empty array when no eligible items exist', () => {
     const items = [makeItem({ term: 'a', definitionEn: '', archived: true })]
     expect(selectPool(items)).toHaveLength(0)
+  })
+})
+
+// ── 3b. countFocusPool ────────────────────────────────────────────────────────
+
+describe('countFocusPool', () => {
+  it('counts only focus words with definitions', () => {
+    const items = [
+      makeItem({ term: 'a', definitionEn: 'x', inFocus: true }),
+      makeItem({ term: 'b', definitionEn: 'x', weeklyFocus: true }),
+      makeItem({ term: 'c', definitionEn: 'x' }),                      // not in focus
+      makeItem({ term: 'd', definitionEn: 'x', inFocus: true, archived: true }), // archived
+    ]
+    expect(countFocusPool(items)).toBe(2)
+  })
+
+  it('returns 0 when nothing is in focus', () => {
+    const items = [makeItem({ term: 'a', definitionEn: 'x' })]
+    expect(countFocusPool(items)).toBe(0)
+  })
+})
+
+// ── 3c. selectPool focusOnly mode ─────────────────────────────────────────────
+
+describe('selectPool focusOnly', () => {
+  it('returns only focus words when focusOnly=true and pool >= 4', () => {
+    const focusItems = Array.from({ length: 6 }, (_, i) =>
+      makeItem({ term: `focus${i}`, definitionEn: 'x', inFocus: true }),
+    )
+    const other = makeItem({ term: 'other', definitionEn: 'x' })
+    const pool = selectPool([...focusItems, other], 80, true)
+    expect(pool.every((i) => i.inFocus)).toBe(true)
+    expect(pool.some((i) => i.term === 'other')).toBe(false)
+  })
+
+  it('falls back to full pool when focus has < 4 eligible items', () => {
+    const items = [
+      makeItem({ term: 'f1', definitionEn: 'x', inFocus: true }),
+      makeItem({ term: 'f2', definitionEn: 'x', inFocus: true }),   // only 2 focus
+      makeItem({ term: 'n1', definitionEn: 'x' }),
+      makeItem({ term: 'n2', definitionEn: 'x' }),
+      makeItem({ term: 'n3', definitionEn: 'x' }),
+    ]
+    const pool = selectPool(items, 80, true)
+    // Should widen to full eligible pool (5 items) to allow distractor generation
+    expect(pool.length).toBe(5)
+  })
+
+  it('focusOnly=false keeps default priority behaviour', () => {
+    const items = [
+      makeItem({ term: 'focus', definitionEn: 'x', inFocus: true }),
+      makeItem({ term: 'other', definitionEn: 'x' }),
+    ]
+    const pool = selectPool(items, 80, false)
+    // Focus word must appear first
+    expect(pool[0].term).toBe('focus')
   })
 })
 

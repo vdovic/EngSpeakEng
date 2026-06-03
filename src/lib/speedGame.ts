@@ -86,20 +86,41 @@ export function canGainExposure(item: VocabItem): boolean {
 /**
  * Select and shuffle words for a speed game session.
  *
- * Priority order:
- *   1. Focus words (inFocus or weeklyFocus) that have a definition
- *   2. Other eligible words with a definition
+ * @param focusOnly  When true, restrict to focus words (inFocus / weeklyFocus).
+ *                   Falls back to the full eligible pool if focus yields < 4 items
+ *                   so question generation (which needs 3 distractors) never fails.
+ *
+ * Priority order when focusOnly = false:
+ *   1. Focus words first
+ *   2. Rest of eligible library
  *
  * Returns up to `maxPool` items; caller re-uses pool when questions run out.
  */
-export function selectPool(items: VocabItem[], maxPool = 80): VocabItem[] {
+export function selectPool(
+  items:     VocabItem[],
+  maxPool    = 80,
+  focusOnly  = false,
+): VocabItem[] {
   const eligible = items.filter(isEligible)
-  const focus = eligible.filter((i) => i.inFocus || i.weeklyFocus)
-  const rest  = eligible.filter((i) => !i.inFocus && !i.weeklyFocus)
+  const focus    = eligible.filter((i) => i.inFocus || i.weeklyFocus)
 
-  // Prioritise focus words, fill the rest from the broader library
+  if (focusOnly) {
+    // Need at least 4 items for distractor generation; silently widen if not met
+    const pool = focus.length >= 4 ? focus : eligible
+    return shuffle(pool).slice(0, maxPool)
+  }
+
+  const rest = eligible.filter((i) => !i.inFocus && !i.weeklyFocus)
   const pool = [...shuffle(focus), ...shuffle(rest)].slice(0, maxPool)
   return pool.length > 0 ? pool : shuffle(eligible).slice(0, maxPool)
+}
+
+/**
+ * Count how many focus words are eligible for the speed game.
+ * Used by the setup screen to show availability and enable/disable the toggle.
+ */
+export function countFocusPool(items: VocabItem[]): number {
+  return items.filter((i) => isEligible(i) && (i.inFocus || i.weeklyFocus)).length
 }
 
 // ── Question generation ────────────────────────────────────────────────────────
