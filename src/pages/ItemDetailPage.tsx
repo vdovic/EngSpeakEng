@@ -629,7 +629,19 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
-      {/* ── 2. Examples ──────────────────────────────────────────────────────── */}
+      {/* ── 2. Collocations & Phrase Patterns ───────────────────────────────── */}
+      {(editing || current.collocations.length > 0 || current.sentenceFrames.length > 0 || current.relatedPhrases.length > 0) && (
+        <>
+          <Section title="Collocations & phrase patterns" icon={<GitBranch size={14} />}>
+            <ListField label="Collocations"    items={current.collocations}   editing={editing} onChange={(v) => patch('collocations', v)} />
+            <ListField label="Sentence frames" items={current.sentenceFrames} editing={editing} onChange={(v) => patch('sentenceFrames', v)} />
+            <ListField label="Related phrases" items={current.relatedPhrases} editing={editing} onChange={(v) => patch('relatedPhrases', v)} />
+          </Section>
+          <div className="my-3" />
+        </>
+      )}
+
+      {/* ── 3. Examples ──────────────────────────────────────────────────────── */}
       <Section title="Examples" icon={<GitBranch size={14} />}>
         <Field label="Natural example" value={current.exampleSentence}
           placeholder="Natural example sentence…" editing={editing}
@@ -649,7 +661,7 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
-      {/* ── 3. Nuance & Register ─────────────────────────────────────────────── */}
+      {/* ── 4. Nuance & Register ─────────────────────────────────────────────── */}
       {/* Combines compact visual signals (UsageProfile) with the nuance text.   */}
       {/* Visual-only is too shallow for B2–C1 learning; text-only is harder to  */}
       {/* scan. Static data only — no runtime AI generation.                     */}
@@ -748,18 +760,6 @@ export function ItemDetailPage() {
       })()}
 
       <div className="my-3" />
-
-      {/* ── 4. Collocations & Phrase Patterns ────────────────────────────────── */}
-      {(editing || current.collocations.length > 0 || current.sentenceFrames.length > 0 || current.relatedPhrases.length > 0) && (
-        <>
-          <Section title="Collocations & phrase patterns" icon={<GitBranch size={14} />}>
-            <ListField label="Collocations"    items={current.collocations}   editing={editing} onChange={(v) => patch('collocations', v)} />
-            <ListField label="Sentence frames" items={current.sentenceFrames} editing={editing} onChange={(v) => patch('sentenceFrames', v)} />
-            <ListField label="Related phrases" items={current.relatedPhrases} editing={editing} onChange={(v) => patch('relatedPhrases', v)} />
-          </Section>
-          <div className="my-3" />
-        </>
-      )}
 
       {/* ── 5. Practice / Real-life use ──────────────────────────────────────── */}
       {(current.realLifeTask || editing) && (
@@ -984,15 +984,35 @@ export function ItemDetailPage() {
 
       <div className="my-3" />
 
-      {/* ── 8. Themes ────────────────────────────────────────────────────────── */}
-      <Section title="Themes" icon={<Layers size={14} />}>
-        <ThemeAssignment itemId={item.id} assigned={item.themes ?? []} />
-      </Section>
+      {/* ── Return-to-Challenge banner (repeated at page end) ─────────────────── */}
+      {hasActiveChallenge && (
+        <div className="mb-3 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <Zap size={16} className="text-amber-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">Daily Challenge in progress</p>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Your session is saved — pick up where you left off.
+            </p>
+          </div>
+          <Link
+            to="/challenge"
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
+          >
+            <ArrowLeft size={12} />
+            Return
+          </Link>
+        </div>
+      )}
+
+      {/* ── 8. Progress ──────────────────────────────────────────────────────── */}
+      <ProgressSection item={item} />
 
       <div className="my-3" />
 
-      {/* ── 9. Progress ──────────────────────────────────────────────────────── */}
-      <ProgressSection item={item} />
+      {/* ── 9. Themes ────────────────────────────────────────────────────────── */}
+      <Section title="Themes" icon={<Layers size={14} />}>
+        <ThemeAssignment itemId={item.id} assigned={item.themes ?? []} />
+      </Section>
 
       {/* Mastered state */}
       {!editing && (
