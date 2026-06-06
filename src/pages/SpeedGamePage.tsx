@@ -2,15 +2,20 @@
  * SpeedGamePage — time-limited speed practice
  *
  * Phases:
- *   setup     → pick duration + word scope; see previous session history
+ *   setup     → pick duration + word scope; see previous session history + analytics
  *   playing   → countdown + question + 4-choice answer buttons
- *   feedback  → brief flash (correct ✓ / wrong ✗ + correct answer shown)
- *   results   → end-game summary with comparison to previous best
+ *   feedback  → brief flash (correct ✓ / wrong ✗ + correct answer highlighted)
+ *   results   → end-game summary, personal best comparison, word review
  *
  * Progress rule (CLAUDE.md §Progress):
  *   recordExposure(id, true) is called at most once per word per session.
  *   wordsGainedExposure ref tracks the per-session cap; no stale closure.
  *   Words already at MAX_EXPOSURE (8) are still playable but skipped.
+ *
+ * Wrong-answer behaviour:
+ *   Wrong answers pause for WRONG_FEEDBACK_MS (1 500 ms) so the correct answer
+ *   is visible. The game timer already pauses during all feedback phases because
+ *   the setInterval guard checks phase === 'playing'. No extra logic needed.
  *
  * Gamification guardrails (CLAUDE.md §Gamification Constraints):
  *   • No points, XP, or persistent score — session counts only
@@ -23,7 +28,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Timer, CheckCircle2, XCircle, ChevronRight,
-  Zap, RotateCcw, BookOpen, TrendingUp,
+  Zap, RotateCcw, BookOpen, TrendingUp, ExternalLink,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useSpeedGameStore } from '@/store/speedGameStore'
@@ -34,6 +39,7 @@ import {
   type SpeedGameDuration,
   type SpeedGameResult,
   type SpeedQuestion,
+  type SpeedQuestionType,
   type WordScope,
   selectPool,
   countScope,
@@ -48,12 +54,23 @@ type Phase = 'setup' | 'playing' | 'feedback' | 'results'
 interface FeedbackState {
   correct:       boolean
   correctAnswer: string
+  selectedIndex: number  // which choice the user tapped
+}
+
+interface WordAttempt {
+  itemId:        string
+  term:          string
+  type:          SpeedQuestionType
+  correctAnswer: string
+  givenAnswer:   string
+  wasCorrect:    boolean
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const FEEDBACK_DURATION_MS = 900
-const BATCH_SIZE            = 40
+const CORRECT_FEEDBACK_MS = 700    // snappy positive feedback
+const WRONG_FEEDBACK_MS   = 1500   // longer pause: learning moment for wrong answers
+const BATCH_SIZE          = 40
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -63,14 +80,21 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-/** Best correct-answer count for a given duration, or null if no history. */
-function bestForDuration(
-  results: SpeedGameResult[],
-  durationSecs: number,
-): number | null {
+/** Best correct-answer count for a given duration across all scopes, or null if no history. */
+function bestForDuration(results: SpeedGameResult[], durationSecs: number): number | null {
   const matching = results.filter((r) => r.durationSecs === durationSecs)
   if (matching.length === 0) return null
   return Math.max(...matching.map((r) => r.correct))
+}
+
+function overallAccuracy(results: SpeedGameResult[]): number | null {
+  if (results.length === 0) return null
+  const totals = results.reduce(
+    (acc, r) => ({ c: acc.c + r.correct, w: acc.w + r.wrong }),
+    { c: 0, w: 0 },
+  )
+  const total = totals.c + totals.w
+  return total > 0 ? Math.round((totals.c / total) * 100) : null
 }
 
 // ── TimerBar ──────────────────────────────────────────────────────────────────
@@ -90,18 +114,27 @@ function TimerBar({ remaining, total }: { remaining: number; total: number }) {
   )
 }
 
+// ── Question type short labels ─────────────────────────────────────────────────
+
+const QUESTION_TYPE_SHORT: Record<SpeedQuestionType, string> = {
+  'fill-blank':          'fill blank',
+  'definition-to-term':  'definition',
+  'term-to-definition':  'meaning',
+  'synonym-to-term':     'synonym',
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function SpeedGamePage() {
-  const navigate             = useNavigate()
-  const { items, recordExposure } = useVocabStore()
-  const addResult            = useSpeedGameStore((s) => s.addResult)
-  const pastResults          = useSpeedGameStore((s) => s.results)
+  const navigate                   = useNavigate()
+  const { items, recordExposure }  = useVocabStore()
+  const addResult                  = useSpeedGameStore((s) => s.addResult)
+  const pastResults                = useSpeedGameStore((s) => s.results)
 
   // ── Phase ────────────────────────────────────────────────────────────────
   const [phase,    setPhase]    = useState<Phase>('setup')
   const [duration, setDuration] = useState<SpeedGameDuration>(180)
-  const [scope,    setScope]    = useState<WordScope>('active')
+  const [scope,    setScope]    = useState<WordScope>('focus')
 
   // ── Game state ───────────────────────────────────────────────────────────
   const [timeLeft,  setTimeLeft]  = useState(0)
@@ -117,6 +150,10 @@ export function SpeedGamePage() {
   const latestStats         = useRef({ correct: 0, wrong: 0, practiced: new Set<string>() })
   /** Guard against double-save (timer expiry + manual end coinciding). */
   const resultSaved         = useRef(false)
+  /** Duration for the current feedback flash — set before phase changes to 'feedback'. */
+  const feedbackDuration    = useRef(CORRECT_FEEDBACK_MS)
+  /** Per-session word attempt log for the post-game review screen. */
+  const wordAttempts        = useRef<WordAttempt[]>([])
 
   // ── Save result ───────────────────────────────────────────────────────────
   const saveResult = useCallback((
@@ -128,6 +165,11 @@ export function SpeedGamePage() {
     resultSaved.current = true
 
     const total = finalCorrect + finalWrong
+    const missedIds = [
+      ...new Set(
+        wordAttempts.current.filter((a) => !a.wasCorrect).map((a) => a.itemId),
+      ),
+    ]
     addResult({
       id:             crypto.randomUUID(),
       playedAt:       new Date().toISOString(),
@@ -138,10 +180,13 @@ export function SpeedGamePage() {
       wordsPracticed: finalPracticed.size,
       wordsGained:    wordsGainedExposure.current.size,
       scope,
+      missedItemIds:  missedIds.length > 0 ? missedIds : undefined,
     })
   }, [duration, scope, addResult])
 
   // ── Timer ─────────────────────────────────────────────────────────────────
+  // The interval only runs while phase === 'playing', so it naturally pauses
+  // during all feedback flashes without any additional logic.
   useEffect(() => {
     if (phase !== 'playing') return
     const id = setInterval(() => {
@@ -162,11 +207,12 @@ export function SpeedGamePage() {
   // ── Feedback auto-advance ─────────────────────────────────────────────────
   useEffect(() => {
     if (phase !== 'feedback') return
+    const ms = feedbackDuration.current
     const id = setTimeout(() => {
       setFeedback(null)
       setQIndex((i) => i + 1)
       setPhase('playing')
-    }, FEEDBACK_DURATION_MS)
+    }, ms)
     return () => clearTimeout(id)
   }, [phase])
 
@@ -185,6 +231,8 @@ export function SpeedGamePage() {
     wordsGainedExposure.current = new Set()
     latestStats.current         = { correct: 0, wrong: 0, practiced: new Set() }
     resultSaved.current         = false
+    wordAttempts.current        = []
+    feedbackDuration.current    = CORRECT_FEEDBACK_MS
     setCorrect(0)
     setWrong(0)
     setPracticed(new Set())
@@ -217,6 +265,16 @@ export function SpeedGamePage() {
       return next
     })
 
+    // Track this attempt for the post-game review
+    wordAttempts.current.push({
+      itemId:        q.itemId,
+      term:          q.term,
+      type:          q.type,
+      correctAnswer: q.choices[q.correctIndex],
+      givenAnswer:   q.choices[choiceIndex],
+      wasCorrect:    isCorrect,
+    })
+
     if (isCorrect) {
       setCorrect((c) => { latestStats.current.correct = c + 1; return c + 1 })
       if (
@@ -230,7 +288,9 @@ export function SpeedGamePage() {
       setWrong((w) => { latestStats.current.wrong = w + 1; return w + 1 })
     }
 
-    setFeedback({ correct: isCorrect, correctAnswer: q.choices[q.correctIndex] })
+    // Set feedback duration before switching phase (ref is read by the useEffect)
+    feedbackDuration.current = isCorrect ? CORRECT_FEEDBACK_MS : WRONG_FEEDBACK_MS
+    setFeedback({ correct: isCorrect, correctAnswer: q.choices[q.correctIndex], selectedIndex: choiceIndex })
     setPhase('feedback')
   }, [phase, questions, qIndex, items, recordExposure])
 
@@ -251,15 +311,37 @@ export function SpeedGamePage() {
 
   // ── Setup phase ───────────────────────────────────────────────────────────
   if (phase === 'setup') {
-    const noWords = countScope(items, scope) < 4 && selectPool(items, scope).length < 4
+    const scopeCounts: Record<WordScope, number> = {
+      focus:       countScope(items, 'focus'),
+      'non-focus': countScope(items, 'non-focus'),
+      full:        countScope(items, 'full'),
+    }
+    const currentCount = scopeCounts[scope]
+    const poolTooSmall = currentCount < 4 && !(scope === 'focus' && scopeCounts.full >= 4)
+    const noWords      = scopeCounts.full < 4
+
+    // Analytics summary
+    const totalSessions = pastResults.length
+    const avgAccuracy   = overallAccuracy(pastResults)
+
+    const scopeSubtitles: Record<WordScope, string> = {
+      focus:       scopeCounts.focus > 0
+                     ? `${scopeCounts.focus} word${scopeCounts.focus !== 1 ? 's' : ''} in focus`
+                     : 'None in focus',
+      'non-focus': scopeCounts['non-focus'] > 0
+                     ? `${scopeCounts['non-focus'].toLocaleString()} word${scopeCounts['non-focus'] !== 1 ? 's' : ''}`
+                     : 'None outside focus',
+      full:        `${scopeCounts.full.toLocaleString()} words`,
+    }
 
     return (
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div className="max-w-lg mx-auto px-4 py-6 pb-28 md:pb-10">
 
         {/* Header */}
         <div className="flex items-center gap-3 mb-5">
           <button onClick={() => navigate(-1)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+            aria-label="Go back">
             <ArrowLeft size={20} />
           </button>
           <div className="flex items-center gap-2">
@@ -268,26 +350,33 @@ export function SpeedGamePage() {
             </div>
             <h1 className="text-lg font-bold text-slate-900">Speed Practice</h1>
           </div>
+          {totalSessions > 0 && (
+            <div className="ml-auto flex items-center gap-3 text-xs text-slate-400">
+              <span className="tabular-nums">{totalSessions} session{totalSessions !== 1 ? 's' : ''}</span>
+              {avgAccuracy !== null && (
+                <span className="tabular-nums">{avgAccuracy}% avg accuracy</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Word scope — three buttons */}
         <div className="mb-5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Word selection</p>
           <div className="grid grid-cols-3 gap-2">
-            {(['focus', 'active', 'full'] as WordScope[]).map((s) => {
-              const cnt      = countScope(items, s)
-              const isActive = scope === s
-              const disabled = cnt < 4
-              const subtitle: Record<WordScope, string> = {
-                focus:  cnt > 0 ? `${cnt} in focus` : 'None in focus',
-                active: `${cnt} words`,
-                full:   `${cnt.toLocaleString()} words`,
-              }
+            {(['focus', 'non-focus', 'full'] as WordScope[]).map((s) => {
+              const cnt       = scopeCounts[s]
+              const isActive  = scope === s
+              // Focus scope auto-widens to active when < 4, so only truly disable when full < 4
+              const disabled  = s === 'focus'
+                ? scopeCounts.full < 4
+                : cnt < 4
               return (
                 <button
                   key={s}
                   onClick={() => !disabled && setScope(s)}
                   disabled={disabled}
+                  aria-pressed={isActive}
                   className={`px-3 py-3 rounded-xl border text-sm font-semibold text-left transition-colors disabled:cursor-not-allowed ${
                     isActive
                       ? 'bg-brand-600 text-white border-brand-600'
@@ -300,16 +389,26 @@ export function SpeedGamePage() {
                   <span className={`text-xs font-normal mt-0.5 block ${
                     isActive ? 'text-brand-100' : disabled ? 'text-slate-300' : 'text-slate-400'
                   }`}>
-                    {subtitle[s]}
+                    {scopeSubtitles[s]}
                   </span>
                 </button>
               )
             })}
           </div>
-          {scope === 'focus' && countScope(items, 'focus') < 4 && countScope(items, 'active') >= 4 && (
+
+          {/* Contextual notes beneath scope buttons */}
+          {scope === 'focus' && scopeCounts.focus < 4 && scopeCounts.full >= 4 && (
             <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5">
               <BookOpen size={12} className="shrink-0" />
-              Fewer than 4 focus words — using active learning pool instead.
+              Fewer than 4 focus words — will use your full active vocabulary instead.
+            </p>
+          )}
+          {scope === 'non-focus' && scopeCounts['non-focus'] < 4 && (
+            <p className="mt-2 text-xs text-amber-600 flex items-center gap-1.5">
+              <BookOpen size={12} className="shrink-0" />
+              {scopeCounts['non-focus'] === 0
+                ? 'All your active words are in Focus right now.'
+                : `Only ${scopeCounts['non-focus']} word${scopeCounts['non-focus'] !== 1 ? 's' : ''} outside Focus — need at least 4 to play.`}
             </p>
           )}
         </div>
@@ -326,8 +425,8 @@ export function SpeedGamePage() {
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Duration</p>
           <div className="grid grid-cols-5 gap-2">
             {SPEED_GAME_DURATIONS.map((d) => {
-              const best      = bestForDuration(pastResults, d)
-              const isActive  = duration === d
+              const best     = bestForDuration(pastResults, d)
+              const isActive = duration === d
               return (
                 <button key={d} onClick={() => setDuration(d)}
                   className={`py-2.5 px-1 rounded-xl text-sm font-semibold border transition-colors flex flex-col items-center gap-0.5 ${
@@ -347,7 +446,7 @@ export function SpeedGamePage() {
           </div>
         </div>
 
-        {/* Session history — always visible when there is any */}
+        {/* Session history */}
         {pastResults.length > 0 && (
           <div className="mb-5">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
@@ -355,8 +454,10 @@ export function SpeedGamePage() {
             </p>
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               {pastResults.slice(0, 8).map((r, i) => {
-                const b = bestForDuration(pastResults, r.durationSecs)
-                const isBest = b !== null && r.correct === b && pastResults.filter(x => x.durationSecs === r.durationSecs && x.correct === b).length === 1
+                const b      = bestForDuration(pastResults, r.durationSecs)
+                const isBest = b !== null && r.correct === b &&
+                  pastResults.filter((x) => x.durationSecs === r.durationSecs && x.correct === b).length === 1
+                const effectiveScope = r.scope ?? (r.focusOnly ? 'focus' : 'active')
                 return (
                   <div key={r.id}
                     className={`flex items-center gap-3 px-4 py-2.5 text-xs ${i > 0 ? 'border-t border-slate-100' : ''}`}>
@@ -367,10 +468,9 @@ export function SpeedGamePage() {
                       <span className="text-slate-400 ml-1.5">
                         {new Date(r.playedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      {/* scope label — with fallback for results saved before scope field existed */}
-                      {(r.scope ?? (r.focusOnly ? 'focus' : 'active')) !== 'active' && (
-                        <span className="ml-1.5 text-[10px] font-semibold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full capitalize">
-                          {WORD_SCOPE_LABELS[r.scope ?? (r.focusOnly ? 'focus' : 'active')]}
+                      {effectiveScope !== 'active' && (
+                        <span className="ml-1.5 text-[10px] font-semibold text-brand-500 bg-brand-50 px-1.5 py-0.5 rounded-full">
+                          {WORD_SCOPE_LABELS[effectiveScope]}
                         </span>
                       )}
                     </div>
@@ -390,6 +490,23 @@ export function SpeedGamePage() {
                 )
               })}
             </div>
+
+            {/* Best scores across all durations */}
+            {SPEED_GAME_DURATIONS.some((d) => bestForDuration(pastResults, d) !== null) && (
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                {SPEED_GAME_DURATIONS.map((d) => {
+                  const best = bestForDuration(pastResults, d)
+                  if (best === null) return null
+                  return (
+                    <span key={d} className="text-[11px] text-slate-400">
+                      <span className="font-medium text-slate-600">{SPEED_GAME_DURATION_LABELS[d]}</span>
+                      {' '}best{' '}
+                      <span className="font-semibold text-emerald-600 tabular-nums">{best}✓</span>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -397,6 +514,7 @@ export function SpeedGamePage() {
         <div className="mb-6 space-y-1.5 text-xs text-slate-400">
           <p>· Fill blanks, match definitions, synonyms &amp; more</p>
           <p>· First correct answer per word adds one exposure</p>
+          <p>· Wrong answers pause briefly — read the correct answer</p>
           <p>
             · Press{' '}
             <kbd className="font-mono bg-slate-100 border border-slate-300 rounded px-1 py-0.5 text-slate-600">1</kbd>–
@@ -405,7 +523,7 @@ export function SpeedGamePage() {
           </p>
         </div>
 
-        <button onClick={startGame} disabled={noWords}
+        <button onClick={startGame} disabled={poolTooSmall || noWords}
           className="w-full py-3.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-40 text-white text-sm font-bold rounded-2xl transition-colors flex items-center justify-center gap-2">
           <Zap size={16} />
           Start {SPEED_GAME_DURATION_LABELS[duration]} · {WORD_SCOPE_LABELS[scope]}
@@ -422,17 +540,29 @@ export function SpeedGamePage() {
 
     // Compare against previous best for this duration (any scope), excluding current game.
     // pastResults[0] is the current game (just saved). Slice past it.
-    const prevResults = pastResults.slice(1)
-    const prevBest    = bestForDuration(prevResults, duration)
+    const prevResults    = pastResults.slice(1)
+    const prevBest       = bestForDuration(prevResults, duration)
     const isPersonalBest = prevBest === null
-      ? (total > 0)               // first ever game for this duration — always a "best"
+      ? (total > 0)
       : correct > prevBest
 
+    // Post-game word review
+    const missedIds      = new Set(
+      wordAttempts.current.filter((a) => !a.wasCorrect).map((a) => a.itemId),
+    )
+    const uniqueMissed   = [...missedIds].map(
+      (id) => wordAttempts.current.find((a) => a.itemId === id && !a.wasCorrect)!,
+    )
+    const uniqueCorrectOnly = wordAttempts.current
+      .filter((a) => a.wasCorrect && !missedIds.has(a.itemId))
+      .filter((a, i, arr) => arr.findIndex((b) => b.itemId === a.itemId) === i)
+
     return (
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div className="max-w-lg mx-auto px-4 py-6 pb-28 md:pb-10">
         <div className="flex items-center gap-3 mb-5">
           <button onClick={() => navigate(-1)}
-            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+            aria-label="Go back">
             <ArrowLeft size={20} />
           </button>
           <h1 className="text-lg font-bold text-slate-900">
@@ -503,6 +633,53 @@ export function SpeedGamePage() {
           <p className="text-sm text-slate-400 text-center mb-4">No questions answered — try again!</p>
         )}
 
+        {/* ── Word review section ──────────────────────────────────────── */}
+        {total > 0 && (
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              Words this session
+            </p>
+
+            {uniqueMissed.length === 0 ? (
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                <p className="text-sm text-emerald-700">No wrong answers this time.</p>
+              </div>
+            ) : (
+              <div className="bg-rose-50 border border-rose-200 rounded-xl overflow-hidden mb-2">
+                <div className="px-4 py-2 border-b border-rose-100">
+                  <p className="text-xs font-semibold text-rose-700">
+                    Missed — {uniqueMissed.length} word{uniqueMissed.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="divide-y divide-rose-100">
+                  {uniqueMissed.map((attempt) => (
+                    <button
+                      key={attempt.itemId}
+                      onClick={() => navigate(`/item/${attempt.itemId}`)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-rose-100 transition-colors"
+                      aria-label={`Open word detail for ${attempt.term}`}
+                    >
+                      <XCircle size={14} className="text-rose-400 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-semibold text-slate-800">{attempt.term}</span>
+                        <span className="ml-2 text-[10px] text-slate-400">{QUESTION_TYPE_SHORT[attempt.type]}</span>
+                        <p className="text-xs text-slate-500 truncate mt-0.5">
+                          Correct: <span className="text-slate-700 font-medium">{attempt.correctAnswer}</span>
+                        </p>
+                      </div>
+                      <ExternalLink size={12} className="text-rose-300 shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {uniqueCorrectOnly.length > 0 && (
+              <WordReviewCorrect attempts={uniqueCorrectOnly} onNavigate={(id) => navigate(`/item/${id}`)} />
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2.5">
           <button
             onClick={() => { resultSaved.current = false; setPhase('setup') }}
@@ -538,7 +715,8 @@ export function SpeedGamePage() {
       <div className="flex items-center gap-3 mb-3">
         <button onClick={endGame}
           className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
-          title="End game">
+          title="End game"
+          aria-label="End game">
           <ArrowLeft size={20} />
         </button>
         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${
@@ -580,7 +758,7 @@ export function SpeedGamePage() {
           }`}>
             {feedback.correct
               ? <><CheckCircle2 size={16} /> Correct!</>
-              : <><XCircle size={16} /> Answer: <span className="ml-1 font-bold">{feedback.correctAnswer}</span></>
+              : <><XCircle size={16} /> The answer was: <span className="ml-1 font-bold">{feedback.correctAnswer}</span></>
             }
           </div>
         )}
@@ -589,13 +767,16 @@ export function SpeedGamePage() {
       {/* Choices */}
       <div className="grid grid-cols-1 gap-2">
         {currentQuestion.choices.map((choice, idx) => {
-          const showCorrect = phase === 'feedback' && idx === currentQuestion.correctIndex
+          const isCorrectChoice = phase === 'feedback' && idx === currentQuestion.correctIndex
+          const isWrongChoice   = phase === 'feedback' && !feedback?.correct && idx === feedback?.selectedIndex
           return (
             <button key={idx} onClick={() => handleAnswer(idx)}
               disabled={phase === 'feedback'}
-              className={`w-full text-left px-4 py-3.5 rounded-xl border text-sm font-medium transition-colors disabled:cursor-default ${
-                phase === 'feedback' && showCorrect
+              className={`w-full text-left px-4 py-3.5 rounded-xl border text-sm font-medium transition-colors disabled:cursor-default disabled:opacity-100 ${
+                isCorrectChoice
                   ? 'bg-emerald-100 border-emerald-400 text-emerald-800'
+                  : isWrongChoice
+                  ? 'bg-rose-100 border-rose-400 text-rose-700'
                   : phase === 'feedback'
                   ? 'bg-slate-50 border-slate-200 text-slate-400'
                   : 'bg-white border-slate-200 text-slate-800 hover:border-brand-400 hover:bg-brand-50 active:scale-[0.99]'
@@ -604,8 +785,10 @@ export function SpeedGamePage() {
                 <span className={`w-5 h-5 rounded-full border text-[10px] font-bold flex items-center justify-center shrink-0 ${
                   phase === 'playing'
                     ? 'border-slate-300 text-slate-400'
-                    : showCorrect
+                    : isCorrectChoice
                     ? 'bg-emerald-500 border-emerald-500 text-white'
+                    : isWrongChoice
+                    ? 'bg-rose-400 border-rose-400 text-white'
                     : 'border-slate-200 text-slate-300'
                 }`}>{idx + 1}</span>
                 {choice}
@@ -614,6 +797,52 @@ export function SpeedGamePage() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ── Word review: correct-only collapsible ─────────────────────────────────────
+
+function WordReviewCorrect({
+  attempts,
+  onNavigate,
+}: {
+  attempts: WordAttempt[]
+  onNavigate: (itemId: string) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="border border-slate-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+        aria-expanded={expanded}
+      >
+        <span className="text-xs font-semibold text-slate-500">
+          Got right — {attempts.length} word{attempts.length !== 1 ? 's' : ''}
+        </span>
+        <ChevronRight size={14} className={`text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+      </button>
+      {expanded && (
+        <div className="divide-y divide-slate-100">
+          {attempts.map((attempt) => (
+            <button
+              key={attempt.itemId}
+              onClick={() => onNavigate(attempt.itemId)}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+              aria-label={`Open word detail for ${attempt.term}`}
+            >
+              <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-semibold text-slate-700">{attempt.term}</span>
+                <span className="ml-2 text-[10px] text-slate-400">{QUESTION_TYPE_SHORT[attempt.type]}</span>
+              </div>
+              <ExternalLink size={12} className="text-slate-300 shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

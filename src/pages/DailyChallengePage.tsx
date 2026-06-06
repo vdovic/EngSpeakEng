@@ -1084,6 +1084,17 @@ export function DailyChallengePage() {
             </button>
           )}
 
+          {/* Speed Practice CTA — natural continuation after completing a challenge */}
+          {total > 0 && (
+            <button
+              onClick={() => navigate('/game/speed')}
+              className="w-full py-3 border border-rose-200 bg-rose-50 text-rose-700 rounded-xl font-semibold hover:bg-rose-100 transition-colors flex items-center justify-center gap-2"
+            >
+              <Zap size={16} />
+              Try Speed Practice
+            </button>
+          )}
+
           {canPlaySameWordsInGames && (
             <button
               onClick={playSameWordsInGames}

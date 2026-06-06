@@ -14,6 +14,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Flame, Gamepad2, Plus, RotateCw, SlidersHorizontal, TrendingUp, Zap } from 'lucide-react'
+import { useSpeedGameStore } from '@/store/speedGameStore'
 import { clearSession, getUniqueWordProgress, loadTodaySession, PRACTICE_MODE_KEY } from '@/lib/challengeSession'
 import { CHALLENGE_SESSION_CAP, MAX_EXPOSURE } from '@/lib/constants'
 import { usagePoints } from '@/lib/mastery'
@@ -536,28 +537,60 @@ function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
 }
 
 function GamesSection() {
-  const navigate = useNavigate()
+  const navigate    = useNavigate()
+  const pastResults = useSpeedGameStore((s) => s.results)
+
+  const speedStats = useMemo(() => {
+    if (pastResults.length === 0) return null
+    const recent   = pastResults[0]
+    const allBest  = pastResults.reduce((m, r) => Math.max(m, r.correct), 0)
+    const prevBest = pastResults.length > 1
+      ? pastResults.slice(1).reduce((m, r) => Math.max(m, r.correct), 0)
+      : null
+    const beatMsg  = prevBest !== null && recent.correct > prevBest ? 'New best!' : null
+    return { recent, allBest, beatMsg }
+  }, [pastResults])
 
   return (
     <div className="mt-3 space-y-2">
-      {/* Speed Practice — always available */}
+      {/* Speed Practice */}
       <button
         onClick={() => navigate('/game/speed')}
-        className="group w-full flex min-h-[84px] flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm text-left transition-all hover:border-rose-200 hover:bg-rose-50/30 sm:flex-row sm:items-center sm:justify-between"
+        className="group w-full flex flex-col rounded-2xl border border-rose-200 bg-rose-50/40 p-4 shadow-sm text-left transition-all hover:border-rose-300 hover:bg-rose-50/70 sm:flex-row sm:items-center sm:justify-between"
       >
-        <div className="flex min-w-0 gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500 transition-colors group-hover:bg-rose-100">
+        <div className="flex min-w-0 gap-3 flex-1">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white transition-colors group-hover:bg-rose-600">
             <Zap size={18} aria-hidden="true" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-slate-900">Speed Practice</p>
             <p className="mt-0.5 text-xs leading-snug text-slate-500">
               Answer as many questions as you can in 1–10 minutes.
-              Definitions, fill-in-the-blank, synonyms.
             </p>
+            {speedStats ? (
+              <div className="mt-2 flex items-center gap-3 text-xs">
+                <span className="text-slate-500">
+                  Last: <span className="font-semibold text-slate-700 tabular-nums">{speedStats.recent.correct}✓</span>
+                  {' '}·{' '}
+                  <span className="tabular-nums">{speedStats.recent.accuracy}%</span>
+                </span>
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-500">
+                  Best: <span className="font-semibold text-emerald-600 tabular-nums">{speedStats.allBest}✓</span>
+                </span>
+                {speedStats.beatMsg && (
+                  <>
+                    <span className="text-slate-400">·</span>
+                    <span className="font-semibold text-rose-600">{speedStats.beatMsg}!</span>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="mt-1.5 text-xs text-rose-600 font-medium">Try your first session →</p>
+            )}
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 self-start text-xs font-semibold text-rose-600 sm:self-center shrink-0">
+        <span className="inline-flex items-center gap-1 self-start text-xs font-semibold text-rose-600 sm:self-center shrink-0 mt-3 sm:mt-0">
           Play
           <ChevronRight size={13} aria-hidden="true" />
         </span>

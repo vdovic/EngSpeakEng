@@ -53,10 +53,10 @@ export const useSpeedGameStore = create<SpeedGameStore>()(
     }),
     {
       name:    'ese-speed-game',
-      version: 1,
+      version: 2,
       migrate(persisted, version) {
-        // Version 1 is the initial shape — no migrations needed yet.
-        // Add cases here if fields are renamed in future versions.
+        // v1 → v2: WordScope expanded; old 'active' scope value kept as-is in stored records
+        // for backward-compat display. missedItemIds is additive (optional field).
         void version
         return persisted as SpeedGameStoreState
       },

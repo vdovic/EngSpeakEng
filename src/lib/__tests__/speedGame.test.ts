@@ -134,8 +134,8 @@ describe('countScope', () => {
   it("'focus' counts only in-focus eligible words", () => {
     expect(countScope(items, 'focus')).toBe(2)
   })
-  it("'active' counts non-mastered, non-archived words with definitions", () => {
-    expect(countScope(items, 'active')).toBe(3)   // f1, f2, a1
+  it("'non-focus' counts eligible active words that are NOT in focus", () => {
+    expect(countScope(items, 'non-focus')).toBe(1)  // a1 only (f1/f2 are in focus, m1 is mastered, arc is archived)
   })
   it("'full' includes mastered words but not archived", () => {
     expect(countScope(items, 'full')).toBe(4)      // f1, f2, a1, m1
@@ -169,31 +169,54 @@ describe("selectPool scope='focus'", () => {
   })
 })
 
-describe("selectPool scope='active'", () => {
-  it('excludes mastered and archived items', () => {
+describe("selectPool scope='non-focus'", () => {
+  it('excludes mastered, archived, and focus items', () => {
     const items = [
-      makeItem({ term: 'a', definitionEn: 'x' }),
-      makeItem({ term: 'b', definitionEn: 'x', status: 'mastered' }),
-      makeItem({ term: 'c', definitionEn: 'x', archived: true }),
+      makeItem({ term: 'a', definitionEn: 'x' }),                           // eligible non-focus
+      makeItem({ term: 'b', definitionEn: 'x', status: 'mastered' }),       // excluded: mastered
+      makeItem({ term: 'c', definitionEn: 'x', archived: true }),           // excluded: archived
+      makeItem({ term: 'f', definitionEn: 'x', inFocus: true }),            // excluded: in focus
     ]
-    const pool = selectPool(items, 'active')
+    const pool = selectPool(items, 'non-focus')
     expect(pool).toHaveLength(1)
     expect(pool[0].term).toBe('a')
   })
 
-  it('places focus words before non-focus words', () => {
+  it('excludes items where inFocus is true', () => {
     const items = [
-      makeItem({ term: 'non', definitionEn: 'x' }),
       makeItem({ term: 'foc', definitionEn: 'x', inFocus: true }),
+      makeItem({ term: 'non', definitionEn: 'x' }),
     ]
-    const pool = selectPool(items, 'active')
-    expect(pool[0].term).toBe('foc')
+    const pool = selectPool(items, 'non-focus')
+    expect(pool.some((i) => i.term === 'foc')).toBe(false)
+    expect(pool.some((i) => i.term === 'non')).toBe(true)
   })
 
-  it('has no 80-word cap — returns all eligible items', () => {
+  it('excludes items where weeklyFocus is true', () => {
+    const items = [
+      makeItem({ term: 'wf', definitionEn: 'x', weeklyFocus: true }),
+      makeItem({ term: 'non', definitionEn: 'x' }),
+    ]
+    const pool = selectPool(items, 'non-focus')
+    expect(pool.some((i) => i.term === 'wf')).toBe(false)
+    expect(pool.some((i) => i.term === 'non')).toBe(true)
+  })
+
+  it('returns empty array when all active items are in focus — no auto-fallback', () => {
+    const items = [
+      makeItem({ term: 'f1', definitionEn: 'x', inFocus: true }),
+      makeItem({ term: 'f2', definitionEn: 'x', inFocus: true }),
+      makeItem({ term: 'f3', definitionEn: 'x', inFocus: true }),
+      makeItem({ term: 'f4', definitionEn: 'x', inFocus: true }),
+    ]
+    const pool = selectPool(items, 'non-focus')
+    expect(pool).toHaveLength(0)
+  })
+
+  it('has no cap — returns all eligible non-focus items', () => {
     const items = Array.from({ length: 200 }, (_, i) =>
       makeItem({ term: `word${i}`, definitionEn: 'x' }))
-    expect(selectPool(items, 'active').length).toBe(200)
+    expect(selectPool(items, 'non-focus').length).toBe(200)
   })
 })
 
@@ -372,10 +395,13 @@ describe('SPEED_GAME_DURATIONS', () => {
 })
 
 describe('WORD_SCOPE_LABELS', () => {
-  it('has a label for every scope', () => {
+  it('has a label for every active scope', () => {
     expect(WORD_SCOPE_LABELS.focus).toBeTruthy()
-    expect(WORD_SCOPE_LABELS.active).toBeTruthy()
+    expect(WORD_SCOPE_LABELS['non-focus']).toBeTruthy()
     expect(WORD_SCOPE_LABELS.full).toBeTruthy()
+  })
+  it('still has a label for the legacy active scope (backward compat display)', () => {
+    expect(WORD_SCOPE_LABELS.active).toBeTruthy()
   })
 })
 

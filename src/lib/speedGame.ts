@@ -2,14 +2,18 @@
  * speedGame.ts — Pure logic for the Speed Practice game
  *
  * Responsibilities:
- *   • Select eligible vocabulary items by scope (focus / active / full)
+ *   • Select eligible vocabulary items by scope (focus / non-focus / full)
  *   • Generate randomised multiple-choice questions from existing word data
  *   • Define durations, scopes, and result types — no React, no side effects
  *
  * Word scope model:
- *   'focus'  — words in My Current Focus (inFocus / weeklyFocus) — 20–50 words
- *   'active' — all words currently in training (inbox → activate) — ~100–200 words
- *   'full'   — entire library including mastered words — 1000+ words
+ *   'focus'     — words in My Current Focus (inFocus / weeklyFocus) — 20–50 words
+ *   'non-focus' — eligible active words NOT in focus — purposeful variety practice
+ *   'full'      — entire library including mastered words — 1000+ words
+ *
+ * Legacy scope:
+ *   'active' — stored in old SpeedGameResult records; displayed as "Active learning".
+ *   No longer offered in the UI. selectPool / countScope do not handle it.
  *
  * Progress rule:
  *   Correct answers call recordExposure(id, true) at most once per word per session.
@@ -31,16 +35,21 @@ import { MAX_EXPOSURE } from '@/lib/constants'
 /**
  * The set of words the speed game draws from in a given session.
  *
- *   focus  — words currently in My Current Focus (inFocus / weeklyFocus)
- *   active — all words being actively learned (not mastered, not archived)
- *   full   — entire library including mastered words (good for general review)
+ *   focus     — words currently in My Current Focus (inFocus / weeklyFocus)
+ *   non-focus — eligible active words that are NOT in focus
+ *   full      — entire library including mastered words (good for general review)
  */
-export type WordScope = 'focus' | 'active' | 'full'
+export type WordScope = 'focus' | 'non-focus' | 'full'
 
-export const WORD_SCOPE_LABELS: Record<WordScope, string> = {
-  focus:  'Focus',
-  active: 'Active learning',
-  full:   'Everything',
+/**
+ * Labels for display. Includes the legacy 'active' value so old stored results
+ * can still be rendered without falling back to undefined.
+ */
+export const WORD_SCOPE_LABELS: Record<WordScope | 'active', string> = {
+  focus:       'Focus',
+  'non-focus': 'Non-focus',
+  full:        'All words',
+  active:      'Active learning',  // legacy — stored in old results, not shown in setup picker
 }
 
 // ── Result record ─────────────────────────────────────────────────────────────
@@ -63,8 +72,10 @@ export interface SpeedGameResult {
   wordsPracticed: number
   /** Words that received a recordExposure(true) call this session. */
   wordsGained:    number
-  /** Word pool scope used for this session. */
-  scope:          WordScope
+  /** Word pool scope used for this session. 'active' is a legacy value from older records. */
+  scope:          WordScope | 'active'
+  /** IDs of items the learner answered wrong at least once. Used for "words missed" analytics. */
+  missedItemIds?: string[]
   /**
    * @deprecated  Use scope instead.
    * Kept for backward compatibility with results saved before the scope field
@@ -150,8 +161,8 @@ export function countScope(items: VocabItem[], scope: WordScope): number {
   switch (scope) {
     case 'focus':
       return items.filter((i) => isEligibleActive(i) && (i.inFocus || i.weeklyFocus)).length
-    case 'active':
-      return items.filter(isEligibleActive).length
+    case 'non-focus':
+      return items.filter((i) => isEligibleActive(i) && !i.inFocus && !i.weeklyFocus).length
     case 'full':
       return items.filter(isEligibleFull).length
   }
@@ -163,26 +174,21 @@ export function countScope(items: VocabItem[], scope: WordScope): number {
  * No upper cap — returns the full eligible set for the chosen scope so the
  * game can cycle through the entire library in long sessions.
  *
- * Focus words are sorted first in the 'active' scope so they appear more
- * often in the early question batches before the pool is shuffled for refills.
- *
- * Falls back to a wider scope when the requested scope yields < 4 items
- * (distractor generation requires at least 4 candidates).
+ * Falls back to a wider scope only for 'focus' (which can be naturally small).
+ * 'non-focus' returns an empty array if no eligible words exist; the caller
+ * (setup UI) is responsible for disabling the start button in that case.
  */
-export function selectPool(items: VocabItem[], scope: WordScope = 'active'): VocabItem[] {
+export function selectPool(items: VocabItem[], scope: WordScope = 'focus'): VocabItem[] {
   switch (scope) {
     case 'focus': {
       const focus = items.filter((i) => isEligibleActive(i) && (i.inFocus || i.weeklyFocus))
-      // Need ≥ 4 for distractor generation; widen to active if not met
+      // Need ≥ 4 for distractor generation; widen to all active if not met
       if (focus.length >= 4) return shuffle(focus)
       return shuffle(items.filter(isEligibleActive))
     }
-    case 'active': {
-      const eligible = items.filter(isEligibleActive)
-      // Focus words first — they appear in early batches before pool reshuffles
-      const focus = eligible.filter((i) => i.inFocus || i.weeklyFocus)
-      const rest  = eligible.filter((i) => !i.inFocus && !i.weeklyFocus)
-      return [...shuffle(focus), ...shuffle(rest)]
+    case 'non-focus': {
+      // Explicitly excludes focus items — no auto-fallback
+      return shuffle(items.filter((i) => isEligibleActive(i) && !i.inFocus && !i.weeklyFocus))
     }
     case 'full': {
       return shuffle(items.filter(isEligibleFull))
