@@ -21,6 +21,7 @@ import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { AtlasLayout, AtlasNode, AtlasStage, AtlasLens } from '@/lib/atlasLayout'
+import { buildExposureGroups, ExposureGroupCard } from './AtlasExposurePanel'
 
 // ── Stage colours ─────────────────────────────────────────────────────────────
 
@@ -288,7 +289,8 @@ interface MobileAtlasViewProps {
 }
 
 export function MobileAtlasView({ layout, lens, onLensChange }: MobileAtlasViewProps) {
-  const cards = useMemo(() => buildRegionCards(layout), [layout])
+  const cards          = useMemo(() => buildRegionCards(layout),            [layout])
+  const exposureGroups = useMemo(() => buildExposureGroups(layout.nodes),   [layout])
 
   // Special collections
   const readyToUse = useMemo(
@@ -301,6 +303,9 @@ export function MobileAtlasView({ layout, lens, onLensChange }: MobileAtlasViewP
       (n) => n.lastActivityMs !== null && n.lastActivityMs > cutoffMs,
     )
   }, [layout])
+
+  // Mobile exposure section toggle
+  const [showExposure, setShowExposure] = useState(false)
 
   return (
     <div
@@ -339,6 +344,37 @@ export function MobileAtlasView({ layout, lens, onLensChange }: MobileAtlasViewP
             />
           </div>
         )}
+
+        {/* Exposure Islands — vocabulary by level */}
+        <div className="mb-3">
+          <button
+            className="flex w-full items-center justify-between rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-left"
+            onClick={() => setShowExposure((v) => !v)}
+            aria-expanded={showExposure}
+          >
+            <div>
+              <p className="text-sm font-semibold text-slate-200">Exposure Islands</p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Browse vocabulary by level · {layout.nodes.length} words
+              </p>
+            </div>
+            <div className="shrink-0 text-slate-600">
+              {showExposure ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+            </div>
+          </button>
+
+          {showExposure && (
+            <div className="mt-2 flex flex-col gap-2">
+              {exposureGroups.map((g) => (
+                <ExposureGroupCard
+                  key={g.key}
+                  group={g}
+                  defaultOpen={g.key === 'activate'}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Region cards */}
         {cards.length === 0 ? (

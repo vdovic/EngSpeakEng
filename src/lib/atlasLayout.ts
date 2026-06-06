@@ -92,6 +92,8 @@ export interface AtlasNode {
   isInFocus: boolean
   /** True if the learner logged real-life use in the past 30 days. */
   isRecentlyUsed: boolean
+  /** Raw exposure count (0–8), for exposure-level archipelago grouping. */
+  exposureCount: number
 }
 
 export interface AtlasRegion {
@@ -333,6 +335,7 @@ export function computeAtlasLayout(items: VocabItem[]): AtlasLayout {
       lastActivityMs:  getLastActivityMs(item),
       isInFocus:       (item.inFocus ?? item.weeklyFocus) === true,
       isRecentlyUsed:  computeIsRecentlyUsed(item),
+      exposureCount:   Math.min(item.exposureCount ?? 0, 8),
     }
   })
 

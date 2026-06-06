@@ -26,10 +26,11 @@ import { useVocabStore } from '@/store/vocabStore'
 import { computeAtlasLayout, projectAtlasLayout } from '@/lib/atlasLayout'
 import type { AtlasLens, AtlasNode } from '@/lib/atlasLayout'
 import type { VocabItem } from '@/types/vocabulary'
-import { AtlasCanvas }   from '@/components/atlas/AtlasCanvas'
-import { AtlasControls } from '@/components/atlas/AtlasControls'
-import { AtlasWordCard } from '@/components/atlas/AtlasWordCard'
-import { MobileAtlasView } from '@/components/atlas/MobileAtlasView'
+import { AtlasCanvas }        from '@/components/atlas/AtlasCanvas'
+import { AtlasControls }      from '@/components/atlas/AtlasControls'
+import { AtlasWordCard }      from '@/components/atlas/AtlasWordCard'
+import { AtlasExposurePanel } from '@/components/atlas/AtlasExposurePanel'
+import { MobileAtlasView }   from '@/components/atlas/MobileAtlasView'
 
 export default function AtlasPage() {
   const items = useVocabStore((s) => s.items)
@@ -39,8 +40,9 @@ export default function AtlasPage() {
   const futureLayout = useMemo(() => projectAtlasLayout(realLayout), [realLayout])
 
   // ── UI state ──────────────────────────────────────────────────────────────
-  const [lens,          setLens]          = useState<AtlasLens>('progress')
-  const [isFutureMode,  setIsFutureMode]  = useState(false)
+  const [lens,               setLens]               = useState<AtlasLens>('progress')
+  const [isFutureMode,       setIsFutureMode]       = useState(false)
+  const [showExposurePanel,  setShowExposurePanel]  = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [cardPos,        setCardPos]        = useState<{ x: number; y: number } | null>(null)
 
@@ -80,7 +82,12 @@ export default function AtlasPage() {
 
   const handleToggleFuture = useCallback(() => {
     setIsFutureMode((f) => !f)
-    clearSelection()   // close any open word card when switching modes
+    clearSelection()
+  }, [clearSelection])
+
+  const handleToggleExposurePanel = useCallback(() => {
+    setShowExposurePanel((v) => !v)
+    clearSelection()   // close word card when opening panel
   }, [clearSelection])
 
   return (
@@ -114,16 +121,26 @@ export default function AtlasPage() {
           </div>
         )}
 
-        {/* Lens selector + Future You toggle */}
+        {/* Lens selector + Future You toggle + Levels panel toggle */}
         <AtlasControls
           lens={lens}
           onLensChange={setLens}
           isFutureMode={isFutureMode}
           onToggleFuture={handleToggleFuture}
+          showExposurePanel={showExposurePanel}
+          onToggleExposurePanel={handleToggleExposurePanel}
         />
 
-        {/* Inline word card */}
-        {selectedItem && selectedNode && cardPos && (
+        {/* Exposure levels panel */}
+        {showExposurePanel && (
+          <AtlasExposurePanel
+            nodes={effectiveLayout.nodes}
+            onClose={() => setShowExposurePanel(false)}
+          />
+        )}
+
+        {/* Inline word card — hidden when exposure panel is open to avoid overlap */}
+        {selectedItem && selectedNode && cardPos && !showExposurePanel && (
           <AtlasWordCard
             item={selectedItem}
             node={selectedNode}

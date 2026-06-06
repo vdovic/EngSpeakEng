@@ -21,6 +21,8 @@ interface AtlasControlsProps {
   onLensChange: (lens: AtlasLens) => void
   isFutureMode: boolean
   onToggleFuture: () => void
+  showExposurePanel: boolean
+  onToggleExposurePanel: () => void
 }
 
 // ── Lens metadata ─────────────────────────────────────────────────────────────
@@ -38,6 +40,8 @@ export function AtlasControls({
   onLensChange,
   isFutureMode,
   onToggleFuture,
+  showExposurePanel,
+  onToggleExposurePanel,
 }: AtlasControlsProps) {
   return (
     <div
@@ -66,6 +70,20 @@ export function AtlasControls({
           </button>
         ))}
       </div>
+
+      {/* Exposure levels panel toggle */}
+      <button
+        onClick={onToggleExposurePanel}
+        title="Browse vocabulary by exposure level"
+        className={`pointer-events-auto px-3 py-1.5 rounded-full text-[11px] font-medium transition-all duration-200 backdrop-blur-sm border ${
+          showExposurePanel
+            ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/25'
+            : 'bg-black/30 text-slate-500 border-white/8 hover:text-slate-300'
+        }`}
+        aria-pressed={showExposurePanel}
+      >
+        Levels
+      </button>
 
       {/* Future You toggle */}
       <button
