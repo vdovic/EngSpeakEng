@@ -31,6 +31,7 @@ import {
   Zap, RotateCcw, BookOpen, TrendingUp, ExternalLink,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
+import type { VocabItem } from '@/types/vocabulary'
 import { useSpeedGameStore } from '@/store/speedGameStore'
 import {
   SPEED_GAME_DURATIONS,
@@ -134,7 +135,7 @@ export function SpeedGamePage() {
   // ── Phase ────────────────────────────────────────────────────────────────
   const [phase,    setPhase]    = useState<Phase>('setup')
   const [duration, setDuration] = useState<SpeedGameDuration>(180)
-  const [scope,    setScope]    = useState<WordScope>('focus')
+  const [scope,    setScope]    = useState<WordScope>('full')
 
   // ── Game state ───────────────────────────────────────────────────────────
   const [timeLeft,  setTimeLeft]  = useState(0)
@@ -142,6 +143,7 @@ export function SpeedGamePage() {
   const [qIndex,    setQIndex]    = useState(0)
   const [correct,   setCorrect]   = useState(0)
   const [wrong,     setWrong]     = useState(0)
+  const [run,       setRun]       = useState(0)   // consecutive correct answers this session
   const [practiced, setPracticed] = useState<Set<string>>(new Set())
   const [feedback,  setFeedback]  = useState<FeedbackState | null>(null)
 
@@ -235,6 +237,7 @@ export function SpeedGamePage() {
     feedbackDuration.current    = CORRECT_FEEDBACK_MS
     setCorrect(0)
     setWrong(0)
+    setRun(0)
     setPracticed(new Set())
     setFeedback(null)
     setQIndex(0)
@@ -277,6 +280,7 @@ export function SpeedGamePage() {
 
     if (isCorrect) {
       setCorrect((c) => { latestStats.current.correct = c + 1; return c + 1 })
+      setRun((r) => r + 1)
       if (
         canGainExposure(items.find((i) => i.id === q.itemId) ?? { exposureCount: 0 } as any) &&
         !wordsGainedExposure.current.has(q.itemId)
@@ -286,6 +290,7 @@ export function SpeedGamePage() {
       }
     } else {
       setWrong((w) => { latestStats.current.wrong = w + 1; return w + 1 })
+      setRun(0)
     }
 
     // Set feedback duration before switching phase (ref is read by the useEffect)
@@ -633,6 +638,11 @@ export function SpeedGamePage() {
           <p className="text-sm text-slate-400 text-center mb-4">No questions answered — try again!</p>
         )}
 
+        {/* ── Portfolio impact ─────────────────────────────────────────── */}
+        {wordsGainedExposure.current.size > 0 && (
+          <PortfolioImpact gainedIds={wordsGainedExposure.current} items={items} />
+        )}
+
         {/* ── Word review section ──────────────────────────────────────── */}
         {total > 0 && (
           <div className="mb-5">
@@ -712,26 +722,44 @@ export function SpeedGamePage() {
     <div className="max-w-lg mx-auto px-4 py-4 pb-28 md:pb-8 flex flex-col min-h-screen">
 
       {/* Top bar */}
-      <div className="flex items-center gap-3 mb-3">
-        <button onClick={endGame}
-          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
-          title="End game"
-          aria-label="End game">
-          <ArrowLeft size={20} />
-        </button>
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${
-          urgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-700'
-        }`}>
-          <Timer size={14} className={urgent ? 'animate-pulse' : ''} />
-          {formatTime(timeLeft)}
+      <div className="mb-3 space-y-1.5">
+        <div className="flex items-center gap-3">
+          <button onClick={endGame}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+            title="End game"
+            aria-label="End game">
+            <ArrowLeft size={20} />
+          </button>
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-sm font-bold ${
+            urgent ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-700'
+          }`}>
+            <Timer size={14} className={urgent ? 'animate-pulse' : ''} />
+            {formatTime(timeLeft)}
+          </div>
+          <div className="flex-1">
+            <TimerBar remaining={timeLeft} total={duration} />
+          </div>
         </div>
-        <div className="flex-1">
-          <TimerBar remaining={timeLeft} total={duration} />
-        </div>
-        <div className="flex items-center gap-2 text-xs font-semibold shrink-0">
-          <span className="text-emerald-600 tabular-nums">{correct}✓</span>
-          <span className="text-slate-300">·</span>
-          <span className="text-rose-500 tabular-nums">{wrong}✗</span>
+        {/* Stats row */}
+        <div className="flex items-center justify-between px-0.5">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span className="text-emerald-600 tabular-nums">{correct}✓</span>
+            <span className="text-slate-300">·</span>
+            <span className="text-rose-500 tabular-nums">{wrong}✗</span>
+            {(correct + wrong) > 0 && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span className="text-slate-500 tabular-nums">
+                  {Math.round((correct / (correct + wrong)) * 100)}%
+                </span>
+              </>
+            )}
+          </div>
+          {run >= 3 && (
+            <span className="text-[11px] font-semibold text-amber-500 tabular-nums">
+              ↑{run} in a row
+            </span>
+          )}
         </div>
       </div>
 
@@ -796,6 +824,69 @@ export function SpeedGamePage() {
             </button>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ── Portfolio impact ──────────────────────────────────────────────────────────
+
+interface ImpactEntry {
+  from:            number
+  to:              number
+  count:           number
+  reachedActivate: boolean
+}
+
+function PortfolioImpact({
+  gainedIds,
+  items,
+}: {
+  gainedIds: Set<string>
+  items:     VocabItem[]
+}) {
+  // For each word that gained exposure, compute from→to transition.
+  // recordExposure has already been called, so item.exposureCount is the new value.
+  const entries: ImpactEntry[] = (() => {
+    const map = new Map<string, ImpactEntry>()
+    for (const id of gainedIds) {
+      const item = items.find((i) => i.id === id)
+      if (!item) continue
+      const to   = Math.min(item.exposureCount ?? 0, 8)
+      const from = Math.max(0, to - 1)
+      const key  = `${from}→${to}`
+      const ex   = map.get(key)
+      const reachedActivate = to === 8
+      if (ex) { ex.count++; if (reachedActivate) ex.reachedActivate = true }
+      else     map.set(key, { from, to, count: 1, reachedActivate })
+    }
+    return [...map.values()].sort((a, b) => a.from - b.from)
+  })()
+
+  if (entries.length === 0) return null
+
+  return (
+    <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+          Portfolio impact
+        </p>
+        <p className="text-xs font-semibold text-emerald-600">
+          +{gainedIds.size} point{gainedIds.size !== 1 ? 's' : ''}
+        </p>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {entries.map(({ from, to, count, reachedActivate }) => (
+          <div key={`${from}→${to}`} className="flex items-center gap-3 px-4 py-2 text-xs">
+            <span className="font-mono text-slate-400 shrink-0 w-10">
+              {from} → {to}
+            </span>
+            <span className="flex-1 text-slate-600">
+              {count} word{count !== 1 ? 's' : ''}
+              {reachedActivate ? ' — now ready to activate' : ''}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )

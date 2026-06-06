@@ -43,7 +43,6 @@ import {
   getActivateStageItems,
   get90DayActivity,
   buildProgressHeadline,
-  buildConstellationNodes,
   buildGrowthCohorts,
   buildThemeTerritory,
   buildLongHorizon,
@@ -57,10 +56,11 @@ import {
   getMasteredWordsCount,
   getConfidenceDistribution,
   getUsageLogsThisWeek,
+  getDistanceToMastery,
+  getWeeklyMomentum,
 } from '@/lib/statsLogic'
 import type { DisplayStage } from '@/lib/progressionLogic'
-import { VocabularyConstellation } from '@/components/VocabularyConstellation'
-import { VocabularyLandscape } from '@/components/VocabularyLandscape'
+import { ExposureHistogram } from '@/components/ExposureHistogram'
 import type { VocabItem } from '@/types/vocabulary'
 
 // ── Stage colour palette ───────────────────────────────────────────────────────
@@ -82,10 +82,6 @@ const STAGE_LABEL: Record<DisplayStage, string> = {
 }
 
 const STAGE_ORDER: DisplayStage[] = ['new', 'introduced', 'drilling', 'activate', 'mastered']
-
-// ── Constellation max-nodes — evaluated once at module load ───────────────────
-const CONSTELLATION_MAX_NODES =
-  typeof window !== 'undefined' && window.innerWidth < 640 ? 180 : 300
 
 // ── SVG helper: annular sector path ───────────────────────────────────────────
 
@@ -1135,39 +1131,37 @@ function AnalyticsSectionHeader({
 // ── Analytics: Snapshot ───────────────────────────────────────────────────────
 
 interface AnalyticsSnapshotProps {
-  totalInLibrary: number
-  aliveCount: number
-  masteredCount: number
-  activateCount: number
-  usesThisWeek: number
-  avgExposure: number
+  totalInLibrary:    number
+  masteredCount:     number
+  activateCount:     number
+  distanceToMastery: number
+  weeklyMomentum:    number
 }
 
 function AnalyticsSnapshot({
   totalInLibrary,
-  aliveCount,
   masteredCount,
   activateCount,
-  usesThisWeek,
-  avgExposure,
+  distanceToMastery,
+  weeklyMomentum,
 }: AnalyticsSnapshotProps) {
-  const cells: Array<{ label: string; value: string }> = [
-    { label: 'In library',     value: totalInLibrary.toLocaleString() },
-    { label: 'Alive',          value: aliveCount.toLocaleString() },
-    { label: 'Mastered',       value: masteredCount.toLocaleString() },
-    { label: 'Ready to use',   value: activateCount.toLocaleString() },
-    { label: 'Used this week', value: usesThisWeek.toLocaleString() },
-    { label: 'Avg exposures',  value: avgExposure.toFixed(1) },
+  const cells: Array<{ label: string; value: string; sub?: string }> = [
+    { label: 'Total vocabulary',      value: totalInLibrary.toLocaleString() },
+    { label: 'Mastered',              value: masteredCount.toLocaleString() },
+    { label: 'Ready to activate',     value: activateCount.toLocaleString() },
+    { label: 'Distance to mastery',   value: distanceToMastery.toLocaleString(), sub: 'challenge points left' },
+    { label: 'Active this week',      value: weeklyMomentum.toLocaleString(),    sub: 'words practised' },
   ]
 
   return (
     <div>
-      <AnalyticsSectionHeader title="At a glance" />
-      <div className="grid grid-cols-3 gap-3">
-        {cells.map(({ label, value }) => (
-          <div key={label} className="py-4 text-center rounded-2xl bg-slate-50">
-            <div className="text-2xl font-light text-slate-800">{value}</div>
-            <div className="text-[11px] text-slate-400 mt-1 leading-tight">{label}</div>
+      <AnalyticsSectionHeader title="Portfolio overview" />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {cells.map(({ label, value, sub }) => (
+          <div key={label} className="py-4 px-3 rounded-2xl bg-slate-50">
+            <div className="text-2xl font-light text-slate-800 tabular-nums">{value}</div>
+            <div className="text-[11px] text-slate-500 mt-1 leading-tight font-medium">{label}</div>
+            {sub && <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{sub}</div>}
           </div>
         ))}
       </div>
@@ -1332,233 +1326,6 @@ function GrowthChart({ cohorts }: { cohorts: GrowthCohort[] }) {
   )
 }
 
-// ── Analytics: Stage Evolution Chart ─────────────────────────────────────────
-
-function StageEvolutionChart({ cohorts }: { cohorts: GrowthCohort[] }) {
-  const [hoveredKey, setHoveredKey] = useState<string | null>(null)
-
-  const vis = cohorts.slice(-12)
-  const n   = vis.length
-
-  if (n === 0) {
-    return (
-      <div>
-        <AnalyticsSectionHeader title="Stage composition" />
-        <p className="text-sm text-slate-400 text-center py-8">
-          Add words to see how your library is maturing.
-        </p>
-      </div>
-    )
-  }
-
-  const VBW = 480, VBH = 130
-  const PL = 10, PR = 10, PT = 10, PB = 26
-  const plotW  = VBW - PL - PR
-  const plotH  = VBH - PT - PB
-  const groupW = plotW / n
-  const barW   = Math.max(groupW * 0.72, 6)
-  const barOff = (groupW - barW) / 2
-
-  const maxTotal = Math.max(...vis.map((c) => c.total), 1)
-  const xEvery   = n <= 6 ? 1 : n <= 9 ? 2 : 3
-
-  const hoveredEntry = hoveredKey != null
-    ? vis.find((c) => c.monthKey === hoveredKey) ?? null
-    : null
-
-  return (
-    <div>
-      <AnalyticsSectionHeader
-        title="Stage composition"
-        subtitle="Monthly additions coloured by their current learning stage"
-      />
-      <svg
-        viewBox={`0 0 ${VBW} ${VBH}`}
-        className="w-full"
-        style={{ height: 118 }}
-        aria-label="Monthly vocabulary additions by stage"
-        role="img"
-      >
-        {/* Baseline */}
-        <line
-          x1={PL} y1={PT + plotH} x2={VBW - PR} y2={PT + plotH}
-          stroke="#e2e8f0" strokeWidth="1"
-        />
-
-        {vis.map((cohort, i) => {
-          const gx  = PL + i * groupW + barOff
-          const isH = hoveredKey === cohort.monthKey
-          let stackY = PT + plotH
-
-          const parts = STAGE_ORDER
-            .map((stage) => ({ stage, count: cohort.distribution[stage] }))
-            .filter((s) => s.count > 0)
-            .map(({ stage, count }) => {
-              const h = (count / maxTotal) * plotH
-              const y = stackY - h
-              stackY -= h
-              return { stage, y, h }
-            })
-
-          const showLabel = i % xEvery === 0 || i === n - 1
-
-          return (
-            <g
-              key={cohort.monthKey}
-              onMouseEnter={() => setHoveredKey(cohort.monthKey)}
-              onMouseLeave={() => setHoveredKey(null)}
-              style={{ cursor: 'default' }}
-            >
-              {/* Wider invisible hit zone */}
-              <rect
-                x={gx - 4} y={PT}
-                width={barW + 8} height={plotH}
-                fill="transparent"
-              />
-              {parts.map(({ stage, y, h }) => (
-                <rect
-                  key={stage}
-                  x={gx} y={y}
-                  width={barW} height={Math.max(h, 0)}
-                  fill={STAGE_COLOR[stage]}
-                  opacity={hoveredKey === null || isH ? 0.85 : 0.3}
-                  style={{ transition: 'opacity 0.18s ease' }}
-                />
-              ))}
-              {showLabel && (
-                <text
-                  x={gx + barW / 2} y={VBH - 5}
-                  textAnchor="middle" fontSize="7.5" fill="#94a3b8"
-                  fontFamily="system-ui,-apple-system,sans-serif"
-                >
-                  {cohort.label.slice(0, 3)}
-                </text>
-              )}
-            </g>
-          )
-        })}
-      </svg>
-
-      {/* Hover caption + legend */}
-      <div className="flex items-start justify-between mt-1 gap-3 flex-wrap">
-        <div style={{ minHeight: 18 }}>
-          {hoveredEntry != null && (
-            <p className="text-xs text-slate-400">
-              <span className="font-medium text-slate-600">
-                {hoveredEntry.label}
-              </span>
-              {' — '}
-              {hoveredEntry.total} word{hoveredEntry.total !== 1 ? 's' : ''} added
-            </p>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-          {STAGE_ORDER.map((stage) => (
-            <div key={stage} className="flex items-center gap-1">
-              <span
-                className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: STAGE_COLOR[stage] }}
-                aria-hidden="true"
-              />
-              <span className="text-[10px] text-slate-400">
-                {STAGE_LABEL[stage]}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Analytics: Activity Calendar ──────────────────────────────────────────────
-
-function ActivityCalendar({
-  pointsHistory,
-}: {
-  pointsHistory: Record<string, number>
-}) {
-  // Build 90 day × activity lookup, oldest first (index 0 = 89 days ago)
-  const cells = useMemo(() => {
-    const today = new Date()
-    return Array.from({ length: 90 }, (_, i) => {
-      const d   = new Date(today)
-      d.setDate(d.getDate() - (89 - i))
-      const key = d.toISOString().slice(0, 10)
-      const pts = pointsHistory[key] ?? 0
-      const mon = d.toLocaleString('default', { month: 'short' })
-      return {
-        dateKey: key,
-        points:  pts,
-        active:  pts > 0,
-        label:   `${mon} ${d.getDate()}${pts > 0 ? `: ${pts} pts` : ''}`,
-      }
-    })
-  }, [pointsHistory])
-
-  const maxPts = Math.max(...cells.map((c) => c.points), 1)
-  const hasAny = cells.some((c) => c.active)
-
-  // Grid: 7 rows × 13 columns.  col = ⌊i/7⌋, row = i % 7
-  const ROWS = 7, COLS = 13
-  const CELL = 22, GAP = 3, STEP = CELL + GAP
-  const VBW  = COLS * STEP + GAP * 2
-  const VBH  = ROWS * STEP + GAP * 2
-
-  return (
-    <div>
-      <AnalyticsSectionHeader
-        title="Activity pattern"
-        subtitle="90 days of practice — each cell is one day"
-      />
-      <svg
-        viewBox={`0 0 ${VBW} ${VBH}`}
-        className="w-full"
-        style={{ height: Math.round(VBH * 0.65) }}
-        aria-label="90-day practice activity heatmap"
-        role="img"
-      >
-        {cells.map((cell, i) => {
-          const col     = Math.floor(i / ROWS)
-          const row     = i % ROWS
-          const x       = GAP + col * STEP
-          const y       = GAP + row * STEP
-          const opacity = cell.active ? Math.max(0.22, cell.points / maxPts) : 0
-          const fill    = cell.active
-            ? `rgba(251,191,36,${opacity.toFixed(2)})`
-            : '#f1f5f9'
-          return (
-            <rect key={cell.dateKey} x={x} y={y} width={CELL} height={CELL} rx={3} fill={fill}>
-              <title>{cell.label}</title>
-            </rect>
-          )
-        })}
-      </svg>
-
-      <div className="flex items-center justify-between mt-2">
-        {hasAny ? (
-          <span />
-        ) : (
-          <p className="text-xs text-slate-400">
-            Your activity pattern takes shape as you practise daily.
-          </p>
-        )}
-        <div className="flex items-center gap-1.5 ml-auto">
-          <span className="text-[10px] text-slate-400">Less</span>
-          {[0.12, 0.35, 0.6, 1.0].map((op, k) => (
-            <div
-              key={k}
-              className="w-3 h-3 rounded-sm"
-              style={{ backgroundColor: `rgba(251,191,36,${op})` }}
-              aria-hidden="true"
-            />
-          ))}
-          <span className="text-[10px] text-slate-400">More</span>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── Analytics: Confidence ─────────────────────────────────────────────────────
 
@@ -1732,61 +1499,37 @@ function ThemeCoverageSection({
 
 interface AnalyticsViewProps {
   nonArchived:   VocabItem[]
-  aliveCount:    number
   masteredCount: number
   activateCount: number
-  usesThisWeek:  number
   cohorts:       GrowthCohort[]
   themeEntries:  ThemeTerritoryEntry[]
-  pointsHistory: Record<string, number>
 }
 
 function AnalyticsView({
   nonArchived,
-  aliveCount,
   masteredCount,
   activateCount,
-  usesThisWeek,
   cohorts,
   themeEntries,
-  pointsHistory,
 }: AnalyticsViewProps) {
-  const confidence = useMemo(
-    () => getConfidenceDistribution(nonArchived),
-    [nonArchived],
-  )
-  const avgExposure = useMemo(
-    () =>
-      nonArchived.length > 0
-        ? nonArchived.reduce((s, i) => s + (i.exposureCount ?? 0), 0) /
-          nonArchived.length
-        : 0,
-    [nonArchived],
-  )
+  const confidence      = useMemo(() => getConfidenceDistribution(nonArchived), [nonArchived])
+  const distanceToMastery = useMemo(() => getDistanceToMastery(nonArchived),    [nonArchived])
+  const weeklyMomentum  = useMemo(() => getWeeklyMomentum(nonArchived),         [nonArchived])
 
   return (
     <div className="space-y-12 mt-6">
       <AnalyticsSnapshot
         totalInLibrary={nonArchived.length}
-        aliveCount={aliveCount}
         masteredCount={masteredCount}
         activateCount={activateCount}
-        usesThisWeek={usesThisWeek}
-        avgExposure={avgExposure}
+        distanceToMastery={distanceToMastery}
+        weeklyMomentum={weeklyMomentum}
       />
 
-      {/* ── Word Space ── */}
-      <div>
-        <AnalyticsSectionHeader
-          title="Word Space"
-          subtitle="Every word as a dot — hover to identify, click to open"
-        />
-        <VocabularyLandscape items={nonArchived} />
-      </div>
+      {/* ── Portfolio Distribution histogram ── */}
+      <ExposureHistogram items={nonArchived} />
 
       <GrowthChart cohorts={cohorts} />
-      <StageEvolutionChart cohorts={cohorts} />
-      <ActivityCalendar pointsHistory={pointsHistory} />
       <ConfidenceAnalyticsSection confidence={confidence} />
       <ThemeCoverageSection entries={themeEntries} />
     </div>
@@ -1816,12 +1559,6 @@ export function StatsPage() {
   const masteredCount = useMemo(() => getMasteredWordsCount(nonArchived), [nonArchived])
   const activateItems = useMemo(() => getActivateStageItems(nonArchived), [nonArchived])
   const usesThisWeek  = useMemo(() => getUsageLogsThisWeek(nonArchived), [nonArchived])
-
-  // Constellation nodes — deterministic, stable
-  const constellationNodes = useMemo(
-    () => buildConstellationNodes(nonArchived, themes, CONSTELLATION_MAX_NODES),
-    [nonArchived, themes],
-  )
 
   // Observatory lenses — all pure, memoized on library data
   const growthCohorts  = useMemo(() => buildGrowthCohorts(nonArchived), [nonArchived])
@@ -1870,13 +1607,7 @@ export function StatsPage() {
             sub={headline.sub}
           />
 
-          {/* 2. Living Vocabulary Constellation */}
-          <VocabularyConstellation
-            nodes={constellationNodes}
-            totalItems={nonArchived.length}
-          />
-
-          {/* 3. 90-day momentum trail */}
+          {/* 2. 90-day momentum trail */}
           <MomentumTrail pointsHistory={pointsHistory} />
 
           {/* 4. Activation spotlight */}
@@ -1904,13 +1635,10 @@ export function StatsPage() {
         /* ── Analytics: exploratory, historical, pattern-focused ── */
         <AnalyticsView
           nonArchived={nonArchived}
-          aliveCount={aliveCount}
           masteredCount={masteredCount}
           activateCount={stageDistrib.activate}
-          usesThisWeek={usesThisWeek}
           cohorts={growthCohorts}
           themeEntries={themeTerritory}
-          pointsHistory={pointsHistory}
         />
 
       )}

@@ -234,3 +234,32 @@ export function getConfidenceDistribution(items: VocabItem[]): ConfidenceDistrib
   }
   return dist
 }
+
+// ── Portfolio metrics ─────────────────────────────────────────────────────────
+
+/**
+ * Total challenge points still needed to bring every non-mastered word to
+ * exposure 8. Each correct challenge answer earns 1 point.
+ * Words already at exposure 8 (activate stage) need real-world use, not more
+ * challenges — they contribute 0 to this number.
+ */
+export function getDistanceToMastery(items: VocabItem[]): number {
+  return items
+    .filter((i) => !i.archived && getCanonicalLevel(i) !== 3)
+    .reduce((sum, item) => {
+      const exp = Math.min(item.exposureCount ?? 0, 8)
+      return sum + (8 - exp)
+    }, 0)
+}
+
+/**
+ * Count of non-archived words that received at least one challenge exposure
+ * in the past 7 days, based on lastExposureAt.
+ */
+export function getWeeklyMomentum(items: VocabItem[]): number {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+  return items.filter(
+    (i) => !i.archived && i.lastExposureAt != null &&
+           new Date(i.lastExposureAt).getTime() >= cutoff,
+  ).length
+}
