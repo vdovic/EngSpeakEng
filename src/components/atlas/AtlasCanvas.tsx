@@ -195,11 +195,42 @@ function confidenceFS(node: AtlasNode): FrameStyle {
   return CONF_FS[node.confidenceLevel]
 }
 
+// ── Exposure lens ─────────────────────────────────────────────────────────────
+//
+// Colours nodes by raw exposureCount (0–8) + mastered status.
+// Each level gets a distinct shade so the archipelago bands are visible:
+//   0        → slate      (untouched)
+//   1–2      → indigo     (introduced)
+//   3–5      → amber      (drilling)
+//   6–7      → orange     (near mastery)
+//   8 active → violet     (activate — fully drilled, needs real-world use)
+//   mastered → emerald    (confirmed active vocabulary)
+
+const EXPOSURE_FS: Array<FrameStyle> = [
+  { fr:100, fg:116, fb:139, gr:100, gg:116, gb:139, ga:0.00, glowBlur: 0  }, // 0 slate
+  { fr:129, fg:140, fb:248, gr:129, gg:140, gb:248, ga:0.35, glowBlur: 4  }, // 1 indigo
+  { fr:129, fg:140, fb:248, gr:129, gg:140, gb:248, ga:0.50, glowBlur: 6  }, // 2 indigo+
+  { fr:251, fg:191, fb: 36, gr:251, gg:191, gb: 36, ga:0.50, glowBlur: 7  }, // 3 amber
+  { fr:251, fg:191, fb: 36, gr:251, gg:191, gb: 36, ga:0.55, glowBlur: 8  }, // 4 amber+
+  { fr:251, fg:191, fb: 36, gr:251, gg:191, gb: 36, ga:0.62, glowBlur: 9  }, // 5 amber++
+  { fr:251, fg:146, fb: 60, gr:251, gg:146, gb: 60, ga:0.62, glowBlur:11  }, // 6 orange
+  { fr:251, fg:146, fb: 60, gr:251, gg:146, gb: 60, ga:0.72, glowBlur:13  }, // 7 orange+
+  { fr:167, fg:139, fb:250, gr:167, gg:139, gb:250, ga:0.78, glowBlur:15  }, // 8 violet (activate)
+]
+const EXPOSURE_MASTERED_FS: FrameStyle =
+  { fr: 74, fg:222, fb:128, gr: 74, gg:222, gb:128, ga:0.70, glowBlur:12  }
+
+function exposureFS(node: AtlasNode): FrameStyle {
+  if (node.stage === 'mastered') return EXPOSURE_MASTERED_FS
+  return EXPOSURE_FS[Math.min(node.exposureCount, 8)]
+}
+
 // ── Lens dispatch ─────────────────────────────────────────────────────────────
 
 function getLensStyle(node: AtlasNode, lens: AtlasLens, nowMs: number): FrameStyle {
-  if (lens === 'vitality')    return vitalityFS(node, nowMs)
-  if (lens === 'confidence')  return confidenceFS(node)
+  if (lens === 'vitality')   return vitalityFS(node, nowMs)
+  if (lens === 'confidence') return confidenceFS(node)
+  if (lens === 'exposure')   return exposureFS(node)
   return progressFS(node)
 }
 

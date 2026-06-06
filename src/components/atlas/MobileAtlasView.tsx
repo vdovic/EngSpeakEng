@@ -53,6 +53,15 @@ function chipDotColor(node: AtlasNode, lens: AtlasLens): string {
     if (lvl === 1) return 'bg-orange-400'
     return 'bg-slate-700'
   }
+  if (lens === 'exposure') {
+    if (node.stage === 'mastered')  return 'bg-emerald-400'
+    const exp = node.exposureCount
+    if (exp === 0) return 'bg-slate-500'
+    if (exp <= 2)  return 'bg-indigo-400'
+    if (exp <= 5)  return 'bg-amber-400'
+    if (exp <= 7)  return 'bg-orange-400'
+    return 'bg-violet-400'  // exp === 8, activate
+  }
   // progress
   return STAGE_BG[node.stage]
 }
@@ -245,6 +254,7 @@ function SummaryRow({ layout }: { layout: AtlasLayout }) {
 
 const LENS_LABELS: Record<AtlasLens, string> = {
   progress:   'Progress',
+  exposure:   'Exposure',
   vitality:   'Vitality',
   confidence: 'Confidence',
 }

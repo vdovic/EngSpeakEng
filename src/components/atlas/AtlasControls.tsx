@@ -29,6 +29,7 @@ interface AtlasControlsProps {
 
 const LENSES: { id: AtlasLens; label: string; description: string }[] = [
   { id: 'progress',   label: 'Progress',   description: 'Stage-based view: where each word is in your learning journey' },
+  { id: 'exposure',   label: 'Exposure',   description: 'Exposure view: colour-coded by challenge count (0–8) — see the archipelago bands' },
   { id: 'vitality',   label: 'Vitality',   description: 'Recency view: which words are alive, which are dormant' },
   { id: 'confidence', label: 'Confidence', description: 'Comfort view: how natural each word feels to use' },
 ]

@@ -61,8 +61,8 @@ export const CANVAS_H = 2800
 
 export type AtlasStage = 'new' | 'introduced' | 'drilling' | 'activate' | 'mastered'
 
-/** Three interpretive lenses — same world, different visual truth. */
-export type AtlasLens = 'progress' | 'vitality' | 'confidence'
+/** Four interpretive lenses — same world, different visual truth. */
+export type AtlasLens = 'progress' | 'vitality' | 'confidence' | 'exposure'
 
 export interface AtlasNodeStyle {
   color: string
