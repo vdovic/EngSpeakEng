@@ -252,6 +252,42 @@ export function getDistanceToMastery(items: VocabItem[]): number {
     }, 0)
 }
 
+// ── Full vocabulary mastery (north-star metric) ───────────────────────────────
+
+export interface MasteryProgress {
+  /** Non-archived word count contributing to the goal. */
+  wordCount: number
+  /** wordCount × 8 — the maximum reachable challenge-exposure total. */
+  totalPossible: number
+  /** Σ min(exposureCount, 8) across non-archived words — objective state. */
+  earned: number
+  /** totalPossible − earned, clamped at 0. */
+  remaining: number
+  /** earned / totalPossible × 100, rounded (0 when the library is empty). */
+  percent: number
+}
+
+/**
+ * The global "conquer the whole vocabulary" metric.
+ *
+ * Each word can reach 8 exposures (MAX_EXPOSURE). Total possible = words × 8,
+ * earned = the sum of every word's current exposure (capped at 8). This is
+ * objective progress state — not a score — so it complies with CLAUDE.md while
+ * giving the Effort tab its emotional north-star.
+ */
+export function getMasteryProgress(items: VocabItem[]): MasteryProgress {
+  const active = items.filter((i) => !i.archived)
+  const wordCount = active.length
+  const totalPossible = wordCount * 8
+  const earned = active.reduce(
+    (sum, i) => sum + Math.min(i.exposureCount ?? 0, 8),
+    0,
+  )
+  const remaining = Math.max(0, totalPossible - earned)
+  const percent = totalPossible > 0 ? Math.round((earned / totalPossible) * 100) : 0
+  return { wordCount, totalPossible, earned, remaining, percent }
+}
+
 /**
  * Count of non-archived words that received at least one challenge exposure
  * in the past 7 days, based on lastExposureAt.

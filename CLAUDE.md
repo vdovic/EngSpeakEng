@@ -375,15 +375,59 @@ The goal is active production, not test performance.
 
 ## Gamification Constraints
 
-This product targets adult B2–C1 professional learners. The following patterns actively conflict with their expectations and must not be added:
+This product targets adult B2–C1 professional learners. The distinction that governs everything here: show *what is true about the learner's progress*, never *how good the learner is* or *how they rank*.
 
-* Points, XP, scores, or performance ratings
-* Streaks
+### Forbidden — arcade-style gamification
+
+These patterns conflict with adult professional learners' expectations and must never be added:
+
+* Explicit arcade-style **XP** or score-chasing presented as a reward currency
+* **Streak pressure** — streak counters used as a loss-aversion / don't-break-the-chain motivator
+* **Leaderboards**, ranking, or social comparison
 * Achievement badges or unlock animations
 * Internal quality labels surfaced to users (e.g. "Strong", "Struggling")
-* Leaderboards or social comparison
+* Raw "XP" or "streak" presented as the **main motivational mechanic**
 
-Progress indicators that show objective state (exposure count, stage, usage count) are encouraged. The distinction is showing *what is true*, not *how good the learner is*.
+### Allowed — internal tracking and learning analytics
+
+* **Internal numeric progress tracking is allowed** when it powers learning analytics. Storing per-event numeric values (advancement amounts, correct counts, exposures gained) and aggregating them is fine — that is data, not a game.
+* Progress indicators that show **objective state** (exposure count 0–8, stage, usage count, practice time, words advanced, mastery movement) are encouraged.
+* Charts may show: **cumulative advancement, daily learning growth, practice time, words advanced, exposures gained, and mastery movement over time.**
+
+### Learner-facing terminology
+
+Internal fields may be called whatever is convenient in code (`points`, `advancement`, etc.), but the **UI must use educational language**:
+
+| Internal concept | Learner-facing label |
+| --- | --- |
+| points / XP / score | **learning progress**, **advancement**, **mastery growth** |
+| streak | **practice consistency**, **days practiced**, **active learning days** |
+
+Never render the words "XP", "points", "score", or "streak" as a primary motivational figure in learner-facing UI.
+
+### The north-star metric
+
+The central progress metric is **overall vocabulary mastery**:
+
+```
+overall vocabulary mastery =
+  current total mastery level across vocabulary  /  total possible mastery
+  ( Σ min(exposureCount, 8)  /  wordCount × 8 )
+```
+
+This is a **learning-completion metric**, not gamified XP. It answers "how far through the whole vocabulary am I?" and is the emotional anchor of the analytics surface.
+
+---
+
+## Learning Analytics & Effort Tracking
+
+The "Progress & Effort" analytics is a **dedicated page** (`/effort`), reached from navigation and from a **small summary card on the Main dashboard**. It must not overload the dashboard — the dashboard shows only a compact teaser (mastery %, today's practice, a link).
+
+**Data architecture.** Practice activities log a `PracticeSession` (active time, words practised, internal advancement) via the `usePracticeTimer` hook → `practiceStore`. Aggregation lives in `src/lib/practiceAnalytics.ts` (pure, unit-tested). Adding a future game must require only a new `ActivityType` entry plus one `usePracticeTimer` call — no analytics-logic changes.
+
+**Instrumented sources (first pass):** Daily Challenge, Speed Game, Sentence Repair, Phrase Upgrade. Other activities (e.g. Recall) are intentionally left uninstrumented until a later pass — design for easy extension, do not instrument everything at once.
+
+**Compliance.** All analytics follow the Gamification Constraints above: internal numeric aggregation is fine; the UI uses educational terminology; the mastery north-star is the central metric. Practice sessions are immutable, versioned, union-merged on sync, and never reset (see User Data Safety).
 
 ---
 

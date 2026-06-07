@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { useDriveSyncStore, isDriveConfigured } from '@/store/driveSyncStore'
 import { useSpeedGameStore } from '@/store/speedGameStore'
+import { usePracticeStore } from '@/store/practiceStore'
 import { startOAuthFlow } from '@/lib/googleAuth'
 import { useVocabStore }        from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -229,6 +230,8 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
   const { bulkImport }              = useVocabStore()
   const speedGameResults            = useSpeedGameStore((s) => s.results)
   const setSpeedGameResults         = useSpeedGameStore((s) => s.setResults)
+  const practiceSessions            = usePracticeStore((s) => s.sessions)
+  const setPracticeSessions         = usePracticeStore((s) => s.setSessions)
 
   const extras: ExportExtras = {
     gamification,
@@ -238,6 +241,7 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
       onboardingProfile:   obProfile ?? undefined,
     },
     speedGameResults,
+    practiceSessions,
   }
 
   // Track whether this is the first render after authentication
@@ -278,6 +282,7 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
       bulkImport,
       applyGamification:     (snap) => { useGamificationStore.setState(snap) },
       applySpeedGameResults: setSpeedGameResults,
+      applyPracticeSessions: setPracticeSessions,
       addTheme,
       currentThemes: themes,
       localItems:    items,
@@ -311,6 +316,7 @@ export function DriveSync({ items }: { items: ReturnType<typeof useVocabStore.ge
       bulkImport,
       applyGamification:     (snap) => { useGamificationStore.setState(snap) },
       applySpeedGameResults: setSpeedGameResults,
+      applyPracticeSessions: setPracticeSessions,
       addTheme,
       currentThemes: themes,
       localItems:    items,

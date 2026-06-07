@@ -13,8 +13,11 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, ChevronRight, Flame, Gamepad2, Plus, RotateCw, SlidersHorizontal, TrendingUp, Zap } from 'lucide-react'
+import { Activity, ChevronDown, ChevronRight, Flame, Gamepad2, Plus, RotateCw, SlidersHorizontal, TrendingUp, Zap } from 'lucide-react'
 import { useSpeedGameStore } from '@/store/speedGameStore'
+import { usePracticeStore } from '@/store/practiceStore'
+import { getMasteryProgress } from '@/lib/statsLogic'
+import { computePracticeMetrics, formatDuration } from '@/lib/practiceAnalytics'
 import { clearSession, getUniqueWordProgress, loadTodaySession, PRACTICE_MODE_KEY } from '@/lib/challengeSession'
 import { CHALLENGE_SESSION_CAP, MAX_EXPOSURE } from '@/lib/constants'
 import { usagePoints } from '@/lib/mastery'
@@ -623,6 +626,46 @@ function GamesSection() {
   )
 }
 
+// ── ProgressEffortCard ─────────────────────────────────────────────────────────
+// Compact teaser linking to the dedicated /effort analytics page. Shows the
+// mastery north-star % and today's practice time only — full detail lives on
+// the Progress & Effort page (keeps the dashboard uncluttered).
+
+function ProgressEffortCard() {
+  const navigate = useNavigate()
+  const items    = useVocabStore((s) => s.items)
+  const sessions = usePracticeStore((s) => s.sessions)
+
+  const masteryPercent = useMemo(() => getMasteryProgress(items).percent, [items])
+  const todaySecs      = useMemo(() => computePracticeMetrics(sessions).todaySecs, [sessions])
+
+  return (
+    <button
+      onClick={() => navigate('/effort')}
+      className="mb-5 flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:border-violet-200 hover:bg-violet-50/30"
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100">
+        <Activity size={16} className="text-violet-600" />
+      </div>
+      <div className="flex min-w-0 flex-1 items-center gap-5">
+        <div>
+          <p className="text-lg font-light leading-none text-violet-600 tabular-nums">{masteryPercent}%</p>
+          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">mastery</p>
+        </div>
+        <div>
+          <p className="text-lg font-light leading-none text-sky-600 tabular-nums">{formatDuration(todaySecs)}</p>
+          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">practised today</p>
+        </div>
+        <div className="ml-auto hidden sm:block">
+          <p className="text-sm font-semibold text-slate-700">Progress &amp; Effort</p>
+          <p className="text-xs text-slate-400">Your growth and consistency</p>
+        </div>
+      </div>
+      <ChevronRight size={16} className="shrink-0 text-slate-300" />
+    </button>
+  )
+}
+
 // ── UseNowStrip ───────────────────────────────────────────────────────────────
 // Compact invitation strip shown when activation-ready words exist.
 // Shows a count + up to 3 word chips as a preview. One tap opens the sheet.
@@ -829,6 +872,8 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         onFocus={() => navigate('/focus')}
         onProgress={() => navigate('/progress')}
       />
+
+      <ProgressEffortCard />
 
       <HowItWorks defaultExpanded={challengeCompletions < 3} />
 

@@ -7,6 +7,7 @@ import {
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
 import { useThemesStore } from '@/store/themesStore'
+import { usePracticeTimer } from '@/hooks/usePracticeTimer'
 import { ConfidenceDots } from '@/components/ConfidenceDots'
 import { isDueChallengeNow, intervalLabel } from '@/lib/challengeSchedule'
 import { getChallengeType, CHALLENGE_TYPE_LABEL, ChallengeType } from '@/lib/challengeLogic'
@@ -312,6 +313,9 @@ export function DailyChallengePage() {
   const { addPoints, recordChallengeCompletion, checkBadges, streakDays, points } =
     useGamificationStore()
   const allThemes = useThemesStore((s) => s.themes)
+  // Tracks active practice time + mastery growth for the Progress & Effort tab.
+  // Auto-logs a PracticeSession on unmount (navigation away from the challenge).
+  const practiceTimer = usePracticeTimer('daily-challenge')
 
   const [slots, setSlots] = useState<ChallengeSlot[]>([])
   const [showPicker, setShowPicker] = useState(false)
@@ -691,6 +695,8 @@ export function DailyChallengePage() {
       }
 
       addPoints(result.points)
+      // Effort tracking: active time + mastery growth (exposure steps gained).
+      practiceTimer.bump({ advancement: normalInc + bonusInc, itemId: result.itemId })
       setResults((prev) => [...prev, result])
 
       function advance() {

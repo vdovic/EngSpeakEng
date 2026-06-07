@@ -14,6 +14,7 @@ import { useDriveSyncStore, type ConfirmMergeHelpers } from '@/store/driveSyncSt
 import { detectOAuthCallback, clearCallbackFromUrl } from '@/lib/googleAuth'
 import type { ExportExtras, GamificationSnapshot } from '@/lib/vocabImportExport'
 import { useSpeedGameStore } from '@/store/speedGameStore'
+import { usePracticeStore } from '@/store/practiceStore'
 
 // ── Eager-loaded pages (part of the initial bundle — fast critical paths) ───────
 
@@ -52,6 +53,9 @@ const SettingsPage = lazy(() =>
   import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 )
 const AtlasPage = lazy(() => import('@/pages/AtlasPage'))
+const EffortPage = lazy(() =>
+  import('@/pages/EffortPage').then((m) => ({ default: m.EffortPage }))
+)
 const SpeedGamePage = lazy(() =>
   import('@/pages/SpeedGamePage').then((m) => ({ default: m.SpeedGamePage }))
 )
@@ -163,6 +167,7 @@ export default function App() {
       const themes    = useThemesStore.getState()
       const ob        = useOnboardingStore.getState()
       const speedGame = useSpeedGameStore.getState()
+      const practice  = usePracticeStore.getState()
 
       const extras: ExportExtras = {
         gamification: {
@@ -184,12 +189,14 @@ export default function App() {
           onboardingProfile:   ob.profile ?? undefined,
         },
         speedGameResults: speedGame.results,
+        practiceSessions: practice.sessions,
       }
 
       const helpers: ConfirmMergeHelpers = {
         bulkImport:            vocab.bulkImport,
         applyGamification:     (snap) => useGamificationStore.setState(snap),
         applySpeedGameResults: (results) => useSpeedGameStore.getState().setResults(results),
+        applyPracticeSessions: (sessions) => usePracticeStore.getState().setSessions(sessions),
         addTheme:              themes.addTheme,
         currentThemes:         themes.themes,
         localItems:            vocab.items,
@@ -301,6 +308,7 @@ export default function App() {
             <Route path="/settings"  element={<SettingsPage />} />
 
             <Route path="/atlas"       element={<AtlasPage />} />
+            <Route path="/effort"      element={<EffortPage />} />
             <Route path="/game/speed"  element={<SpeedGamePage />} />
 
             {/* Legacy aliases — redirect to canonical routes */}
@@ -312,8 +320,8 @@ export default function App() {
       </main>
 
       {/* ── Global floating add button ── */}
-      {/* Hidden on /progress and /atlas — reflective / exploration surfaces */}
-      {location.pathname !== '/progress' && location.pathname !== '/atlas' && (
+      {/* Hidden on /progress, /atlas and /effort — reflective / analytics surfaces */}
+      {location.pathname !== '/progress' && location.pathname !== '/atlas' && location.pathname !== '/effort' && (
         <button
           onClick={() => setShowQuickAdd(true)}
           className="fixed bottom-[4.5rem] right-4 md:bottom-6 md:right-6 z-20 w-12 h-12 rounded-full bg-brand-600 text-white shadow-lg hover:bg-brand-700 active:scale-95 transition-all flex items-center justify-center"
