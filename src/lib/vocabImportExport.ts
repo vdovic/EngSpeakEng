@@ -16,6 +16,7 @@
 
 import type { Badge, UsageLog, VocabItem } from '@/types/vocabulary'
 import type { SpeedGameResult } from '@/lib/speedGame'
+import type { PracticeSession } from '@/lib/practice'
 import { migrateItem } from '@/lib/migration'
 import { APP_VERSION } from '@/lib/appVersion'
 
@@ -65,6 +66,7 @@ export interface VocabExportPayload {
   themes?:            string[]
   preferences?:       PreferencesSnapshot
   speedGameResults?:  SpeedGameResult[]
+  practiceSessions?:  PracticeSession[]
 }
 
 /** Optional extra sections passed to exportVocabToJson. */
@@ -73,6 +75,7 @@ export interface ExportExtras {
   themes?:           string[]
   preferences?:      PreferencesSnapshot
   speedGameResults?: SpeedGameResult[]
+  practiceSessions?: PracticeSession[]
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
@@ -348,6 +351,7 @@ export interface FullExportParseResult {
   themes?:            string[]
   preferences?:       PreferencesSnapshot
   speedGameResults?:  SpeedGameResult[]
+  practiceSessions?:  PracticeSession[]
 }
 
 /**
@@ -397,6 +401,17 @@ export function parseFullExport(raw: string): FullExportParseResult {
         typeof r === 'object' &&
         typeof (r as SpeedGameResult).id === 'string' &&
         typeof (r as SpeedGameResult).playedAt === 'string',
+    )
+  }
+  if (Array.isArray(obj.practiceSessions)) {
+    // Light validation: keep only entries that look like PracticeSession
+    result.practiceSessions = (obj.practiceSessions as unknown[]).filter(
+      (s): s is PracticeSession =>
+        s !== null &&
+        typeof s === 'object' &&
+        typeof (s as PracticeSession).id === 'string' &&
+        typeof (s as PracticeSession).endedAt === 'string' &&
+        typeof (s as PracticeSession).durationSecs === 'number',
     )
   }
 

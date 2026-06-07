@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
+import { usePracticeTimer } from '@/hooks/usePracticeTimer'
 import {
   PhraseUpgradePrompt,
   SentenceRepairPrompt,
@@ -1986,6 +1987,7 @@ function SentenceRepairMode({
     loadSentenceRepairProgress(),
   )
   const [run, setRun] = useState<SentenceRunState>(EMPTY_SENTENCE_RUN_STATE)
+  const practiceTimer = usePracticeTimer('sentence-repair')
   const [promptLibrary, setPromptLibrary] = useState<PromptLibraryState<SentenceRepairPrompt>>({
     prompts: [],
     status: 'loading',
@@ -2058,6 +2060,8 @@ function SentenceRepairMode({
     const isCorrect = choice === currentPrompt.correctChoice
     const nextStreak = isCorrect ? run.streak + 1 : 0
 
+    practiceTimer.bump({ advancement: isCorrect ? 1 : 0, itemId: currentPrompt.sourceWordId })
+
     setRun({
       ...run,
       status: 'feedback',
@@ -2089,6 +2093,8 @@ function SentenceRepairMode({
       })
       setProgress(nextProgress)
       onMissionProgress('sentence-repair', run.answers)
+      practiceTimer.finalize()
+      practiceTimer.reset()
       setRun({
         ...run,
         status: 'complete',
@@ -2213,6 +2219,7 @@ function PhraseUpgradeMode({
     loadPhraseUpgradeProgress(),
   )
   const [run, setRun] = useState<PhraseRunState>(EMPTY_PHRASE_RUN_STATE)
+  const practiceTimer = usePracticeTimer('phrase-upgrade')
   const [promptLibrary, setPromptLibrary] = useState<PromptLibraryState<PhraseUpgradePrompt>>({
     prompts: [],
     status: 'loading',
@@ -2285,6 +2292,8 @@ function PhraseUpgradeMode({
     const isCorrect = choice === currentPrompt.correctChoice
     const nextStreak = isCorrect ? run.streak + 1 : 0
 
+    practiceTimer.bump({ advancement: isCorrect ? 1 : 0, itemId: currentPrompt.sourceWordId })
+
     setRun({
       ...run,
       status: 'feedback',
@@ -2316,6 +2325,8 @@ function PhraseUpgradeMode({
       })
       setProgress(nextProgress)
       onMissionProgress('phrase-upgrade', run.answers)
+      practiceTimer.finalize()
+      practiceTimer.reset()
       setRun({
         ...run,
         status: 'complete',

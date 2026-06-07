@@ -33,6 +33,7 @@ import {
 import { useVocabStore } from '@/store/vocabStore'
 import type { VocabItem } from '@/types/vocabulary'
 import { useSpeedGameStore } from '@/store/speedGameStore'
+import { usePracticeTimer } from '@/hooks/usePracticeTimer'
 import {
   SPEED_GAME_DURATIONS,
   SPEED_GAME_DURATION_LABELS,
@@ -130,6 +131,9 @@ export function SpeedGamePage() {
   const navigate                   = useNavigate()
   const { items, recordExposure }  = useVocabStore()
   const addResult                  = useSpeedGameStore((s) => s.addResult)
+  // Active-time + mastery-growth tracking for the Progress & Effort tab.
+  // One PracticeSession per completed game: finalize() at save, reset() at start.
+  const practiceTimer              = usePracticeTimer('speed-game')
   const pastResults                = useSpeedGameStore((s) => s.results)
 
   // ── Phase ────────────────────────────────────────────────────────────────
@@ -184,7 +188,9 @@ export function SpeedGamePage() {
       scope,
       missedItemIds:  missedIds.length > 0 ? missedIds : undefined,
     })
-  }, [duration, scope, addResult])
+    // Log the effort session for this game (active time + mastery growth).
+    practiceTimer.finalize()
+  }, [duration, scope, addResult, practiceTimer])
 
   // ── Timer ─────────────────────────────────────────────────────────────────
   // The interval only runs while phase === 'playing', so it naturally pauses
@@ -230,6 +236,7 @@ export function SpeedGamePage() {
 
   // ── Start game ────────────────────────────────────────────────────────────
   const startGame = useCallback(() => {
+    practiceTimer.reset()   // re-arm the effort timer for a fresh game
     wordsGainedExposure.current = new Set()
     latestStats.current         = { correct: 0, wrong: 0, practiced: new Set() }
     resultSaved.current         = false
@@ -247,7 +254,7 @@ export function SpeedGamePage() {
     setQuestions(batch)
     setTimeLeft(duration)
     setPhase(batch.length === 0 ? 'results' : 'playing')
-  }, [duration, scope, items])
+  }, [duration, scope, items, practiceTimer])
 
   // End game manually (← button while playing)
   const endGame = useCallback(() => {
@@ -278,6 +285,7 @@ export function SpeedGamePage() {
       wasCorrect:    isCorrect,
     })
 
+    let gainedExposure = false
     if (isCorrect) {
       setCorrect((c) => { latestStats.current.correct = c + 1; return c + 1 })
       setRun((r) => r + 1)
@@ -286,6 +294,7 @@ export function SpeedGamePage() {
         !wordsGainedExposure.current.has(q.itemId)
       ) {
         wordsGainedExposure.current.add(q.itemId)
+        gainedExposure = true
         void recordExposure(q.itemId, true)
       }
     } else {
@@ -293,11 +302,15 @@ export function SpeedGamePage() {
       setRun(0)
     }
 
+    // Effort tracking: active time always; mastery growth only when a word
+    // actually advanced toward mastery this session.
+    practiceTimer.bump({ advancement: gainedExposure ? 1 : 0, itemId: q.itemId })
+
     // Set feedback duration before switching phase (ref is read by the useEffect)
     feedbackDuration.current = isCorrect ? CORRECT_FEEDBACK_MS : WRONG_FEEDBACK_MS
     setFeedback({ correct: isCorrect, correctAnswer: q.choices[q.correctIndex], selectedIndex: choiceIndex })
     setPhase('feedback')
-  }, [phase, questions, qIndex, items, recordExposure])
+  }, [phase, questions, qIndex, items, recordExposure, practiceTimer])
 
   // ── Keyboard shortcuts 1–4 ────────────────────────────────────────────────
   useEffect(() => {

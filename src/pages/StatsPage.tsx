@@ -1070,6 +1070,11 @@ function Observatory({
 
 type ProgressView = 'observatory' | 'analytics'
 
+const VIEW_LABELS: Record<ProgressView, string> = {
+  observatory: 'Observatory',
+  analytics:   'Analytics',
+}
+
 // ── Segmented toggle ──────────────────────────────────────────────────────────
 
 interface ViewToggleProps {
@@ -1092,14 +1097,14 @@ function ViewToggle({ view, onChange }: ViewToggleProps) {
             aria-selected={view === v}
             onClick={() => onChange(v)}
             className={[
-              'px-5 py-1.5 rounded-full text-[11px] font-semibold tracking-wide',
+              'px-4 py-1.5 rounded-full text-[11px] font-semibold tracking-wide',
               'transition-all duration-200 select-none',
               view === v
                 ? 'bg-white text-slate-700 shadow-sm'
                 : 'text-slate-400 hover:text-slate-500',
             ].join(' ')}
           >
-            {v === 'observatory' ? 'Observatory' : 'Analytics'}
+            {VIEW_LABELS[v]}
           </button>
         ))}
       </div>

@@ -40,6 +40,8 @@ import {
   type GamificationSnapshot,
 } from '@/lib/vocabImportExport'
 import type { SpeedGameResult } from '@/lib/speedGame'
+import type { PracticeSession } from '@/lib/practice'
+import { mergePracticeSessions } from '@/store/practiceStore'
 import type { VocabItem } from '@/types/vocabulary'
 
 // ── localStorage keys ──────────────────────────────────────────────────────────
@@ -112,6 +114,7 @@ export interface ConfirmMergeHelpers {
   bulkImport:             (items: VocabItem[]) => Promise<void>
   applyGamification:      (snap: GamificationSnapshot) => void
   applySpeedGameResults:  (results: SpeedGameResult[]) => void
+  applyPracticeSessions:  (sessions: PracticeSession[]) => void
   addTheme:               (theme: string) => void
   currentThemes:          string[]
   localItems:             VocabItem[]
@@ -399,12 +402,23 @@ export const useDriveSyncStore = create<DriveSyncStore>((set, get) => ({
       helpers.applySpeedGameResults(mergedSpeedGameResults)
     }
 
+    // 5. Merge practice sessions — union by ID, sorted newest-first
+    let mergedPracticeSessions = helpers.extras.practiceSessions ?? []
+    if (cloudPayload.practiceSessions?.length) {
+      mergedPracticeSessions = mergePracticeSessions(
+        mergedPracticeSessions,
+        cloudPayload.practiceSessions,
+      )
+      helpers.applyPracticeSessions(mergedPracticeSessions)
+    }
+
     return {
       mergedExtras: {
         ...helpers.extras,
         gamification:      mergedGamification,
         themes:            allThemes,
         speedGameResults:  mergedSpeedGameResults,
+        practiceSessions:  mergedPracticeSessions,
       } as ExportExtras,
     }
   },
