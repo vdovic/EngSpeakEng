@@ -28,7 +28,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Timer, CheckCircle2, XCircle, ChevronRight,
-  Zap, RotateCcw, BookOpen, TrendingUp, ExternalLink,
+  Zap, RotateCcw, BookOpen, TrendingUp, ExternalLink, X,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import type { VocabItem } from '@/types/vocabulary'
@@ -137,9 +137,11 @@ export function SpeedGamePage() {
   const pastResults                = useSpeedGameStore((s) => s.results)
 
   // ── Phase ────────────────────────────────────────────────────────────────
-  const [phase,    setPhase]    = useState<Phase>('setup')
-  const [duration, setDuration] = useState<SpeedGameDuration>(180)
-  const [scope,    setScope]    = useState<WordScope>('full')
+  const [phase,           setPhase]          = useState<Phase>('setup')
+  const [duration,        setDuration]       = useState<SpeedGameDuration>(180)
+  const [scope,           setScope]          = useState<WordScope>('full')
+  /** Word quick-look panel: id of the word currently open, or null. */
+  const [selectedWordId,  setSelectedWordId] = useState<string | null>(null)
 
   // ── Game state ───────────────────────────────────────────────────────────
   const [timeLeft,  setTimeLeft]  = useState(0)
@@ -678,9 +680,9 @@ export function SpeedGamePage() {
                   {uniqueMissed.map((attempt) => (
                     <button
                       key={attempt.itemId}
-                      onClick={() => navigate(`/item/${attempt.itemId}`)}
+                      onClick={() => setSelectedWordId(attempt.itemId)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-rose-100 transition-colors"
-                      aria-label={`Open word detail for ${attempt.term}`}
+                      aria-label={`Review ${attempt.term}`}
                     >
                       <XCircle size={14} className="text-rose-400 shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -690,7 +692,7 @@ export function SpeedGamePage() {
                           Correct: <span className="text-slate-700 font-medium">{attempt.correctAnswer}</span>
                         </p>
                       </div>
-                      <ExternalLink size={12} className="text-rose-300 shrink-0" />
+                      <ChevronRight size={12} className="text-rose-300 shrink-0" />
                     </button>
                   ))}
                 </div>
@@ -698,7 +700,7 @@ export function SpeedGamePage() {
             )}
 
             {uniqueCorrectOnly.length > 0 && (
-              <WordReviewCorrect attempts={uniqueCorrectOnly} onNavigate={(id) => navigate(`/item/${id}`)} />
+              <WordReviewCorrect attempts={uniqueCorrectOnly} onNavigate={(id) => setSelectedWordId(id)} />
             )}
           </div>
         )}
@@ -716,6 +718,15 @@ export function SpeedGamePage() {
             <ChevronRight size={15} />
           </button>
         </div>
+
+        {/* Word quick-look panel — rendered over the results screen so list is preserved */}
+        {selectedWordId && (
+          <WordQuickPanel
+            item={items.find((i) => i.id === selectedWordId) ?? null}
+            onClose={() => setSelectedWordId(null)}
+            onOpenFull={() => navigate(`/item/${selectedWordId}`)}
+          />
+        )}
       </div>
     )
   }
@@ -902,6 +913,142 @@ function PortfolioImpact({
         ))}
       </div>
     </div>
+  )
+}
+
+// ── Word quick-look panel ─────────────────────────────────────────────────────
+
+/**
+ * A slide-up overlay that shows the key facts for a word without navigating
+ * away from the results screen.  The user can close it and open another word.
+ * "Open full word detail" is an intentional exit that navigates to /item/:id.
+ */
+function WordQuickPanel({
+  item,
+  onClose,
+  onOpenFull,
+}: {
+  item:       VocabItem | null
+  onClose:    () => void
+  onOpenFull: () => void
+}) {
+  if (!item) return null
+
+  const exposure = Math.min(item.exposureCount ?? 0, 8)
+
+  return (
+    <>
+      {/* Backdrop — tap to close */}
+      <div
+        className="fixed inset-0 bg-black/40 z-40"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Panel */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Word detail: ${item.term}`}
+        className="fixed inset-x-0 bottom-0 z-50 max-h-[78vh] overflow-y-auto
+                   rounded-t-2xl bg-white shadow-2xl
+                   safe-bottom"
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-slate-200" />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-5 pt-2 pb-3 border-b border-slate-100">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{item.term}</h2>
+            <p className="text-xs text-slate-400 mt-0.5 capitalize">{item.type.replace('-', ' ')}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors -mt-0.5 -mr-1"
+            aria-label="Close panel"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+
+          {/* Definition */}
+          {item.definitionEn ? (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Definition</p>
+              <p className="text-sm text-slate-800 leading-relaxed">{item.definitionEn}</p>
+            </div>
+          ) : item.shortDefinition ? (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Meaning</p>
+              <p className="text-sm text-slate-800 leading-relaxed">{item.shortDefinition}</p>
+            </div>
+          ) : null}
+
+          {/* Example */}
+          {item.exampleSentence && (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Example</p>
+              <p className="text-sm text-slate-600 italic leading-relaxed">&ldquo;{item.exampleSentence}&rdquo;</p>
+            </div>
+          )}
+
+          {/* Nuance / usage tip */}
+          {item.nuance && (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Usage tip</p>
+              <p className="text-sm text-slate-600 leading-relaxed">{item.nuance}</p>
+            </div>
+          )}
+
+          {/* Synonyms — compact */}
+          {item.synonyms.length > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Synonyms</p>
+              <div className="flex flex-wrap gap-1.5">
+                {item.synonyms.slice(0, 6).map((s) => (
+                  <span key={s} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{s}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Exposure progress */}
+          <div>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Exposure progress</p>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 flex-1 rounded-full transition-colors ${
+                    i < exposure ? 'bg-brand-500' : 'bg-slate-200'
+                  }`}
+                />
+              ))}
+              <span className="ml-2 text-xs text-slate-500 tabular-nums shrink-0">{exposure}/8</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 pt-2 pb-8 border-t border-slate-100">
+          <button
+            onClick={onOpenFull}
+            className="w-full flex items-center justify-center gap-2 py-3
+                       bg-brand-600 hover:bg-brand-700 text-white
+                       text-sm font-semibold rounded-2xl transition-colors"
+          >
+            Open full word detail
+            <ExternalLink size={14} />
+          </button>
+        </div>
+      </div>
+    </>
   )
 }
 
