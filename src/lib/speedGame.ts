@@ -84,6 +84,41 @@ export interface SpeedGameResult {
   focusOnly?:     boolean
 }
 
+// ── Word attempt (per-question log) ───────────────────────────────────────────
+
+/**
+ * One question attempt within a speed-game session.
+ * Exported here so it can be referenced by both SpeedGamePage and the
+ * ReviewSnapshot that persists across navigation.
+ */
+export interface WordAttempt {
+  itemId:        string
+  term:          string
+  type:          SpeedQuestionType
+  correctAnswer: string
+  givenAnswer:   string
+  wasCorrect:    boolean
+}
+
+// ── Review snapshot ────────────────────────────────────────────────────────────
+
+/**
+ * Enough data to recreate the results view after the user navigates away to
+ * a word detail page and presses back.
+ *
+ * Stored in speedGameStore as non-persisted (session-only) state so it
+ * survives SPA route changes but is cleared on page reload / new game.
+ */
+export interface ReviewSnapshot {
+  correct:      number
+  wrong:        number
+  duration:     SpeedGameDuration
+  scope:        WordScope | 'active'
+  practicedIds: string[]
+  gainedIds:    string[]
+  attempts:     WordAttempt[]
+}
+
 // ── Durations ──────────────────────────────────────────────────────────────────
 
 export const SPEED_GAME_DURATIONS = [60, 180, 300, 420, 600] as const

@@ -43,6 +43,8 @@ import {
   type SpeedQuestion,
   type SpeedQuestionType,
   type WordScope,
+  type WordAttempt,
+  type ReviewSnapshot,
   selectPool,
   countScope,
   generateBatch,
@@ -57,15 +59,6 @@ interface FeedbackState {
   correct:       boolean
   correctAnswer: string
   selectedIndex: number  // which choice the user tapped
-}
-
-interface WordAttempt {
-  itemId:        string
-  term:          string
-  type:          SpeedQuestionType
-  correctAnswer: string
-  givenAnswer:   string
-  wasCorrect:    boolean
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -131,15 +124,27 @@ export function SpeedGamePage() {
   const navigate                   = useNavigate()
   const { items, recordExposure }  = useVocabStore()
   const addResult                  = useSpeedGameStore((s) => s.addResult)
+  const setReview                  = useSpeedGameStore((s) => s.setReview)
+  const clearReview                = useSpeedGameStore((s) => s.clearReview)
   // Active-time + mastery-growth tracking for the Progress & Effort tab.
   // One PracticeSession per completed game: finalize() at save, reset() at start.
   const practiceTimer              = usePracticeTimer('speed-game')
   const pastResults                = useSpeedGameStore((s) => s.results)
 
+  // ── Restore from pending review (if returning from /item/:id) ───────────
+  // Read once at mount — not a subscription. This is a plain function call on
+  // the Zustand store, not a hook, so it is safe here.
+  const initialReview = useRef(useSpeedGameStore.getState().pendingReview).current
+
   // ── Phase ────────────────────────────────────────────────────────────────
-  const [phase,           setPhase]          = useState<Phase>('setup')
-  const [duration,        setDuration]       = useState<SpeedGameDuration>(180)
-  const [scope,           setScope]          = useState<WordScope>('full')
+  const [phase,           setPhase]          = useState<Phase>(initialReview ? 'results' : 'setup')
+  const [duration,        setDuration]       = useState<SpeedGameDuration>(
+    (initialReview?.duration ?? 180) as SpeedGameDuration,
+  )
+  const [scope,           setScope]          = useState<WordScope>(
+    // 'active' is a legacy value — fall back to 'full' if encountered
+    ((initialReview?.scope === 'active' ? 'full' : initialReview?.scope) ?? 'full') as WordScope,
+  )
   /** Word quick-look panel: id of the word currently open, or null. */
   const [selectedWordId,  setSelectedWordId] = useState<string | null>(null)
 
@@ -147,21 +152,23 @@ export function SpeedGamePage() {
   const [timeLeft,  setTimeLeft]  = useState(0)
   const [questions, setQuestions] = useState<SpeedQuestion[]>([])
   const [qIndex,    setQIndex]    = useState(0)
-  const [correct,   setCorrect]   = useState(0)
-  const [wrong,     setWrong]     = useState(0)
+  const [correct,   setCorrect]   = useState(initialReview?.correct ?? 0)
+  const [wrong,     setWrong]     = useState(initialReview?.wrong ?? 0)
   const [run,       setRun]       = useState(0)   // consecutive correct answers this session
-  const [practiced, setPracticed] = useState<Set<string>>(new Set())
+  const [practiced, setPracticed] = useState<Set<string>>(
+    () => new Set(initialReview?.practicedIds ?? []),
+  )
   const [feedback,  setFeedback]  = useState<FeedbackState | null>(null)
 
   // Refs — always current inside timer/callback closures
-  const wordsGainedExposure = useRef<Set<string>>(new Set())
+  const wordsGainedExposure = useRef<Set<string>>(new Set(initialReview?.gainedIds ?? []))
   const latestStats         = useRef({ correct: 0, wrong: 0, practiced: new Set<string>() })
   /** Guard against double-save (timer expiry + manual end coinciding). */
-  const resultSaved         = useRef(false)
+  const resultSaved         = useRef(initialReview != null)  // already saved if restoring
   /** Duration for the current feedback flash — set before phase changes to 'feedback'. */
   const feedbackDuration    = useRef(CORRECT_FEEDBACK_MS)
   /** Per-session word attempt log for the post-game review screen. */
-  const wordAttempts        = useRef<WordAttempt[]>([])
+  const wordAttempts        = useRef<WordAttempt[]>(initialReview?.attempts ?? [])
 
   // ── Save result ───────────────────────────────────────────────────────────
   const saveResult = useCallback((
@@ -190,9 +197,21 @@ export function SpeedGamePage() {
       scope,
       missedItemIds:  missedIds.length > 0 ? missedIds : undefined,
     })
+    // Persist enough state to restore the results view if the user navigates
+    // to a word detail page and then presses back.
+    const snapshot: ReviewSnapshot = {
+      correct:      finalCorrect,
+      wrong:        finalWrong,
+      duration,
+      scope,
+      practicedIds: [...finalPracticed],
+      gainedIds:    [...wordsGainedExposure.current],
+      attempts:     [...wordAttempts.current],
+    }
+    setReview(snapshot)
     // Log the effort session for this game (active time + mastery growth).
     practiceTimer.finalize()
-  }, [duration, scope, addResult, practiceTimer])
+  }, [duration, scope, addResult, setReview, practiceTimer])
 
   // ── Timer ─────────────────────────────────────────────────────────────────
   // The interval only runs while phase === 'playing', so it naturally pauses
@@ -238,6 +257,7 @@ export function SpeedGamePage() {
 
   // ── Start game ────────────────────────────────────────────────────────────
   const startGame = useCallback(() => {
+    clearReview()            // discard any pending review — fresh game
     practiceTimer.reset()   // re-arm the effort timer for a fresh game
     wordsGainedExposure.current = new Set()
     latestStats.current         = { correct: 0, wrong: 0, practiced: new Set() }
@@ -256,7 +276,7 @@ export function SpeedGamePage() {
     setQuestions(batch)
     setTimeLeft(duration)
     setPhase(batch.length === 0 ? 'results' : 'playing')
-  }, [duration, scope, items, practiceTimer])
+  }, [duration, scope, items, clearReview, practiceTimer])
 
   // End game manually (← button while playing)
   const endGame = useCallback(() => {
@@ -707,12 +727,12 @@ export function SpeedGamePage() {
 
         <div className="flex gap-2.5">
           <button
-            onClick={() => { resultSaved.current = false; setPhase('setup') }}
+            onClick={() => { clearReview(); resultSaved.current = false; setPhase('setup') }}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-2xl hover:bg-slate-50 transition-colors">
             <RotateCcw size={15} />
             Play again
           </button>
-          <button onClick={() => navigate(-1)}
+          <button onClick={() => { clearReview(); navigate(-1) }}
             className="flex-1 flex items-center justify-center gap-2 py-3 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-2xl transition-colors">
             Done
             <ChevronRight size={15} />
