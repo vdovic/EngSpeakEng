@@ -244,6 +244,135 @@ export function withRollingAverage(
   })
 }
 
+// ── Rolling median ────────────────────────────────────────────────────────────────
+
+function calcMedian(values: number[]): number {
+  if (values.length === 0) return 0
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 !== 0
+    ? sorted[mid]
+    : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+/**
+ * Trailing rolling median aligned to the input bucket array.
+ * More robust than rolling average for noisy daily data: spikes and
+ * missed days don't distort it. Suitable for habit trend lines.
+ */
+export function withRollingMedian(
+  buckets: DayBucket[],
+  metric: 'secs' | 'advancement',
+  window: number,
+): number[] {
+  return buckets.map((_, i) => {
+    const start = Math.max(0, i - window + 1)
+    return calcMedian(buckets.slice(start, i + 1).map((b) => b[metric]))
+  })
+}
+
+// ── Variable time-range bucket builder ───────────────────────────────────────────
+
+export type TimeRange = 7 | 30 | 90 | 'all'
+
+/**
+ * Like buildDailyBuckets but accepts a TimeRange.
+ * 'all' spans from the first recorded session to today (minimum 30 days).
+ */
+export function buildDailyBucketsForRange(
+  sessions: PracticeSession[],
+  range: TimeRange,
+  now: Date = new Date(),
+): DayBucket[] {
+  if (range === 'all') {
+    if (sessions.length === 0) return buildDailyBuckets(sessions, 30, now)
+    const earliest = sessions.reduce(
+      (min, s) => (s.endedAt < min ? s.endedAt : min),
+      sessions[0].endedAt,
+    )
+    const firstMs  = new Date(`${earliest.slice(0, 10)}T00:00:00Z`).getTime()
+    const todayMs  = new Date(`${dateKeyOf(now)}T00:00:00Z`).getTime()
+    const days     = Math.max(30, Math.round((todayMs - firstMs) / DAY_MS) + 1)
+    return buildDailyBuckets(sessions, days, now)
+  }
+  return buildDailyBuckets(sessions, range, now)
+}
+
+// ── Streak and record stats ───────────────────────────────────────────────────────
+
+export interface StreakStats {
+  /** Consecutive active days ending today (or yesterday). */
+  currentDays: number
+  /** Longest ever run of consecutive active days. */
+  longestDays: number
+  /** Highest 7-calendar-day practice total in history. */
+  bestWeekSecs: number
+  /** Highest single-day practice total in history. */
+  recordDaySecs: number
+  /** UTC date key of the record day, or null if no sessions. */
+  recordDayKey: string | null
+}
+
+/**
+ * Compute streak and record stats from all sessions.
+ * Uses a sliding-window O(n log n) algorithm for best-week to stay
+ * responsive even with years of history.
+ */
+export function getStreakStats(
+  sessions: PracticeSession[],
+  now: Date = new Date(),
+): StreakStats {
+  const dayMap = new Map<string, number>()
+  for (const s of sessions) {
+    const key = s.endedAt.slice(0, 10)
+    dayMap.set(key, (dayMap.get(key) ?? 0) + s.durationSecs)
+  }
+
+  // Best week: sliding 7-calendar-day window over sorted practice days.
+  const sortedEntries = [...dayMap.entries()].sort(([a], [b]) => a.localeCompare(b))
+  let bestWeekSecs = 0
+  let windowSecs = 0
+  let left = 0
+  for (let right = 0; right < sortedEntries.length; right++) {
+    windowSecs += sortedEntries[right][1]
+    const rightMs = new Date(`${sortedEntries[right][0]}T00:00:00Z`).getTime()
+    while (left <= right) {
+      const leftMs = new Date(`${sortedEntries[left][0]}T00:00:00Z`).getTime()
+      if (rightMs - leftMs > 6 * DAY_MS) { windowSecs -= sortedEntries[left][1]; left++ }
+      else break
+    }
+    bestWeekSecs = Math.max(bestWeekSecs, windowSecs)
+  }
+
+  // Record day
+  let recordDaySecs = 0
+  let recordDayKey: string | null = null
+  for (const [k, v] of dayMap.entries()) {
+    if (v > recordDaySecs) { recordDaySecs = v; recordDayKey = k }
+  }
+
+  return {
+    currentDays:   currentConsistency(sessions, now),
+    longestDays:   longestConsistency(sessions),
+    bestWeekSecs,
+    recordDaySecs,
+    recordDayKey,
+  }
+}
+
+// ── Day sessions ─────────────────────────────────────────────────────────────────
+
+/**
+ * Return all sessions that ended on a given UTC date key (YYYY-MM-DD).
+ * Used to populate the day-detail panel in the practice time chart.
+ */
+export function getDaySessions(
+  sessions: PracticeSession[],
+  dateKey: string,
+): PracticeSession[] {
+  return sessions.filter((s) => s.endedAt.slice(0, 10) === dateKey)
+}
+
 // ── Formatting ───────────────────────────────────────────────────────────────────
 
 /** Human duration from seconds: "0m", "8m", "1h 5m", "2h". */
