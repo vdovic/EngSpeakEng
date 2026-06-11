@@ -396,6 +396,21 @@ export function EffortView({ sessions, items }: EffortViewProps) {
         <ExposureHistogram items={items} />
       </div>
 
+      {/* Consistency strip */}
+      <div>
+        <SectionHeader title="Consistency" subtitle="Showing up is the habit that compounds" />
+        <div className="grid grid-cols-2 gap-3">
+          <div className="py-4 px-3 rounded-2xl bg-slate-50 text-center">
+            <div className="text-3xl font-light text-sky-600 tabular-nums">{metrics.currentConsistencyDays}</div>
+            <div className="text-[11px] text-slate-500 mt-1">days in a row</div>
+          </div>
+          <div className="py-4 px-3 rounded-2xl bg-slate-50 text-center">
+            <div className="text-3xl font-light text-slate-700 tabular-nums">{metrics.longestConsistencyDays}</div>
+            <div className="text-[11px] text-slate-500 mt-1">longest run of active days</div>
+          </div>
+        </div>
+      </div>
+
       {/* Part 1A — daily practice time dynamics */}
       <div>
         <SectionHeader
