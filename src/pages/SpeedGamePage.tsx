@@ -87,6 +87,28 @@ function bestForDuration(results: SpeedGameResult[], durationSecs: number): numb
   return Math.max(...matching.map((r) => r.correct))
 }
 
+/**
+ * True if result `a` is strictly better than `b`.
+ * Primary: more correct answers. Tie-break: higher accuracy.
+ */
+function isBetterThan(a: SpeedGameResult, b: SpeedGameResult): boolean {
+  if (a.correct !== b.correct) return a.correct > b.correct
+  return a.accuracy > b.accuracy
+}
+
+/**
+ * Best result for a duration using correct-count + accuracy tie-break.
+ * Returns the full SpeedGameResult so callers can compare on both fields.
+ */
+function bestResultForDuration(
+  results: SpeedGameResult[],
+  durationSecs: number,
+): SpeedGameResult | null {
+  const matching = results.filter((r) => r.durationSecs === durationSecs)
+  if (matching.length === 0) return null
+  return matching.reduce((best, r) => (isBetterThan(r, best) ? r : best))
+}
+
 function overallAccuracy(results: SpeedGameResult[]): number | null {
   if (results.length === 0) return null
   const totals = results.reduce(
@@ -600,10 +622,16 @@ export function SpeedGamePage() {
     // Compare against previous best for this duration (any scope), excluding current game.
     // pastResults[0] is the current game (just saved). Slice past it.
     const prevResults    = pastResults.slice(1)
-    const prevBest       = bestForDuration(prevResults, duration)
-    const isPersonalBest = prevBest === null
-      ? (total > 0)
-      : correct > prevBest
+    const prevBest       = bestResultForDuration(prevResults, duration)
+    const isPersonalBest = total > 0 && (
+      prevBest === null ||
+      correct > prevBest.correct ||
+      (correct === prevBest.correct && accuracy > prevBest.accuracy)
+    )
+
+    // All past sessions for this duration (newest first), for the history table.
+    const durationHistory = pastResults.filter((r) => r.durationSecs === duration)
+    const currentSessionId = durationHistory[0]?.id  // current game is always newest
 
     // Post-game word review
     const missedIds      = new Set(
@@ -636,7 +664,9 @@ export function SpeedGamePage() {
             <p className="text-sm text-emerald-800">
               {prevBest === null
                 ? 'First session for this duration — good start.'
-                : `Personal best for ${SPEED_GAME_DURATION_LABELS[duration]} — up from ${prevBest} correct.`}
+                : correct > prevBest.correct
+                ? `Personal best for ${SPEED_GAME_DURATION_LABELS[duration]} — up from ${prevBest.correct} correct.`
+                : `Personal best for ${SPEED_GAME_DURATION_LABELS[duration]} — same correct answers, better accuracy.`}
             </p>
           </div>
         )}
@@ -661,21 +691,12 @@ export function SpeedGamePage() {
           </div>
         </div>
 
-        {/* Comparison row */}
-        {prevBest !== null && (
-          <div className="mb-4 flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs">
-            <span className="text-slate-500">Your best for {SPEED_GAME_DURATION_LABELS[duration]}</span>
-            <span className="font-semibold text-slate-700 tabular-nums">
-              {Math.max(correct, prevBest)}✓
-              {correct > prevBest && (
-                <span className="ml-1.5 text-emerald-600">↑ {correct - prevBest} more</span>
-              )}
-              {correct < prevBest && (
-                <span className="ml-1.5 text-slate-400">({prevBest} prev)</span>
-              )}
-            </span>
-          </div>
-        )}
+        {/* Session history table */}
+        <SessionHistoryTable
+          results={durationHistory}
+          currentSessionId={currentSessionId}
+          durationLabel={SPEED_GAME_DURATION_LABELS[duration]}
+        />
 
         {/* Exposure gain note */}
         {gained > 0 && (
@@ -1096,6 +1117,98 @@ function WordQuickPanel({
         </div>
       </div>
     </>
+  )
+}
+
+// ── Session history table ─────────────────────────────────────────────────────
+
+const HISTORY_COLLAPSED = 8
+
+function SessionHistoryTable({
+  results,
+  currentSessionId,
+  durationLabel,
+}: {
+  results:          SpeedGameResult[]
+  currentSessionId: string | undefined
+  durationLabel:    string
+}) {
+  const [showAll, setShowAll] = useState(false)
+
+  if (results.length === 0) return null
+
+  // Record = best correct count, tie-broken by accuracy
+  const record = results.reduce((best, r) => (isBetterThan(r, best) ? r : best))
+  const isRecord = (r: SpeedGameResult) =>
+    r.correct === record.correct && r.accuracy === record.accuracy
+
+  const shown  = showAll ? results : results.slice(0, HISTORY_COLLAPSED)
+  const hidden = results.length - HISTORY_COLLAPSED
+
+  return (
+    <div className="mb-4">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        {durationLabel} — all sessions
+      </p>
+      <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+        {shown.map((r) => {
+          const isCurrent = r.id === currentSessionId
+          const rec       = isRecord(r)
+          return (
+            <div
+              key={r.id}
+              className={`flex items-center gap-3 px-4 py-2.5 text-xs ${
+                rec ? 'bg-amber-50' : isCurrent ? 'bg-slate-50' : ''
+              }`}
+            >
+              {/* Date / label */}
+              <div className="flex-1 min-w-0">
+                {isCurrent ? (
+                  <span className="font-semibold text-brand-600">This session</span>
+                ) : (
+                  <>
+                    <span className="text-slate-700 font-medium">
+                      {new Date(r.playedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </span>
+                    <span className="text-slate-400 ml-1.5">
+                      {new Date(r.playedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Correct */}
+              <span className={`font-semibold tabular-nums w-8 text-right ${
+                rec ? 'text-amber-700' : 'text-emerald-600'
+              }`}>
+                {r.correct}✓
+              </span>
+
+              {/* Accuracy */}
+              <span className="text-slate-500 tabular-nums w-8 text-right">
+                {r.accuracy}%
+              </span>
+
+              {/* Record badge */}
+              {rec ? (
+                <span className="text-[10px] font-bold text-amber-600 shrink-0 w-8 text-right">best</span>
+              ) : (
+                <span className="w-8 shrink-0" />
+              )}
+            </div>
+          )
+        })}
+
+        {!showAll && hidden > 0 && (
+          <button
+            onClick={() => setShowAll(true)}
+            className="w-full py-2 text-xs text-slate-400 hover:text-slate-600 transition-colors bg-white"
+          >
+            Show {hidden} more
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 
