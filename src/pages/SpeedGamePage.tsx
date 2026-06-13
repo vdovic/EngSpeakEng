@@ -619,19 +619,25 @@ export function SpeedGamePage() {
     const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0
     const gained   = wordsGainedExposure.current.size
 
-    // Compare against previous best for this duration (any scope), excluding current game.
-    // pastResults[0] is the current game (just saved). Slice past it.
-    const prevResults    = pastResults.slice(1)
+    // Read the store directly rather than using the pastResults subscription.
+    // When addResult (Zustand) and setPhase('results') (React) fire in the same
+    // batch, the subscription-based pastResults may still be stale on this render.
+    // getState() always returns the current synchronous store state.
+    const allResults      = useSpeedGameStore.getState().results
+    const durationHistory = allResults.filter((r) => r.durationSecs === duration)
+    // The current game is the most recent result for this duration.
+    const currentSessionId = durationHistory[0]?.id
+
+    // All previous results for this duration, excluding the current session.
+    const prevResults = currentSessionId
+      ? allResults.filter((r) => r.id !== currentSessionId)
+      : allResults
     const prevBest       = bestResultForDuration(prevResults, duration)
     const isPersonalBest = total > 0 && (
       prevBest === null ||
       correct > prevBest.correct ||
       (correct === prevBest.correct && accuracy > prevBest.accuracy)
     )
-
-    // All past sessions for this duration (newest first), for the history table.
-    const durationHistory = pastResults.filter((r) => r.durationSecs === duration)
-    const currentSessionId = durationHistory[0]?.id  // current game is always newest
 
     // Post-game word review
     const missedIds      = new Set(
