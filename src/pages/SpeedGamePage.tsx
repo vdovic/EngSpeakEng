@@ -29,7 +29,12 @@ import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Timer, CheckCircle2, XCircle, ChevronRight,
   Zap, RotateCcw, BookOpen, TrendingUp, ExternalLink, X,
+  Volume2, VolumeX,
 } from 'lucide-react'
+import {
+  playCorrectSound, playWrongSound,
+  getSoundsEnabled, saveSoundsEnabled,
+} from '@/lib/sounds'
 import { useVocabStore } from '@/store/vocabStore'
 import type { VocabItem } from '@/types/vocabulary'
 import { useSpeedGameStore } from '@/store/speedGameStore'
@@ -147,6 +152,15 @@ export function SpeedGamePage() {
   )
   /** Word quick-look panel: id of the word currently open, or null. */
   const [selectedWordId,  setSelectedWordId] = useState<string | null>(null)
+  /** Sound on/off — persisted to localStorage so the preference survives sessions. */
+  const [soundEnabled,    setSoundEnabled]   = useState(getSoundsEnabled)
+
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      saveSoundsEnabled(!prev)
+      return !prev
+    })
+  }, [])
 
   // ── Game state ───────────────────────────────────────────────────────────
   const [timeLeft,  setTimeLeft]  = useState(0)
@@ -307,6 +321,11 @@ export function SpeedGamePage() {
       wasCorrect:    isCorrect,
     })
 
+    if (soundEnabled) {
+      if (isCorrect) playCorrectSound()
+      else           playWrongSound()
+    }
+
     let gainedExposure = false
     if (isCorrect) {
       setCorrect((c) => { latestStats.current.correct = c + 1; return c + 1 })
@@ -332,7 +351,7 @@ export function SpeedGamePage() {
     feedbackDuration.current = isCorrect ? CORRECT_FEEDBACK_MS : WRONG_FEEDBACK_MS
     setFeedback({ correct: isCorrect, correctAnswer: q.choices[q.correctIndex], selectedIndex: choiceIndex })
     setPhase('feedback')
-  }, [phase, questions, qIndex, items, recordExposure, practiceTimer])
+  }, [phase, questions, qIndex, items, recordExposure, practiceTimer, soundEnabled])
 
   // ── Keyboard shortcuts 1–4 ────────────────────────────────────────────────
   useEffect(() => {
@@ -783,6 +802,14 @@ export function SpeedGamePage() {
           <div className="flex-1">
             <TimerBar remaining={timeLeft} total={duration} />
           </div>
+          <button
+            onClick={toggleSound}
+            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition-colors shrink-0"
+            aria-label={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+            title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+          >
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
         </div>
         {/* Stats row */}
         <div className="flex items-center justify-between px-0.5">
