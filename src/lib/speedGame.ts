@@ -141,6 +141,7 @@ export type SpeedQuestionType =
   | 'definition-to-term' // definition shown → pick the correct term
   | 'term-to-definition' // term shown → pick the correct definition
   | 'synonym-to-term'    // synonym shown → pick the matching term
+  | 'collocation-pick'   // word shown → pick the phrase that uses it naturally (hardest)
 
 export interface SpeedQuestion {
   itemId:      string
@@ -281,10 +282,11 @@ export function generateBatch(pool: VocabItem[], count: number): SpeedQuestion[]
 
 function preferredTypes(item: VocabItem): SpeedQuestionType[] {
   const types: SpeedQuestionType[] = []
-  if (item.exampleSentence || item.workSentence) types.push('fill-blank')
-  if (item.definitionEn)                         types.push('definition-to-term')
-  if ((item.synonyms?.length ?? 0) > 0)          types.push('synonym-to-term')
-  if (item.definitionEn)                         types.push('term-to-definition')
+  if (item.exampleSentence || item.workSentence)  types.push('fill-blank')
+  if (item.definitionEn)                          types.push('definition-to-term')
+  if ((item.synonyms?.length ?? 0) > 0)           types.push('synonym-to-term')
+  if (item.definitionEn)                          types.push('term-to-definition')
+  if ((item.collocations?.length ?? 0) > 0)       types.push('collocation-pick')
   return types
 }
 
@@ -298,6 +300,7 @@ function tryBuildQuestion(
     case 'definition-to-term':  return buildDefinitionToTerm(item, pool)
     case 'synonym-to-term':     return buildSynonymToTerm(item, pool)
     case 'term-to-definition':  return buildTermToDefinition(item, pool)
+    case 'collocation-pick':    return buildCollocationPick(item, pool)
   }
 }
 
@@ -340,6 +343,32 @@ function buildSynonymToTerm(item: VocabItem, pool: VocabItem[]): SpeedQuestion |
   return makeQuestion(item, 'synonym-to-term',
     `Which word is synonymous with "${syn}"?`,
     [item.term, ...distractors.map((d) => d.term)])
+}
+
+function buildCollocationPick(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
+  const colls = (item.collocations ?? []).filter((c) => c.trim().length > 0)
+  if (!colls.length) return null
+
+  const correct = colls[Math.floor(Math.random() * colls.length)]
+
+  // Distractors are real collocations from other pool items — plausible, not random words.
+  const distractors: string[] = []
+  for (const other of shuffle(pool.filter((i) => i.id !== item.id && (i.collocations?.length ?? 0) > 0))) {
+    if (distractors.length >= 3) break
+    const picks = (other.collocations ?? []).filter(
+      (c) => c.trim() && c !== correct && !distractors.includes(c),
+    )
+    if (picks.length > 0) distractors.push(picks[Math.floor(Math.random() * picks.length)])
+  }
+
+  if (distractors.length < 3) return null
+
+  return makeQuestion(
+    item,
+    'collocation-pick',
+    `Which phrase goes naturally with "${item.term}"?`,
+    [correct, ...distractors],
+  )
 }
 
 function makeQuestion(

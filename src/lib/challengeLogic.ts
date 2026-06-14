@@ -47,9 +47,10 @@ export type { ChallengeType }
 // session results — it is never returned by getChallengeType() anymore.
 
 export const CHALLENGE_TYPE_LABEL: Record<ChallengeType, string> = {
-  recognition:           'Meaning check',     // legacy label only
+  recognition:           'Meaning check',       // legacy label only
   'definition-choice':   'Choose the term',
   'fill-gap':            'Fill the gap',
+  'collocation-choice':  'Pick the phrase',
   'sentence-production': 'Write a sentence',
   'real-life-use-check': 'Real-life check',
 }
@@ -86,6 +87,17 @@ export function stableChoiceFromId(id: string): boolean {
     sum += id.charCodeAt(i)
   }
   return sum % 2 === 0
+}
+
+/**
+ * Derives a stable 0/1/2 index from an item's id.
+ * Used for three-way deterministic variety in Tier 2 (exp 3–5).
+ * Algorithm: sum char codes mod 3 (~⅓ distribution for UUID ids).
+ */
+function idHash3(id: string): 0 | 1 | 2 {
+  let sum = 0
+  for (let i = 0; i < id.length; i++) sum += id.charCodeAt(i)
+  return (sum % 3) as 0 | 1 | 2
 }
 
 // ── getChallengeType ──────────────────────────────────────────────────────────
@@ -129,9 +141,12 @@ export function getChallengeType(item: VocabItem): ChallengeType {
 
   if (confidence === 2) {
     // Yellow — learner can use when prompted, not spontaneously.
-    // Fill-gap is the right exercise; definition-choice as fallback.
-    const hasSentence = !!(item.exampleSentence || item.workSentence)
-    return hasSentence ? 'fill-gap' : 'definition-choice'
+    // Fill-gap preferred; collocation-choice when no sentence; definition-choice as last fallback.
+    const hasSentence     = !!(item.exampleSentence || item.workSentence)
+    const hasCollocations = (item.collocations?.length ?? 0) > 0
+    if (hasSentence) return 'fill-gap'
+    if (hasCollocations) return 'collocation-choice'
+    return 'definition-choice'
   }
 
   if (confidence === 3) {
@@ -164,19 +179,26 @@ export function getChallengeType(item: VocabItem): ChallengeType {
   }
 
   // ── Tier 2: Building recall (2–5) ─────────────────────────────────────────
-  // Fill-in-the-blank is the primary exercise type when a sentence exists.
-  // A "Show definition" hint is always available (see FillBlankExercise).
-  // At 2: always fill-gap if sentence available (lower confidence expected).
-  // At 3–5: stable 50/50 split between fill-gap and definition-choice to
-  //         provide variety without random behaviour across sessions.
+  // Three exercise types in rotation: fill-gap (contextual recall),
+  // collocation-choice (usage precision — the harder selection), and
+  // definition-choice (meaning recall fallback).
+  // At exp 2: single exercise — fill-gap preferred, then collocation-choice, then definition-choice.
+  // At exp 3–5: stable 3-way split so each item gets consistent variety across sessions.
   if (exp <= 5) {
-    const hasSentence = !!(item.exampleSentence || item.workSentence)
-    if (!hasSentence) return 'definition-choice'
+    const hasSentence     = !!(item.exampleSentence || item.workSentence)
+    const hasCollocations = (item.collocations?.length ?? 0) > 0
 
-    if (exp === 2) return 'fill-gap'
+    if (exp === 2) {
+      if (hasSentence) return 'fill-gap'
+      if (hasCollocations) return 'collocation-choice'
+      return 'definition-choice'
+    }
 
-    // exp 3–5: deterministic variety
-    return stableChoiceFromId(item.id) ? 'fill-gap' : 'definition-choice'
+    // exp 3–5: deterministic 3-way variety
+    const mod3 = idHash3(item.id)
+    if (mod3 === 0 && hasSentence)     return 'fill-gap'
+    if (mod3 === 1 && hasCollocations) return 'collocation-choice'
+    return 'definition-choice'
   }
 
   // ── Tier 3: Active production (6–7) ──────────────────────────────────────

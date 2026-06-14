@@ -321,6 +321,52 @@ describe('generateQuestion', () => {
     const q = generateQuestion(masteredItem, pool)
     expect(q).not.toBeNull()
   })
+
+  it("generates 'collocation-pick' when item has collocations and pool has distractor collocations", () => {
+    // Need 4 items each with collocations so distractors can be picked
+    const pool = [
+      makeItem({ term: 'leverage',    definitionEn: 'Use to maximum advantage.', collocations: ['leverage influence', 'leverage resources'] }),
+      makeItem({ term: 'align',       definitionEn: 'Put in correct position.',   collocations: ['align with strategy', 'align goals'] }),
+      makeItem({ term: 'streamline',  definitionEn: 'Make more efficient.',        collocations: ['streamline processes', 'streamline operations'] }),
+      makeItem({ term: 'prioritise',  definitionEn: 'Treat as most important.',    collocations: ['prioritise tasks', 'prioritise objectives'] }),
+    ]
+    let found = false
+    for (let i = 0; i < 40; i++) {
+      if (generateQuestion(pool[0], pool)?.type === 'collocation-pick') { found = true; break }
+    }
+    expect(found).toBe(true)
+  })
+
+  it("'collocation-pick' correctIndex is always valid", () => {
+    const pool = [
+      makeItem({ term: 'leverage',   definitionEn: 'Use to maximum advantage.', collocations: ['leverage influence'] }),
+      makeItem({ term: 'align',      definitionEn: 'Put in correct position.',   collocations: ['align with strategy'] }),
+      makeItem({ term: 'streamline', definitionEn: 'Make more efficient.',        collocations: ['streamline processes'] }),
+      makeItem({ term: 'prioritise', definitionEn: 'Treat as most important.',    collocations: ['prioritise tasks'] }),
+    ]
+    for (let i = 0; i < 20; i++) {
+      const q = generateQuestion(pool[0], pool)
+      if (!q || q.type !== 'collocation-pick') continue
+      expect(q.correctIndex).toBeGreaterThanOrEqual(0)
+      expect(q.correctIndex).toBeLessThan(q.choices.length)
+      expect(q.choices[q.correctIndex]).toBe('leverage influence')
+    }
+  })
+
+  it("'collocation-pick' is null when pool has no other items with collocations", () => {
+    // Only the target has collocations — no distractors available → null
+    const pool = makePool([{
+      term: 'solo', definitionEn: 'Alone.', collocations: ['solo performance'],
+    }])
+    const soloItem = pool[pool.length - 1]
+    // Base pool items have empty collocations — cannot pick 3 distractors
+    let allNull = true
+    for (let i = 0; i < 10; i++) {
+      const q = generateQuestion(soloItem, pool)
+      if (q?.type === 'collocation-pick') { allNull = false; break }
+    }
+    expect(allNull).toBe(true)
+  })
 })
 
 // ── 6. generateBatch ──────────────────────────────────────────────────────────

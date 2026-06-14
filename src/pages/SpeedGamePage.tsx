@@ -143,6 +143,7 @@ const QUESTION_TYPE_SHORT: Record<SpeedQuestionType, string> = {
   'definition-to-term':  'definition',
   'term-to-definition':  'meaning',
   'synonym-to-term':     'synonym',
+  'collocation-pick':    'phrase',
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -874,6 +875,7 @@ export function SpeedGamePage() {
           {currentQuestion.type === 'definition-to-term'  && 'Name the word'}
           {currentQuestion.type === 'term-to-definition'  && 'Pick the meaning'}
           {currentQuestion.type === 'synonym-to-term'     && 'Match the synonym'}
+          {currentQuestion.type === 'collocation-pick'    && 'Pick the natural phrase'}
         </p>
         <p className="text-base font-semibold text-slate-900 leading-snug mb-4 whitespace-pre-line">
           {currentQuestion.prompt}

@@ -17,6 +17,7 @@ import { StageBadge } from '@/components/StageBadge'
 import { ExposureProgress } from '@/components/ExposureProgress'
 import { DefinitionChoiceChallenge } from '@/components/challenges/DefinitionChoiceChallenge'
 import { FillGapChallenge } from '@/components/challenges/FillGapChallenge'
+import { CollocationChoiceChallenge } from '@/components/challenges/CollocationChoiceChallenge'
 import { SentenceProductionChallenge } from '@/components/challenges/SentenceProductionChallenge'
 import { RealLifeUseCheckChallenge } from '@/components/challenges/RealLifeUseCheckChallenge'
 import {
@@ -35,7 +36,11 @@ interface ChallengeSlot {
   challengeType: ChallengeType
 }
 
-const EXERCISES_PER_WORD = 3
+// One exercise per word: a "15-word challenge" is exactly 15 questions, and the
+// progress counter maps 1:1 to questions (no frozen counter / repeat rounds).
+// Words gain further exposure across days/sessions via SRS, not by repeating
+// within a single session.
+const EXERCISES_PER_WORD = 1
 
 type FeedbackState = {
   correct: boolean
@@ -56,8 +61,9 @@ const DEEP_TIMER_SECONDS = 60
 const isEseGameExperimentEnabled = import.meta.env.VITE_ENABLE_ESE_GAME_EXPERIMENT === 'true'
 
 const DEEP_PROMPTS: Partial<Record<ChallengeType | 'recognition', string>> = {
-  'definition-choice': 'Read the definition and compare similar meanings.',
-  'fill-gap':          'Notice the phrase pattern before filling the gap.',
+  'definition-choice':  'Read the definition and compare similar meanings.',
+  'fill-gap':           'Notice the phrase pattern before filling the gap.',
+  'collocation-choice': 'Think about which phrase sounds natural — not just correct.',
   'sentence-production': 'Think of a real sentence you might actually say.',
   'real-life-use-check': 'Recall the situation where you used this word.',
 }
@@ -821,7 +827,7 @@ export function DailyChallengePage() {
                 </div>
               )}
               <span className="text-xs text-slate-400 ml-auto">
-                {previewWordCount} word{previewWordCount !== 1 ? 's' : ''} · {slots.length} exercises
+                {previewWordCount} word{previewWordCount !== 1 ? 's' : ''}
                 {selectedGroup && <span className="ml-1 text-indigo-500 font-medium">· {selectedGroup}</span>}
               </span>
             </div>
@@ -930,7 +936,7 @@ export function DailyChallengePage() {
             Start{isBonus ? ' bonus round' : ' challenge'}
             {slots.length > 0 && (
               <span className="ml-1 text-brand-200 font-normal text-sm">
-                · {previewWordCount} word{previewWordCount !== 1 ? 's' : ''}, {slots.length} exercises
+                · {previewWordCount} word{previewWordCount !== 1 ? 's' : ''}
               </span>
             )}
           </button>
@@ -1271,6 +1277,9 @@ export function DailyChallengePage() {
         )}
         {activeType === 'fill-gap' && (
           <FillGapChallenge key={`${currentIndex}-${item.id}-fill`} item={item} allItems={allItems} onAnswer={handleAnswer} />
+        )}
+        {activeType === 'collocation-choice' && (
+          <CollocationChoiceChallenge key={`${currentIndex}-${item.id}-coll`} item={item} allItems={allItems} onAnswer={handleAnswer} />
         )}
         {activeType === 'sentence-production' && (
           <SentenceProductionChallenge key={`${currentIndex}-${item.id}-sent`} item={item} onAnswer={handleAnswer} />

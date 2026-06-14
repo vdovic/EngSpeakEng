@@ -279,6 +279,7 @@ export type ChallengeType =
   | 'recognition'
   | 'definition-choice'
   | 'fill-gap'
+  | 'collocation-choice'
   | 'sentence-production'
   | 'real-life-use-check'
 
