@@ -539,7 +539,11 @@ function LearningProfileCard({ onAdjust }: { onAdjust: () => void }) {
   )
 }
 
-function GamesSection() {
+// ── SpeedPracticeSection ───────────────────────────────────────────────────────
+// Standalone section — Speed Practice is the core daily activity, elevated above
+// the challenge cards so it's the first thing returning users see.
+
+function SpeedPracticeSection() {
   const navigate    = useNavigate()
   const pastResults = useSpeedGameStore((s) => s.results)
 
@@ -555,11 +559,10 @@ function GamesSection() {
   }, [pastResults])
 
   return (
-    <div className="mt-3 space-y-2">
-      {/* Speed Practice */}
+    <section className="mb-5">
       <button
         onClick={() => navigate('/game/speed')}
-        className="group w-full flex flex-col rounded-2xl border border-rose-200 bg-rose-50/40 p-4 shadow-sm text-left transition-all hover:border-rose-300 hover:bg-rose-50/70 sm:flex-row sm:items-center sm:justify-between"
+        className="group w-full flex flex-col rounded-2xl border border-rose-200 bg-rose-50/60 p-4 shadow-sm text-left transition-all hover:border-rose-300 hover:bg-rose-50 sm:flex-row sm:items-center sm:justify-between"
       >
         <div className="flex min-w-0 gap-3 flex-1">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white transition-colors group-hover:bg-rose-600">
@@ -571,7 +574,7 @@ function GamesSection() {
               Answer as many questions as you can in 1–10 minutes.
             </p>
             {speedStats ? (
-              <div className="mt-2 flex items-center gap-3 text-xs">
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                 <span className="text-slate-500">
                   Last: <span className="font-semibold text-slate-700 tabular-nums">{speedStats.recent.correct}✓</span>
                   {' '}·{' '}
@@ -582,10 +585,7 @@ function GamesSection() {
                   Best: <span className="font-semibold text-emerald-600 tabular-nums">{speedStats.allBest}✓</span>
                 </span>
                 {speedStats.beatMsg && (
-                  <>
-                    <span className="text-slate-400">·</span>
-                    <span className="font-semibold text-rose-600">{speedStats.beatMsg}!</span>
-                  </>
+                  <span className="font-semibold text-rose-600">{speedStats.beatMsg}</span>
                 )}
               </div>
             ) : (
@@ -598,7 +598,13 @@ function GamesSection() {
           <ChevronRight size={13} aria-hidden="true" />
         </span>
       </button>
+    </section>
+  )
+}
 
+function GamesSection() {
+  return (
+    <div className="mt-3 space-y-2">
       {/* Experimental games — feature-flagged */}
       {isEseGameExperimentEnabled && (
         <a
@@ -854,6 +860,8 @@ export function DashboardPage({ onOpenOnboarding }: { onOpenOnboarding?: () => v
         onRandomReshuffle={handleRandomFocusReshuffle}
         onPersonalize={() => (onOpenOnboarding ? onOpenOnboarding() : navigate('/themes'))}
       />
+
+      <SpeedPracticeSection />
 
       <ChallengeLauncherSection
         dueCount={visibleDueCount}

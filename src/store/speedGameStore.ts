@@ -17,7 +17,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { SpeedGameResult, ReviewSnapshot } from '@/lib/speedGame'
+import type { SpeedGameResult, ReviewSnapshot, WordScope, SpeedGameDuration } from '@/lib/speedGame'
 
 // ── Store shape ────────────────────────────────────────────────────────────────
 
@@ -31,6 +31,10 @@ interface SpeedGameStoreState {
    * the user navigates to a word detail page and presses back.
    */
   pendingReview: ReviewSnapshot | null
+  /** Last-used word scope — seeded into the setup screen on next visit. */
+  lastScope:    WordScope
+  /** Last-used duration — seeded into the setup screen on next visit. */
+  lastDuration: SpeedGameDuration
 }
 
 interface SpeedGameStoreActions {
@@ -42,6 +46,8 @@ interface SpeedGameStoreActions {
   setReview(snapshot: ReviewSnapshot): void
   /** Discard the review snapshot (new game started or results dismissed). */
   clearReview(): void
+  /** Persist the scope + duration the user last played with. */
+  saveLastSettings(scope: WordScope, duration: SpeedGameDuration): void
 }
 
 type SpeedGameStore = SpeedGameStoreState & SpeedGameStoreActions
@@ -53,11 +59,11 @@ export const useSpeedGameStore = create<SpeedGameStore>()(
     (set) => ({
       results:       [],
       pendingReview: null,
+      lastScope:     'full',
+      lastDuration:  180,
 
       addResult(result) {
-        set((s) => ({
-          results: [result, ...s.results],
-        }))
+        set((s) => ({ results: [result, ...s.results] }))
       },
 
       setResults(results) {
@@ -71,17 +77,31 @@ export const useSpeedGameStore = create<SpeedGameStore>()(
       clearReview() {
         set({ pendingReview: null })
       },
+
+      saveLastSettings(scope, duration) {
+        set({ lastScope: scope, lastDuration: duration })
+      },
     }),
     {
       name:    'ese-speed-game',
-      version: 2,
-      // Only persist the stable session history — pendingReview is session-only.
-      partialize: (state) => ({ results: state.results }),
+      version: 3,
+      // pendingReview is session-only — excluded from localStorage.
+      partialize: (state) => ({
+        results:      state.results,
+        lastScope:    state.lastScope,
+        lastDuration: state.lastDuration,
+      }),
       migrate(persisted, version) {
-        // v1 → v2: WordScope expanded; old 'active' scope value kept as-is in stored records
-        // for backward-compat display. missedItemIds is additive (optional field).
+        // v1→v2: WordScope expanded; 'active' kept for backward-compat display.
+        // v2→v3: lastScope + lastDuration added with safe defaults.
         void version
-        return persisted as SpeedGameStoreState
+        const p = persisted as Partial<SpeedGameStoreState>
+        return {
+          results:       p.results      ?? [],
+          pendingReview: null,
+          lastScope:     p.lastScope    ?? 'full',
+          lastDuration:  p.lastDuration ?? 180,
+        } as SpeedGameStoreState
       },
     },
   ),

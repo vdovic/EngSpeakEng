@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
   ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen, Info, Gamepad2,
+  AlertCircle,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -28,6 +29,8 @@ import {
   CHALLENGE_GAME_HANDOFF_KEY,
   ESE_GAME_EXPERIMENT_ROUTE,
 } from '@/experiments/ese-game/constants'
+import { useSpeedGameStore } from '@/store/speedGameStore'
+import { getPersistentStruggleIds } from '@/lib/speedGame'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -140,6 +143,46 @@ function uniqueWordProgressForSlots(slots: ChallengeSlot[], currentIndex: number
   return getUniqueWordProgress(
     slots.map((slot) => ({ itemId: slot.item.id })),
     currentIndex,
+  )
+}
+
+// ── PersistentStruggleBanner ──────────────────────────────────────────────────
+// Shows a quiet amber nudge on the challenge preview screen when words have been
+// missed in 3+ Speed Practice sessions — links to Speed Practice for focused drilling.
+
+function PersistentStruggleBanner() {
+  const navigate    = useNavigate()
+  const items       = useVocabStore((s) => s.items)
+  const pastResults = useSpeedGameStore((s) => s.results)
+
+  const struggles = useMemo(() => {
+    const ids = getPersistentStruggleIds(pastResults, 3)
+    return ids
+      .map((id) => items.find((i) => i.id === id))
+      .filter((i): i is VocabItem => !!i)
+      .slice(0, 5)
+  }, [pastResults, items])
+
+  if (struggles.length === 0) return null
+
+  return (
+    <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <AlertCircle size={14} className="shrink-0 mt-0.5 text-amber-600" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-amber-800">
+          {struggles.length} word{struggles.length !== 1 ? 's' : ''} keep coming up in Speed Practice
+        </p>
+        <p className="text-xs text-amber-700 mt-0.5 truncate">
+          {struggles.map((i) => i.term).join(', ')}
+        </p>
+      </div>
+      <button
+        onClick={() => navigate('/game/speed')}
+        className="shrink-0 text-xs font-semibold text-amber-800 bg-white border border-amber-300 rounded-lg px-2.5 py-1 hover:bg-amber-100 transition-colors whitespace-nowrap"
+      >
+        Drill them
+      </button>
+    </div>
   )
 }
 
@@ -799,6 +842,9 @@ export function DailyChallengePage() {
             Review the list, remove words you want to skip, or change the group.
           </p>
         </div>
+
+        {/* Persistent struggle words banner (#10 secondary surface) */}
+        <PersistentStruggleBanner />
 
         {/* Toolbar */}
         {!isBonus && (

@@ -417,3 +417,28 @@ function truncate(s: string, max: number): string {
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
+
+// ── Cross-session analytics ────────────────────────────────────────────────────
+
+/**
+ * Return item IDs that have appeared in missedItemIds across ≥ `threshold` sessions.
+ * Sorted by miss count descending so the worst offenders come first.
+ *
+ * Used to surface persistent struggle words on the results screen and in
+ * the Daily Challenge banner.
+ */
+export function getPersistentStruggleIds(
+  results: SpeedGameResult[],
+  threshold = 3,
+): string[] {
+  const missCount = new Map<string, number>()
+  for (const r of results) {
+    for (const id of r.missedItemIds ?? []) {
+      missCount.set(id, (missCount.get(id) ?? 0) + 1)
+    }
+  }
+  return [...missCount.entries()]
+    .filter(([, count]) => count >= threshold)
+    .sort(([, a], [, b]) => b - a)
+    .map(([id]) => id)
+}
