@@ -307,9 +307,10 @@ function tryBuildQuestion(
 function buildFillBlank(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   const sentence = item.exampleSentence || item.workSentence
   if (!sentence) return null
-  const re = new RegExp(`\\b${escapeRegex(item.term)}\\b`, 'i')
-  if (!re.test(sentence)) return null
-  const prompt      = sentence.replace(re, '___')
+  // Replace ALL occurrences so a second appearance doesn't reveal the answer.
+  const reAll = new RegExp(`\\b${escapeRegex(item.term)}\\b`, 'gi')
+  if (!reAll.test(sentence)) return null
+  const prompt      = sentence.replace(new RegExp(`\\b${escapeRegex(item.term)}\\b`, 'gi'), '___')
   const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
   if (distractors.length < 3) return null
   return makeQuestion(item, 'fill-blank', `Complete the sentence:\n"${prompt}"`,
@@ -318,6 +319,8 @@ function buildFillBlank(item: VocabItem, pool: VocabItem[]): SpeedQuestion | nul
 
 function buildDefinitionToTerm(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   if (!item.definitionEn) return null
+  // Skip when the definition itself contains the target term — answer is a giveaway.
+  if (textContainsTerm(item.definitionEn, item.term)) return null
   const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
   if (distractors.length < 3) return null
   return makeQuestion(item, 'definition-to-term',
@@ -327,7 +330,13 @@ function buildDefinitionToTerm(item: VocabItem, pool: VocabItem[]): SpeedQuestio
 
 function buildTermToDefinition(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
   if (!item.definitionEn) return null
-  const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
+  // Skip when the correct definition contains the term — it's identifiable at a glance.
+  if (textContainsTerm(item.definitionEn, item.term)) return null
+  // Also filter distractor definitions that contain the target term: those choices would be
+  // obviously wrong, narrowing the real answer by elimination.
+  const distractors = pickDistractors(item, pool, 3,
+    (d) => !!d.definitionEn && !textContainsTerm(d.definitionEn, item.term),
+  )
   if (distractors.length < 3) return null
   return makeQuestion(item, 'term-to-definition',
     `What does "${item.term}" mean?`,
@@ -335,8 +344,15 @@ function buildTermToDefinition(item: VocabItem, pool: VocabItem[]): SpeedQuestio
 }
 
 function buildSynonymToTerm(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
-  const synonyms = item.synonyms?.filter((s) => s.trim().length > 0)
-  if (!synonyms?.length) return null
+  // Filter synonyms that are too close to the target term: if the synonym contains
+  // the term or vice versa the learner can guess without knowing the word
+  // (e.g. "focused" as a synonym of "focus", or "make" for "make up your mind").
+  const termLc = item.term.toLowerCase()
+  const synonyms = (item.synonyms ?? []).filter((s) => {
+    const sl = s.trim().toLowerCase()
+    return sl.length > 0 && !sl.includes(termLc) && !termLc.includes(sl)
+  })
+  if (!synonyms.length) return null
   const syn = synonyms[Math.floor(Math.random() * synonyms.length)]
   const distractors = pickDistractors(item, pool, 3, (d) => !!d.definitionEn)
   if (distractors.length < 3) return null
@@ -346,17 +362,24 @@ function buildSynonymToTerm(item: VocabItem, pool: VocabItem[]): SpeedQuestion |
 }
 
 function buildCollocationPick(item: VocabItem, pool: VocabItem[]): SpeedQuestion | null {
-  const colls = (item.collocations ?? []).filter((c) => c.trim().length > 0)
+  // Only use collocations that do NOT contain the target term — if "focus" appears
+  // in "focus on a task", the learner can trivially spot the answer by finding which
+  // choice contains the word they're being tested on.
+  const colls = (item.collocations ?? []).filter(
+    (c) => c.trim().length > 0 && !textContainsTerm(c, item.term),
+  )
   if (!colls.length) return null
 
   const correct = colls[Math.floor(Math.random() * colls.length)]
 
-  // Distractors are real collocations from other pool items — plausible, not random words.
+  // Distractors: real collocations from other pool items — plausible, not random words.
+  // Also filter any distractor collocation that mentions the target term, as those
+  // would be obviously wrong answers (the wrong word appearing in the right word's phrase).
   const distractors: string[] = []
   for (const other of shuffle(pool.filter((i) => i.id !== item.id && (i.collocations?.length ?? 0) > 0))) {
     if (distractors.length >= 3) break
     const picks = (other.collocations ?? []).filter(
-      (c) => c.trim() && c !== correct && !distractors.includes(c),
+      (c) => c.trim() && c !== correct && !distractors.includes(c) && !textContainsTerm(c, item.term),
     )
     if (picks.length > 0) distractors.push(picks[Math.floor(Math.random() * picks.length)])
   }
@@ -412,6 +435,20 @@ function shuffleIndexed<T>(arr: T[]): { items: T[]; originalFirstIndex: number }
 
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1) + '…'
+}
+
+/**
+ * True when `text` visibly contains the target `term` (case-insensitive).
+ * Used to detect giveaway questions where the answer appears in the prompt
+ * or in a distractor (making that distractor obviously wrong by elimination).
+ *
+ * Examples that are caught:
+ *   term="focus",         text="what you focus on"  → true
+ *   term="procrastinate", text="procrastinating…"   → true  ("procrastinat" substring)
+ *   term="make up your mind", text="make up your mind about it" → true
+ */
+function textContainsTerm(text: string, term: string): boolean {
+  return text.toLowerCase().includes(term.toLowerCase())
 }
 
 function escapeRegex(s: string): string {
