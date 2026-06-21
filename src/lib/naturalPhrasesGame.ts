@@ -1,33 +1,34 @@
 /**
  * naturalPhrasesGame.ts — question generation for Natural Phrases Sprint.
  *
- * One question type: show a word, pick which of the four phrases uses it naturally.
- * The three wrong options are deliberate learner-mistake distractors, not random
- * words from the library.  Distractor strategy (in priority order):
+ * Format: a target word/phrase is shown; four options show what naturally
+ * collocates with it, with "…" marking where the target sits.
  *
- *   1. Verb swap  — if the collocation opens with a common confusable verb
- *      (make/do/take/have/give/…), replace it with similar verbs that learners
- *      habitually mix up: "make a decision" → "do a decision", "take a decision"
+ *   optionPosition === 'after'   → target comes first, option follows
+ *     Term: "collate"    Options: "… data ✓"  "… machinery"  "… refusal"  "… antique"
  *
- *   2. Prep swap  — if the collocation contains a preposition, swap it with
- *      adjacent prepositions learners frequently confuse:
- *      "rely on" → "rely to", "rely in", "rely at"
+ *   optionPosition === 'before'  → option comes first, target follows
+ *     Term: "decision"   Options: "make a …" ✓  "do a …"  "take a …"  "have a …"
  *
- *   3. Fallback   — if neither verb nor prep swap yields enough options, fill
- *      remaining slots with collocations from other library items (same part of
- *      speech preferred, so they look plausible).
+ * Only words whose collocations[] field contains at least one phrase that can be
+ * cleanly parsed (target at start or end, not buried in the middle) are included
+ * in the pool — expected to be 30–500 words from a typical library.
  *
- * No AI calls at runtime.  Pure deterministic / random logic only.
+ * Distractor strategy (no AI at runtime):
+ *   'before' options → verb-swap / prep-swap on the collocating part
+ *   'after'  options → pull collocating parts from other library items at same position
+ *   Fallback         → same-position parts from remaining pool items
  */
 
 import type { VocabItem } from '@/types/vocabulary'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export type NaturalPhrasesScope = 'focus' | 'full'
+export type NaturalPhrasesScope    = 'focus' | 'full'
+export type NaturalPhrasesDuration = 60 | 120 | 180
 
-export const NATURAL_PHRASES_DURATIONS     = [60, 120, 180] as const
-export type  NaturalPhrasesDuration        = typeof NATURAL_PHRASES_DURATIONS[number]
+export const NATURAL_PHRASES_DURATIONS: NaturalPhrasesDuration[] = [60, 120, 180]
+
 export const NATURAL_PHRASES_DURATION_LABELS: Record<NaturalPhrasesDuration, string> = {
   60:  '1 min',
   120: '2 min',
@@ -39,8 +40,14 @@ export interface NaturalPhrasesQuestion {
   term:               string
   partOfSpeech?:      string
   definitionEn?:      string
+  /** The full correct collocation — shown as the correct answer after feedback. */
   correctCollocation: string
-  choices:            string[]   // always 4, shuffled
+  /** Where the TARGET appears relative to each choice option.
+   *  'after'  → target then option: "collate [___]"  choices shown as "… data"
+   *  'before' → option then target: "[___] decision"  choices shown as "make a …" */
+  optionPosition:     'before' | 'after'
+  /** The collocating part only — NOT the full phrase. 4 items. */
+  choices:            string[]
   correctIndex:       number
 }
 
@@ -48,8 +55,10 @@ export interface NaturalPhrasesAttempt {
   itemId:             string
   term:               string
   correctCollocation: string
-  givenAnswer:        string
+  correctOption:      string   // the collocating part of the correct answer
+  givenOption:        string   // the collocating part the learner picked
   wasCorrect:         boolean
+  optionPosition:     'before' | 'after'
 }
 
 export interface NaturalPhrasesResult {
@@ -63,43 +72,43 @@ export interface NaturalPhrasesResult {
   scope:          NaturalPhrasesScope
 }
 
-// ── Distractor tables ──────────────────────────────────────────────────────────
+// ── Confusion tables ───────────────────────────────────────────────────────────
 
-// Verbs learners most commonly confuse in collocations (B2–C1 level)
 const VERB_ALTERNATES: Record<string, string[]> = {
-  'make':   ['do', 'take', 'have'],
-  'do':     ['make', 'take', 'perform'],
-  'take':   ['make', 'do', 'have'],
-  'have':   ['make', 'do', 'take'],
-  'give':   ['make', 'do', 'take'],
-  'get':    ['take', 'make', 'have'],
-  'pay':    ['make', 'give', 'do'],
-  'hold':   ['keep', 'have', 'make'],
-  'keep':   ['hold', 'maintain', 'have'],
-  'run':    ['hold', 'make', 'do'],
-  'reach':  ['make', 'get', 'come to'],
-  'raise':  ['rise', 'lift', 'increase'],
-  'bring':  ['take', 'carry', 'come with'],
-  'put':    ['place', 'set', 'lay'],
-  'set':    ['put', 'place', 'establish'],
-  'draw':   ['pull', 'attract', 'make'],
-  'pull':   ['draw', 'drag', 'push'],
-  'carry':  ['bring', 'take', 'hold'],
-  'place':  ['put', 'set', 'lay'],
-  'build':  ['make', 'create', 'develop'],
-  'create': ['make', 'build', 'produce'],
-  'form':   ['make', 'create', 'build'],
-  'cause':  ['make', 'lead to', 'bring'],
-  'face':   ['deal with', 'handle', 'meet'],
+  'make':    ['do', 'take', 'have'],
+  'do':      ['make', 'take', 'perform'],
+  'take':    ['make', 'do', 'have'],
+  'have':    ['make', 'do', 'take'],
+  'give':    ['make', 'do', 'take'],
+  'get':     ['take', 'make', 'have'],
+  'pay':     ['make', 'give', 'do'],
+  'hold':    ['keep', 'have', 'make'],
+  'keep':    ['hold', 'maintain', 'have'],
+  'run':     ['hold', 'make', 'do'],
+  'reach':   ['make', 'get', 'achieve'],
+  'raise':   ['rise', 'lift', 'increase'],
+  'bring':   ['take', 'carry', 'fetch'],
+  'put':     ['place', 'set', 'lay'],
+  'set':     ['put', 'place', 'establish'],
+  'draw':    ['pull', 'attract', 'make'],
+  'pull':    ['draw', 'drag', 'push'],
+  'carry':   ['bring', 'take', 'hold'],
+  'build':   ['make', 'create', 'develop'],
+  'create':  ['make', 'build', 'produce'],
+  'form':    ['make', 'create', 'build'],
+  'cause':   ['make', 'lead', 'bring'],
+  'face':    ['handle', 'meet', 'deal'],
   'meet':    ['face', 'achieve', 'get'],
   'achieve': ['reach', 'meet', 'gain'],
-  'gain':   ['get', 'achieve', 'earn'],
-  'lose':   ['miss', 'waste', 'drop'],
-  'miss':   ['lose', 'skip', 'avoid'],
-  'avoid':  ['prevent', 'miss', 'escape'],
+  'gain':    ['get', 'achieve', 'earn'],
+  'lose':    ['miss', 'waste', 'drop'],
+  'miss':    ['lose', 'skip', 'avoid'],
+  'avoid':   ['prevent', 'miss', 'escape'],
+  'collect': ['gather', 'compile', 'assemble'],
+  'gather':  ['collect', 'compile', 'bring'],
+  'compile': ['gather', 'collect', 'create'],
 }
 
-// Prepositions learners most commonly confuse in collocations
 const PREP_ALTERNATES: Record<string, string[]> = {
   'on':    ['in', 'at', 'to'],
   'in':    ['on', 'at', 'into'],
@@ -108,7 +117,7 @@ const PREP_ALTERNATES: Record<string, string[]> = {
   'for':   ['to', 'on', 'in'],
   'with':  ['by', 'for', 'to'],
   'by':    ['with', 'from', 'through'],
-  'from':  ['of', 'by', 'out of'],
+  'from':  ['of', 'by', 'out'],
   'of':    ['from', 'about', 'with'],
   'about': ['of', 'on', 'around'],
   'over':  ['about', 'above', 'across'],
@@ -132,127 +141,134 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-// ── Distractor generation ──────────────────────────────────────────────────────
+// ── Collocation parser ─────────────────────────────────────────────────────────
 
-function tryVerbSwap(collocation: string, n: number): string[] {
-  const words    = collocation.split(' ')
-  const firstW   = words[0].toLowerCase()
-  const alts     = VERB_ALTERNATES[firstW]
-  if (!alts) return []
-  const rest = words.slice(1).join(' ')
-  return alts.slice(0, n).map((alt) => `${alt} ${rest}`)
+/**
+ * Extract the collocating part (option) and its position from a full collocation.
+ *
+ * Returns null when the target sits in the middle (e.g. "heavily rely on")
+ * or is the whole string.
+ */
+export function parseCollocation(
+  collocation: string,
+  term: string,
+): { option: string; position: 'before' | 'after' } | null {
+  const lc    = collocation.toLowerCase().trim()
+  const lcT   = term.toLowerCase().trim()
+  const idx   = lc.indexOf(lcT)
+  if (idx === -1) return null
+
+  const before = collocation.slice(0, idx).trim()
+  const after  = collocation.slice(idx + term.length).trim()
+
+  if (before && !after)  return { option: before, position: 'before' }
+  if (after  && !before) return { option: after,  position: 'after'  }
+  return null  // term in middle or is the full string
 }
 
-function tryPrepSwap(collocation: string, n: number): string[] {
-  const words   = collocation.split(' ')
-  const results: string[] = []
-  // Scan every position (not just last) but skip the opening word
-  for (let i = 1; i < words.length; i++) {
-    const alts = PREP_ALTERNATES[words[i].toLowerCase()]
+// ── Distractor builders ────────────────────────────────────────────────────────
+
+/** For 'before' options: swap the opening verb or preposition. */
+function beforeDistractorsFromSwap(option: string, n: number): string[] {
+  const words  = option.split(' ')
+  const first  = words[0].toLowerCase()
+  const rest   = words.slice(1).join(' ')
+  const result: string[] = []
+
+  for (const table of [VERB_ALTERNATES, PREP_ALTERNATES]) {
+    const alts = table[first]
     if (!alts) continue
     for (const alt of alts) {
-      if (results.length >= n) break
-      const swapped = [...words.slice(0, i), alt, ...words.slice(i + 1)].join(' ')
-      if (swapped !== collocation && !results.includes(swapped)) {
-        results.push(swapped)
-      }
+      if (result.length >= n) break
+      const d = rest ? `${alt} ${rest}` : alt
+      if (!result.includes(d)) result.push(d)
     }
-    if (results.length > 0) break // one swap position is enough
+    if (result.length >= n) break
   }
-  return results
+
+  return result.slice(0, n)
 }
 
-function fallbackDistractors(
-  item:    VocabItem,
-  pool:    VocabItem[],
-  exclude: Set<string>,
-  n:       number,
+/** For any position: pull collocating parts from other pool items at the same position. */
+function distractorsFromPool(
+  item:     VocabItem,
+  pool:     VocabItem[],
+  position: 'before' | 'after',
+  exclude:  Set<string>,
+  n:        number,
 ): string[] {
-  const candidates = pool.filter(
-    (i) => i.id !== item.id && (i.collocations?.length ?? 0) > 0,
-  )
-  const samePOS  = item.partOfSpeech
-    ? candidates.filter((i) => i.partOfSpeech === item.partOfSpeech)
-    : []
-  const samePOSIds = new Set(samePOS.map((i) => i.id))
-  const other    = candidates.filter((i) => !samePOSIds.has(i.id))
-
   const result: string[] = []
-  for (const candidate of [...shuffle(samePOS), ...shuffle(other)]) {
+  for (const other of shuffle(pool.filter(i => i.id !== item.id))) {
     if (result.length >= n) break
-    const picks = (candidate.collocations ?? []).filter(
-      (c) => c.trim() && !exclude.has(c) && !result.includes(c),
-    )
-    if (picks.length > 0) {
-      result.push(picks[Math.floor(Math.random() * picks.length)])
+    for (const coll of shuffle(other.collocations ?? [])) {
+      const parsed = parseCollocation(coll, other.term)
+      if (!parsed || parsed.position !== position) continue
+      if (!exclude.has(parsed.option)) {
+        result.push(parsed.option)
+        exclude.add(parsed.option)
+        break
+      }
     }
   }
   return result
 }
 
-function buildDistractors(
-  correct: string,
-  item:    VocabItem,
-  pool:    VocabItem[],
-): string[] {
-  const exclude = new Set<string>([correct])
-  const result: string[] = []
+// ── Question builder ───────────────────────────────────────────────────────────
 
-  // 1. Verb swap
-  for (const d of tryVerbSwap(correct, 3)) {
-    if (!exclude.has(d)) { result.push(d); exclude.add(d) }
-    if (result.length >= 3) return result
+function buildQuestion(item: VocabItem, pool: VocabItem[]): NaturalPhrasesQuestion | null {
+  // Collect all parseable collocations for this item
+  const valid = (item.collocations ?? [])
+    .map(coll => {
+      const p = parseCollocation(coll, item.term)
+      return p ? { collocation: coll, option: p.option, position: p.position } : null
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+
+  if (valid.length === 0) return null
+
+  const { collocation, option, position } = valid[Math.floor(Math.random() * valid.length)]
+  const exclude = new Set([option])
+
+  // Build distractors
+  let distractors: string[] = []
+
+  if (position === 'before') {
+    // Try verb/prep swap first
+    distractors = beforeDistractorsFromSwap(option, 3)
+    distractors.forEach(d => exclude.add(d))
   }
 
-  // 2. Prep swap
-  for (const d of tryPrepSwap(correct, 3)) {
-    if (!exclude.has(d)) { result.push(d); exclude.add(d) }
-    if (result.length >= 3) return result
+  // Fill remaining from pool (works for both positions)
+  if (distractors.length < 3) {
+    const extra = distractorsFromPool(item, pool, position, exclude, 3 - distractors.length)
+    distractors = [...distractors, ...extra]
   }
 
-  // 3. Fallback — other words' collocations
-  for (const d of fallbackDistractors(item, pool, exclude, 3 - result.length)) {
-    result.push(d); exclude.add(d)
-    if (result.length >= 3) break
-  }
+  if (distractors.length < 2) return null
 
-  return result.slice(0, 3)
-}
-
-// ── Public question builder ────────────────────────────────────────────────────
-
-function buildQuestion(
-  item: VocabItem,
-  pool: VocabItem[],
-): NaturalPhrasesQuestion | null {
-  const colls = (item.collocations ?? []).filter((c) => c.trim())
-  if (colls.length === 0) return null
-
-  const correct     = colls[Math.floor(Math.random() * colls.length)]
-  const distractors = buildDistractors(correct, item, pool)
-  if (distractors.length < 2) return null  // too few — skip this word
-
-  // Pad to exactly 3 distractors if buildDistractors returned only 2
-  const choices = shuffle([correct, ...distractors.slice(0, 3)])
+  const choices = shuffle([option, ...distractors.slice(0, 3)])
   return {
     itemId:             item.id,
     term:               item.term,
     partOfSpeech:       item.partOfSpeech,
-    definitionEn:       item.definitionEn ?? item.shortDefinition,
-    correctCollocation: correct,
+    definitionEn:       (item.definitionEn ?? (item as any).shortDefinition) as string | undefined,
+    correctCollocation: collocation,
+    optionPosition:     position,
     choices,
-    correctIndex:       choices.indexOf(correct),
+    correctIndex:       choices.indexOf(option),
   }
 }
 
-// ── Pool helpers ───────────────────────────────────────────────────────────────
+// ── Public API ─────────────────────────────────────────────────────────────────
 
+/** Items with at least one cleanly parseable collocation. */
 export function selectPool(items: VocabItem[], scope: NaturalPhrasesScope): VocabItem[] {
   const base = items.filter(
-    (i) => !i.archived && (i.collocations?.length ?? 0) > 0,
+    i => !i.archived &&
+      (i.collocations ?? []).some(c => parseCollocation(c, i.term) !== null),
   )
   if (scope === 'focus') {
-    const focused = base.filter((i) => i.inFocus || i.weeklyFocus)
+    const focused = base.filter(i => i.inFocus || i.weeklyFocus)
     return focused.length >= 4 ? focused : base
   }
   return base
@@ -262,19 +278,16 @@ export function countScope(items: VocabItem[], scope: NaturalPhrasesScope): numb
   return selectPool(items, scope).length
 }
 
-/** Generate a fresh batch of questions, cycling the pool if it is small. */
 export function generateBatch(pool: VocabItem[], batchSize: number): NaturalPhrasesQuestion[] {
   if (pool.length < 4) return []
-  const shuffled  = shuffle(pool)
+  const shuffled = shuffle(pool)
   const questions: NaturalPhrasesQuestion[] = []
-  let   idx       = 0
-  let   attempts  = 0
-  const maxAttempts = batchSize * 4
+  let idx = 0, attempts = 0
+  const max = batchSize * 4
 
-  while (questions.length < batchSize && attempts < maxAttempts) {
+  while (questions.length < batchSize && attempts < max) {
     const item = shuffled[idx % shuffled.length]
-    idx++
-    attempts++
+    idx++; attempts++
     const q = buildQuestion(item, pool)
     if (q) questions.push(q)
   }

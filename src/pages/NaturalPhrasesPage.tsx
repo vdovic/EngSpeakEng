@@ -35,9 +35,9 @@ import type { VocabItem } from '@/types/vocabulary'
 type Phase = 'setup' | 'playing' | 'paused' | 'feedback' | 'results'
 
 interface FeedbackState {
-  correct:       boolean
-  correctAnswer: string
-  selectedIndex: number
+  correct:            boolean
+  correctCollocation: string
+  selectedIndex:      number
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -109,7 +109,9 @@ function MissedList({
                 <XCircle size={14} className="text-rose-400 shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-slate-800">{a.term}</p>
-                  <p className="text-xs text-rose-600 line-through mt-0.5 truncate">{a.givenAnswer}</p>
+                  <p className="text-xs text-rose-600 line-through mt-0.5 truncate">
+                    {a.optionPosition === 'after' ? `… ${a.givenOption}` : `${a.givenOption} …`}
+                  </p>
                   <p className="text-xs text-emerald-700 font-medium mt-0.5 truncate">→ {a.correctCollocation}</p>
                 </div>
                 <ExternalLink size={12} className="text-rose-300 shrink-0 mt-0.5" />
@@ -438,8 +440,10 @@ export function NaturalPhrasesPage() {
       itemId:             q.itemId,
       term:               q.term,
       correctCollocation: q.correctCollocation,
-      givenAnswer:        q.choices[choiceIndex],
+      correctOption:      q.choices[q.correctIndex],
+      givenOption:        q.choices[choiceIndex],
       wasCorrect:         isCorrect,
+      optionPosition:     q.optionPosition,
     })
 
     if (soundOn) { isCorrect ? playCorrectSound() : playWrongSound() }
@@ -456,7 +460,7 @@ export function NaturalPhrasesPage() {
 
     practiceTimer.bump({ advancement: isCorrect ? 1 : 0, itemId: q.itemId })
     feedbackDuration.current = isCorrect ? CORRECT_MS : WRONG_MS
-    setFeedback({ correct: isCorrect, correctAnswer: q.choices[q.correctIndex], selectedIndex: choiceIndex })
+    setFeedback({ correct: isCorrect, correctCollocation: q.correctCollocation, selectedIndex: choiceIndex })
     setPhase('feedback')
   }, [phase, questions, qIndex, soundOn, recordExposure, practiceTimer])
 
@@ -631,7 +635,9 @@ export function NaturalPhrasesPage() {
         {/* What to expect */}
         <div className="mb-6 space-y-1.5 text-xs text-slate-400">
           <p>· A word is shown — pick the phrase that uses it naturally</p>
-          <p>· Wrong options are real learner mistakes (wrong verb, wrong preposition)</p>
+          <p>· <span className="font-mono text-slate-500">… option</span> means the word comes first (e.g. <span className="font-mono">collate … data</span>)</p>
+          <p>· <span className="font-mono text-slate-500">option …</span> means the word comes after (e.g. <span className="font-mono">make a … decision</span>)</p>
+          <p>· Wrong options are real learner mistakes — wrong verb, wrong preposition</p>
           <p>· First correct answer per word adds one exposure</p>
           <p>· Press <kbd className="font-mono bg-slate-100 border border-slate-300 rounded px-1 py-0.5 text-slate-600">1</kbd>–<kbd className="font-mono bg-slate-100 border border-slate-300 rounded px-1 py-0.5 text-slate-600">4</kbd> to answer · <kbd className="font-mono bg-slate-100 border border-slate-300 rounded px-1 py-0.5 text-slate-600">Esc</kbd> to end</p>
         </div>
@@ -732,11 +738,15 @@ export function NaturalPhrasesPage() {
           {/* Term */}
           <p className="text-3xl font-bold text-slate-900 leading-none mb-1">{q.term}</p>
           {q.partOfSpeech && (
-            <p className="text-xs text-slate-400 italic mb-2">{q.partOfSpeech}</p>
+            <p className="text-xs text-slate-400 italic mb-1">{q.partOfSpeech}</p>
           )}
           {q.definitionEn && (
-            <p className="text-sm text-slate-500 leading-relaxed line-clamp-2">{q.definitionEn}</p>
+            <p className="text-sm text-slate-500 leading-relaxed line-clamp-2 mb-2">{q.definitionEn}</p>
           )}
+          {/* Slot context — shows where the word fits in the phrase */}
+          <p className="text-sm font-mono text-amber-600/70 tracking-wide">
+            {q.optionPosition === 'after' ? `${q.term} ___` : `___ ${q.term}`}
+          </p>
         </div>
 
         {/* Feedback banner */}
@@ -746,7 +756,7 @@ export function NaturalPhrasesPage() {
           }`}>
             {feedback.correct
               ? <><CheckCircle2 size={16} /> Correct!</>
-              : <><XCircle size={16} /> The natural phrase is: <strong className="ml-1">{feedback.correctAnswer}</strong></>
+              : <><XCircle size={16} /> The natural phrase is: <strong className="ml-1">{feedback.correctCollocation}</strong></>
             }
           </div>
         )}
@@ -755,8 +765,10 @@ export function NaturalPhrasesPage() {
       {/* Choices */}
       <div className={`grid grid-cols-1 gap-2 ${phase === 'paused' ? 'blur-sm pointer-events-none select-none' : ''}`}>
         {q.choices.map((choice, idx) => {
-          const isCorrect  = phase === 'feedback' && idx === q.correctIndex
-          const isWrong    = phase === 'feedback' && !feedback?.correct && idx === feedback?.selectedIndex
+          const isCorrect   = phase === 'feedback' && idx === q.correctIndex
+          const isWrong     = phase === 'feedback' && !feedback?.correct && idx === feedback?.selectedIndex
+          // "…" marks where the target word sits relative to the collocating part
+          const displayText = q.optionPosition === 'after' ? `… ${choice}` : `${choice} …`
           return (
             <button key={idx} onClick={() => handleAnswer(idx)}
               disabled={phase === 'feedback' || phase === 'paused'}
@@ -777,7 +789,7 @@ export function NaturalPhrasesPage() {
                     : isWrong   ? 'bg-rose-400 border-rose-400 text-white'
                     : 'border-slate-200 text-slate-300'
                 }`}>{idx + 1}</span>
-                {choice}
+                {displayText}
               </span>
             </button>
           )
