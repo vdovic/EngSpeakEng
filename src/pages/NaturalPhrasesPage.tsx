@@ -43,7 +43,6 @@ interface FeedbackState {
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const CORRECT_MS = 700
-const WRONG_MS   = 1600
 const BATCH_SIZE = 40
 
 const SCOPE_LABELS: Record<NaturalPhrasesScope, string> = {
@@ -344,7 +343,6 @@ export function NaturalPhrasesPage() {
   const gainedExposureRef = useRef<Set<string>>(new Set())
   const latestStats       = useRef({ correct: 0, wrong: 0 })
   const resultSaved       = useRef(false)
-  const feedbackDuration  = useRef(CORRECT_MS)
   const effectiveDuration = useRef<NaturalPhrasesDuration>(duration)
 
   // ── Save result ───────────────────────────────────────────────────────────────
@@ -383,16 +381,22 @@ export function NaturalPhrasesPage() {
     return () => clearInterval(id)
   }, [phase, saveResult])
 
-  // ── Feedback auto-advance ─────────────────────────────────────────────────────
+  // ── Advance to next question ──────────────────────────────────────────────────
+  const advanceToNext = useCallback(() => {
+    setFeedback(null)
+    setQIndex((i) => i + 1)
+    setPhase('playing')
+  }, [])
+
+  // ── Feedback auto-advance (correct only) ──────────────────────────────────────
+  // Wrong answers require an explicit tap — the timer stays paused until the user
+  // acknowledges the correct answer and clicks/taps to continue.
   useEffect(() => {
     if (phase !== 'feedback') return
-    const id = setTimeout(() => {
-      setFeedback(null)
-      setQIndex((i) => i + 1)
-      setPhase('playing')
-    }, feedbackDuration.current)
+    if (!feedback?.correct) return  // wrong: wait for user tap
+    const id = setTimeout(advanceToNext, CORRECT_MS)
     return () => clearTimeout(id)
-  }, [phase])
+  }, [phase, feedback?.correct, advanceToNext])
 
   // ── Refill question queue ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -459,7 +463,6 @@ export function NaturalPhrasesPage() {
     }
 
     practiceTimer.bump({ advancement: isCorrect ? 1 : 0, itemId: q.itemId })
-    feedbackDuration.current = isCorrect ? CORRECT_MS : WRONG_MS
     setFeedback({ correct: isCorrect, correctCollocation: q.correctCollocation, selectedIndex: choiceIndex })
     setPhase('feedback')
   }, [phase, questions, qIndex, soundOn, recordExposure, practiceTimer])
@@ -484,6 +487,19 @@ export function NaturalPhrasesPage() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [phase])
+
+  // Space / Enter / 1-4 advance past a wrong-answer feedback without auto-timer
+  useEffect(() => {
+    if (phase !== 'feedback' || feedback?.correct) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === ' ' || e.key === 'Enter' || (parseInt(e.key, 10) >= 1 && parseInt(e.key, 10) <= 4)) {
+        e.preventDefault()
+        advanceToNext()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [phase, feedback?.correct, advanceToNext])
 
   // ── Results ───────────────────────────────────────────────────────────────────
   if (phase === 'results') {
@@ -751,14 +767,24 @@ export function NaturalPhrasesPage() {
 
         {/* Feedback banner */}
         {phase === 'feedback' && feedback && (
-          <div className={`flex items-center gap-2 mt-4 text-sm font-semibold rounded-xl px-3 py-2 ${
-            feedback.correct ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-          }`}>
-            {feedback.correct
-              ? <><CheckCircle2 size={16} /> Correct!</>
-              : <><XCircle size={16} /> The natural phrase is: <strong className="ml-1">{feedback.correctCollocation}</strong></>
-            }
-          </div>
+          feedback.correct ? (
+            <div className="flex items-center gap-2 mt-4 text-sm font-semibold rounded-xl px-3 py-2 bg-emerald-100 text-emerald-700">
+              <CheckCircle2 size={16} /> Correct!
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl bg-rose-100 text-rose-800">
+              <div className="flex items-start gap-2 px-3 py-2.5 text-sm font-semibold">
+                <XCircle size={16} className="shrink-0 mt-0.5" />
+                <span>The natural phrase is: <strong>{feedback.correctCollocation}</strong></span>
+              </div>
+              <button
+                onClick={advanceToNext}
+                className="w-full py-2.5 text-sm font-bold text-rose-700 border-t border-rose-200 hover:bg-rose-200 active:bg-rose-300 transition-colors rounded-b-xl"
+              >
+                Continue →
+              </button>
+            </div>
+          )
         )}
       </div>
 
