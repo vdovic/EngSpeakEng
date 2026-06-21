@@ -59,6 +59,9 @@ const EffortPage = lazy(() =>
 const SpeedGamePage = lazy(() =>
   import('@/pages/SpeedGamePage').then((m) => ({ default: m.SpeedGamePage }))
 )
+const PhraseGamePage = lazy(() =>
+  import('@/pages/PhraseGamePage').then((m) => ({ default: m.PhraseGamePage }))
+)
 
 // ── DeepPracticeIndicator ─────────────────────────────────────────────────────
 // Shown across the whole app (except on /challenge itself) when a Deep Practice
@@ -309,7 +312,8 @@ export default function App() {
 
             <Route path="/atlas"       element={<AtlasPage />} />
             <Route path="/effort"      element={<EffortPage />} />
-            <Route path="/game/speed"  element={<SpeedGamePage />} />
+            <Route path="/game/speed"   element={<SpeedGamePage />} />
+            <Route path="/game/phrases" element={<PhraseGamePage />} />
 
             {/* Legacy aliases — redirect to canonical routes */}
             <Route path="/inbox"  element={<Navigate to="/library"  replace />} />

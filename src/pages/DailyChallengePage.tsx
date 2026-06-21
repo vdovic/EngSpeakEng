@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
   ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen, Info, Gamepad2,
-  AlertCircle,
+  AlertCircle, Quote,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -1142,15 +1142,24 @@ export function DailyChallengePage() {
             </button>
           )}
 
-          {/* Speed Practice CTA — natural continuation after completing a challenge */}
+          {/* Practice game CTAs — natural continuation after completing a challenge */}
           {total > 0 && (
-            <button
-              onClick={() => navigate('/game/speed')}
-              className="w-full py-3 border border-rose-200 bg-rose-50 text-rose-700 rounded-xl font-semibold hover:bg-rose-100 transition-colors flex items-center justify-center gap-2"
-            >
-              <Zap size={16} />
-              Try Speed Practice
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => navigate('/game/speed')}
+                className="py-3 border border-rose-200 bg-rose-50 text-rose-700 rounded-xl font-semibold hover:bg-rose-100 transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Zap size={15} />
+                Speed Practice
+              </button>
+              <button
+                onClick={() => navigate('/game/phrases')}
+                className="py-3 border border-amber-200 bg-amber-50 text-amber-800 rounded-xl font-semibold hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Quote size={15} />
+                Phrase Builder
+              </button>
+            </div>
           )}
 
           {canPlaySameWordsInGames && (
