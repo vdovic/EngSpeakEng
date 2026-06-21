@@ -3,7 +3,7 @@ import { NavLink, Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, RefreshCw, Library,
   Target, BarChart2, Zap, Layers, GraduationCap, Sparkles,
-  MoreHorizontal, X, Settings, Globe2, Search, Activity, Quote,
+  MoreHorizontal, X, Settings, Globe2, Search, Activity, Link2,
   type LucideIcon,
 } from 'lucide-react'
 import { GlobalSearch } from '@/components/GlobalSearch'
@@ -39,11 +39,11 @@ const SIDEBAR_PRIMARY: NavLinkDef[] = [
 ]
 
 const SIDEBAR_EXPLORE: NavLinkDef[] = [
-  { to: '/effort',       icon: Activity,  label: 'Effort'         },
-  { to: '/atlas',        icon: Globe2,    label: 'Atlas'          },
-  { to: '/themes',       icon: Layers,    label: 'Themes'         },
-  { to: '/review',       icon: RefreshCw, label: 'Review'         },
-  { to: '/game/phrases', icon: Quote,     label: 'Phrase Builder' },
+  { to: '/effort',               icon: Activity,  label: 'Effort'                 },
+  { to: '/atlas',                icon: Globe2,    label: 'Atlas'                  },
+  { to: '/themes',               icon: Layers,    label: 'Themes'                 },
+  { to: '/review',               icon: RefreshCw, label: 'Review'                 },
+  { to: '/game/natural-phrases', icon: Link2,     label: 'Natural Phrases Sprint' },
 ]
 
 const SIDEBAR_FOOTER: NavLinkDef[] = [
@@ -60,13 +60,13 @@ const MOBILE_PRIMARY: NavLinkDef[] = [
 ]
 
 const MOBILE_MORE: NavLinkDef[] = [
-  { to: '/progress',     icon: BarChart2, label: 'Progress'       },
-  { to: '/effort',       icon: Activity,  label: 'Effort'         },
-  { to: '/atlas',        icon: Globe2,    label: 'Atlas'          },
-  { to: '/review',       icon: RefreshCw, label: 'Review'         },
-  { to: '/themes',       icon: Layers,    label: 'Themes'         },
-  { to: '/game/phrases', icon: Quote,     label: 'Phrase Builder' },
-  { to: '/settings',     icon: Settings,  label: 'Settings'       },
+  { to: '/progress',             icon: BarChart2, label: 'Progress'                 },
+  { to: '/effort',               icon: Activity,  label: 'Effort'                   },
+  { to: '/atlas',                icon: Globe2,    label: 'Atlas'                    },
+  { to: '/review',               icon: RefreshCw, label: 'Review'                   },
+  { to: '/themes',               icon: Layers,    label: 'Themes'                   },
+  { to: '/game/natural-phrases', icon: Link2,     label: 'Natural Phrases Sprint'   },
+  { to: '/settings',             icon: Settings,  label: 'Settings'                 },
 ]
 
 // Routes that belong to the "More" drawer — used to highlight the More tab

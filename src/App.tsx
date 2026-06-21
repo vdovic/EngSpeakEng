@@ -59,8 +59,8 @@ const EffortPage = lazy(() =>
 const SpeedGamePage = lazy(() =>
   import('@/pages/SpeedGamePage').then((m) => ({ default: m.SpeedGamePage }))
 )
-const PhraseGamePage = lazy(() =>
-  import('@/pages/PhraseGamePage').then((m) => ({ default: m.PhraseGamePage }))
+const NaturalPhrasesPage = lazy(() =>
+  import('@/pages/NaturalPhrasesPage').then((m) => ({ default: m.NaturalPhrasesPage }))
 )
 
 // ── DeepPracticeIndicator ─────────────────────────────────────────────────────
@@ -312,8 +312,8 @@ export default function App() {
 
             <Route path="/atlas"       element={<AtlasPage />} />
             <Route path="/effort"      element={<EffortPage />} />
-            <Route path="/game/speed"   element={<SpeedGamePage />} />
-            <Route path="/game/phrases" element={<PhraseGamePage />} />
+            <Route path="/game/speed"          element={<SpeedGamePage />} />
+            <Route path="/game/natural-phrases" element={<NaturalPhrasesPage />} />
 
             {/* Legacy aliases — redirect to canonical routes */}
             <Route path="/inbox"  element={<Navigate to="/library"  replace />} />

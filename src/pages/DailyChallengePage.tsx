@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Zap, ArrowLeft, Trophy, Flame, CheckCircle, XCircle,
   ChevronDown, PlayCircle, X, Plus, Search, Shuffle, Layers, RotateCcw, BookOpen, Info, Gamepad2,
-  AlertCircle, Quote,
+  AlertCircle, Link2,
 } from 'lucide-react'
 import { useVocabStore } from '@/store/vocabStore'
 import { useGamificationStore } from '@/store/gamificationStore'
@@ -1153,11 +1153,11 @@ export function DailyChallengePage() {
                 Speed Practice
               </button>
               <button
-                onClick={() => navigate('/game/phrases')}
+                onClick={() => navigate('/game/natural-phrases')}
                 className="py-3 border border-amber-200 bg-amber-50 text-amber-800 rounded-xl font-semibold hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 text-sm"
               >
-                <Quote size={15} />
-                Phrase Builder
+                <Link2 size={15} />
+                Natural Phrases
               </button>
             </div>
           )}

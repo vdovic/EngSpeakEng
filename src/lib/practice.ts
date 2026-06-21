@@ -31,7 +31,7 @@ export type ActivityType =
   | 'sentence-repair'
   | 'phrase-upgrade'
   | 'recall'
-  | 'phrase-builder'
+  | 'natural-phrases'
 
 /** Learner-facing labels. Calm, descriptive — no arcade language. */
 export const ACTIVITY_LABELS: Record<ActivityType, string> = {
@@ -40,7 +40,7 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   'sentence-repair': 'Sentence Repair',
   'phrase-upgrade':  'Phrase Upgrade',
   'recall':          'Recall',
-  'phrase-builder':  'Phrase Builder',
+  'natural-phrases': 'Natural Phrases Sprint',
 }
 
 /**
@@ -53,7 +53,7 @@ export const ACTIVITY_COLORS: Record<ActivityType, string> = {
   'sentence-repair': '#14b8a6', // teal-500
   'phrase-upgrade':  '#0ea5e9', // sky-500
   'recall':          '#a78bfa', // violet-400
-  'phrase-builder':  '#f59e0b', // amber-500
+  'natural-phrases': '#f59e0b', // amber-500
 }
 
 /** Resolve a label for any stored value, including unknown/future activities. */
