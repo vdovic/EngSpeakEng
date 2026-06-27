@@ -354,7 +354,8 @@ export function NaturalPhrasesPage() {
   const [qIndex,     setQIndex]     = useState(0)
   const [correct,    setCorrect]    = useState(0)
   const [wrong,      setWrong]      = useState(0)
-  const [feedback,   setFeedback]   = useState<FeedbackState | null>(null)
+  const [feedback,     setFeedback]     = useState<FeedbackState | null>(null)
+  const [showExplore,  setShowExplore]  = useState(false)
 
   const attemptsRef       = useRef<NaturalPhrasesAttempt[]>([])
   const gainedExposureRef = useRef<Set<string>>(new Set())
@@ -401,6 +402,7 @@ export function NaturalPhrasesPage() {
 
   // ── Advance to next question ──────────────────────────────────────────────────
   const advanceToNext = useCallback(() => {
+    setShowExplore(false)
     setFeedback(null)
     setQIndex((i) => i + 1)
     setPhase('playing')
@@ -816,22 +818,25 @@ export function NaturalPhrasesPage() {
                 <XCircle size={16} className="shrink-0 mt-0.5" />
                 <span>The natural phrase is: <strong>{feedback.correctCollocation}</strong></span>
               </div>
-              {feedback.exampleSentence && (
-                <p className="px-3 pb-1.5 text-xs text-rose-700 italic leading-relaxed">
-                  "{feedback.exampleSentence}"
-                </p>
-              )}
               {feedback.isCrossLibrary && (
                 <p className="px-3 pb-2 text-xs text-rose-600">
                   Both words are in your vocabulary — practice them together.
                 </p>
               )}
-              <button
-                onClick={advanceToNext}
-                className="w-full py-2.5 text-sm font-bold text-rose-700 border-t border-rose-200 hover:bg-rose-200 active:bg-rose-300 transition-colors rounded-b-xl"
-              >
-                Continue →
-              </button>
+              <div className="flex border-t border-rose-200">
+                <button
+                  onClick={() => setShowExplore(true)}
+                  className="flex-1 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-200 active:bg-rose-300 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <BookOpen size={13} /> Explore phrase
+                </button>
+                <button
+                  onClick={advanceToNext}
+                  className="flex-1 py-2.5 text-sm font-bold text-rose-700 border-l border-rose-200 hover:bg-rose-200 active:bg-rose-300 transition-colors rounded-br-xl"
+                >
+                  Continue →
+                </button>
+              </div>
             </div>
           )
         )}
@@ -883,6 +888,75 @@ export function NaturalPhrasesPage() {
           <p className="text-xs text-white/40">Press Esc or Space to resume</p>
         </div>
       )}
+
+      {/* Explore phrase overlay — shown after a wrong answer */}
+      {showExplore && feedback && (() => {
+        const anchorItem = items.find((i) => i.id === q.itemId)
+        const partnerItem = feedback.partnerItemId
+          ? items.find((i) => i.id === feedback.partnerItemId)
+          : undefined
+        return (
+          <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowExplore(false)}>
+            <div
+              className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl px-5 pt-5 pb-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Phrase headline */}
+              <p className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider mb-1">Natural phrase</p>
+              <p className="text-2xl font-bold text-slate-900 mb-4">{feedback.correctCollocation}</p>
+
+              {/* Anchor word */}
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-slate-500 mb-0.5">
+                  {q.term}{q.partOfSpeech ? ` · ${q.partOfSpeech}` : ''}
+                </p>
+                {anchorItem?.definitionEn && (
+                  <p className="text-sm text-slate-700 leading-relaxed">{anchorItem.definitionEn}</p>
+                )}
+              </div>
+
+              {/* Partner word (cross-library) */}
+              {partnerItem && (
+                <div className="mb-3 pl-3 border-l-2 border-violet-200">
+                  <p className="text-xs font-semibold text-slate-500 mb-0.5">
+                    {partnerItem.term}{partnerItem.partOfSpeech ? ` · ${partnerItem.partOfSpeech}` : ''}
+                    <span className="ml-1.5 text-violet-500 font-normal">also in your vocabulary</span>
+                  </p>
+                  {partnerItem.definitionEn && (
+                    <p className="text-sm text-slate-700 leading-relaxed">{partnerItem.definitionEn}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Example sentence */}
+              {(feedback.exampleSentence ?? anchorItem?.exampleSentence) && (
+                <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider mb-1">Example</p>
+                  <p className="text-sm text-amber-900 leading-relaxed italic">
+                    "{feedback.exampleSentence ?? anchorItem?.exampleSentence}"
+                  </p>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2.5">
+                <button
+                  onClick={() => { navigate(`/item/${q.itemId}`); setShowExplore(false) }}
+                  className="flex-1 py-3 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <ExternalLink size={13} /> Full detail
+                </button>
+                <button
+                  onClick={advanceToNext}
+                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors"
+                >
+                  Back to game →
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
