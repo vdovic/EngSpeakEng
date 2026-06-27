@@ -1,26 +1,31 @@
 /**
  * naturalPhrasesGame.ts — question generation for Natural Phrases Sprint.
  *
- * Format: a target word/phrase is shown; four options show what naturally
- * collocates with it, with "…" marking where the target sits.
+ * Format: a target word is shown; four options show what naturally collocates
+ * with it, with "…" marking where the target sits.
  *
  *   optionPosition === 'after'   → target comes first, option follows
- *     Term: "collate"    Options: "… data ✓"  "… machinery"  "… refusal"  "… antique"
+ *     Term: "collate"    Options: "… data ✓"  "… machinery"  "… refusal"
  *
  *   optionPosition === 'before'  → option comes first, target follows
- *     Term: "decision"   Options: "make a …" ✓  "do a …"  "take a …"  "have a …"
+ *     Term: "decision"   Options: "make a …" ✓  "do a …"  "take a …"
  *
- * Only words whose collocations[] field contains at least one phrase that can be
- * cleanly parsed (target at start or end, not buried in the middle) are included
- * in the pool — expected to be 30–500 words from a typical library.
+ * Pool sources (priority order):
+ *   1. NATURAL_PHRASE_PAIRS static file — cross-library pairs (both words in
+ *      library). Bidirectional: each pair auto-generates a reverse question.
+ *   2. item.collocations[] runtime scan — single-library-word questions.
  *
  * Distractor strategy (no AI at runtime):
  *   'before' options → verb-swap / prep-swap on the collocating part
- *   'after'  options → pull collocating parts from other library items at same position
- *   Fallback         → same-position parts from remaining pool items
+ *   'after'  options → pull options from other pool entries at same position
+ *
+ * Cross-library behaviour:
+ *   When a correct answer involves a partner library word, both the anchor and
+ *   the partner receive an exposure credit (CLAUDE.md: AI safety, no auto calls).
  */
 
 import type { VocabItem } from '@/types/vocabulary'
+import { NATURAL_PHRASE_PAIRS } from '@/data/naturalPhrasesData'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -35,30 +40,52 @@ export const NATURAL_PHRASES_DURATION_LABELS: Record<NaturalPhrasesDuration, str
   180: '3 min',
 }
 
+/** Internal pool unit — one potential question source. */
+export interface PoolEntry {
+  itemId:           string
+  term:             string
+  partOfSpeech?:    string
+  definitionEn?:    string
+  /** The collocating part to show as an answer option. */
+  option:           string
+  position:         'before' | 'after'
+  /** The full collocation phrase. */
+  phrase:           string
+  /** Set when the completing option contains another library word. */
+  partnerItemId?:   string
+  partnerTerm?:     string
+  exampleSentence?: string
+  isCrossLibrary:   boolean
+}
+
 export interface NaturalPhrasesQuestion {
   itemId:             string
   term:               string
   partOfSpeech?:      string
   definitionEn?:      string
-  /** The full correct collocation — shown as the correct answer after feedback. */
+  /** The full correct collocation — shown in feedback. */
   correctCollocation: string
-  /** Where the TARGET appears relative to each choice option.
-   *  'after'  → target then option: "collate [___]"  choices shown as "… data"
-   *  'before' → option then target: "[___] decision"  choices shown as "make a …" */
+  /** Where the TARGET appears relative to each choice option. */
   optionPosition:     'before' | 'after'
-  /** The collocating part only — NOT the full phrase. 4 items. */
+  /** The collocating part only — 4 items. */
   choices:            string[]
   correctIndex:       number
+  /** Set when the correct answer involves another library word. */
+  partnerItemId?:     string
+  exampleSentence?:   string
+  isCrossLibrary:     boolean
 }
 
 export interface NaturalPhrasesAttempt {
   itemId:             string
   term:               string
   correctCollocation: string
-  correctOption:      string   // the collocating part of the correct answer
-  givenOption:        string   // the collocating part the learner picked
+  correctOption:      string
+  givenOption:        string
   wasCorrect:         boolean
   optionPosition:     'before' | 'after'
+  isCrossLibrary:     boolean
+  partnerItemId?:     string
 }
 
 export interface NaturalPhrasesResult {
@@ -107,6 +134,18 @@ const VERB_ALTERNATES: Record<string, string[]> = {
   'collect': ['gather', 'compile', 'assemble'],
   'gather':  ['collect', 'compile', 'bring'],
   'compile': ['gather', 'collect', 'create'],
+  'find':    ['seek', 'get', 'discover'],
+  'seek':    ['find', 'look', 'pursue'],
+  'show':    ['express', 'demonstrate', 'display'],
+  'feel':    ['show', 'express', 'have'],
+  'express': ['show', 'demonstrate', 'feel'],
+  'suffer':  ['endure', 'face', 'experience'],
+  'endure':  ['suffer', 'face', 'withstand'],
+  'exert':   ['apply', 'use', 'exercise'],
+  'exude':   ['project', 'radiate', 'carry'],
+  'project': ['exude', 'display', 'show'],
+  'harbour': ['hold', 'bear', 'keep'],
+  'bear':    ['hold', 'carry', 'have'],
 }
 
 const PREP_ALTERNATES: Record<string, string[]> = {
@@ -145,17 +184,15 @@ function shuffle<T>(arr: T[]): T[] {
 
 /**
  * Extract the collocating part (option) and its position from a full collocation.
- *
- * Returns null when the target sits in the middle (e.g. "heavily rely on")
- * or is the whole string.
+ * Returns null when the term sits in the middle or is the whole string.
  */
 export function parseCollocation(
   collocation: string,
   term: string,
 ): { option: string; position: 'before' | 'after' } | null {
-  const lc    = collocation.toLowerCase().trim()
-  const lcT   = term.toLowerCase().trim()
-  const idx   = lc.indexOf(lcT)
+  const lc  = collocation.toLowerCase().trim()
+  const lcT = term.toLowerCase().trim()
+  const idx = lc.indexOf(lcT)
   if (idx === -1) return null
 
   const before = collocation.slice(0, idx).trim()
@@ -163,12 +200,11 @@ export function parseCollocation(
 
   if (before && !after)  return { option: before, position: 'before' }
   if (after  && !before) return { option: after,  position: 'after'  }
-  return null  // term in middle or is the full string
+  return null
 }
 
 // ── Distractor builders ────────────────────────────────────────────────────────
 
-/** For 'before' options: swap the opening verb or preposition. */
 function beforeDistractorsFromSwap(option: string, n: number): string[] {
   const words  = option.split(' ')
   const first  = words[0].toLowerCase()
@@ -189,58 +225,146 @@ function beforeDistractorsFromSwap(option: string, n: number): string[] {
   return result.slice(0, n)
 }
 
-/** For any position: pull collocating parts from other pool items at the same position. */
 function distractorsFromPool(
-  item:     VocabItem,
-  pool:     VocabItem[],
+  entry:    PoolEntry,
+  pool:     PoolEntry[],
   position: 'before' | 'after',
   exclude:  Set<string>,
   n:        number,
 ): string[] {
   const result: string[] = []
-  for (const other of shuffle(pool.filter(i => i.id !== item.id))) {
+  for (const other of shuffle(pool.filter(e => e.itemId !== entry.itemId && e.position === position))) {
     if (result.length >= n) break
-    for (const coll of shuffle(other.collocations ?? [])) {
-      const parsed = parseCollocation(coll, other.term)
-      if (!parsed || parsed.position !== position) continue
-      if (!exclude.has(parsed.option)) {
-        result.push(parsed.option)
-        exclude.add(parsed.option)
-        break
-      }
+    const lc = other.option.toLowerCase()
+    if (!exclude.has(lc)) {
+      result.push(other.option)
+      exclude.add(lc)
     }
   }
   return result
 }
 
+// ── Pool builder ───────────────────────────────────────────────────────────────
+
+/**
+ * Build the unified pool from static cross-library pairs + runtime collocations.
+ *
+ * Priority: static NATURAL_PHRASE_PAIRS first (cross-library when possible),
+ * then item.collocations[] scan as fallback / supplement.
+ * Bidirectional: each cross-library pair auto-generates a reverse question.
+ */
+export function buildPool(items: VocabItem[], scope: NaturalPhrasesScope): PoolEntry[] {
+  // Index ALL non-archived items by term (lowercase) — for partner resolution
+  const termToItem = new Map<string, VocabItem>()
+  for (const item of items) {
+    if (!item.archived) termToItem.set(item.term.toLowerCase(), item)
+  }
+
+  // Scope filter
+  const scopeItems = items.filter(
+    i => !i.archived && (scope === 'full' || i.inFocus || i.weeklyFocus),
+  )
+  const anchorTerms = new Map<string, VocabItem>()
+  for (const item of scopeItems) {
+    anchorTerms.set(item.term.toLowerCase(), item)
+  }
+
+  const entries: PoolEntry[] = []
+  const seen = new Set<string>()  // dedup: `${itemId}::${phraseLower}`
+
+  function addEntry(e: PoolEntry) {
+    const key = `${e.itemId}::${e.phrase.toLowerCase()}`
+    if (seen.has(key)) return
+    seen.add(key)
+    entries.push(e)
+  }
+
+  // 1. Static pairs
+  for (const pair of NATURAL_PHRASE_PAIRS) {
+    const anchorItem = anchorTerms.get(pair.anchor.toLowerCase())
+    if (!anchorItem) continue
+
+    const partnerItem = pair.partnerTerm
+      ? termToItem.get(pair.partnerTerm.toLowerCase())
+      : undefined
+    const isCrossLibrary = !!partnerItem
+
+    addEntry({
+      itemId:          anchorItem.id,
+      term:            anchorItem.term,
+      partOfSpeech:    anchorItem.partOfSpeech,
+      definitionEn:    (anchorItem.definitionEn ?? (anchorItem as any).shortDefinition) as string | undefined,
+      option:          pair.option,
+      position:        pair.position,
+      phrase:          pair.phrase,
+      partnerItemId:   partnerItem?.id,
+      partnerTerm:     pair.partnerTerm,
+      exampleSentence: pair.exampleSentence ?? anchorItem.exampleSentence,
+      isCrossLibrary,
+    })
+
+    // Bidirectional: auto-generate reverse if partnerTerm is also in scope
+    if (isCrossLibrary && pair.partnerTerm) {
+      const partnerInScope = anchorTerms.get(pair.partnerTerm.toLowerCase())
+      if (partnerInScope) {
+        const parsed = parseCollocation(pair.phrase, partnerInScope.term)
+        if (parsed) {
+          addEntry({
+            itemId:          partnerInScope.id,
+            term:            partnerInScope.term,
+            partOfSpeech:    partnerInScope.partOfSpeech,
+            definitionEn:    (partnerInScope.definitionEn ?? (partnerInScope as any).shortDefinition) as string | undefined,
+            option:          parsed.option,
+            position:        parsed.position,
+            phrase:          pair.phrase,
+            partnerItemId:   anchorItem.id,
+            partnerTerm:     anchorItem.term,
+            exampleSentence: pair.exampleSentence ?? partnerInScope.exampleSentence,
+            isCrossLibrary:  true,
+          })
+        }
+      }
+    }
+  }
+
+  // 2. Runtime collocations[] scan — supplement items that appear in static pairs
+  //    or add entries for items that have no static pairs at all
+  for (const item of scopeItems) {
+    for (const coll of item.collocations ?? []) {
+      const parsed = parseCollocation(coll, item.term)
+      if (!parsed) continue
+      addEntry({
+        itemId:          item.id,
+        term:            item.term,
+        partOfSpeech:    item.partOfSpeech,
+        definitionEn:    (item.definitionEn ?? (item as any).shortDefinition) as string | undefined,
+        option:          parsed.option,
+        position:        parsed.position,
+        phrase:          coll,
+        exampleSentence: item.exampleSentence,
+        isCrossLibrary:  false,
+      })
+    }
+  }
+
+  return entries
+}
+
 // ── Question builder ───────────────────────────────────────────────────────────
 
-function buildQuestion(item: VocabItem, pool: VocabItem[]): NaturalPhrasesQuestion | null {
-  // Collect all parseable collocations for this item
-  const valid = (item.collocations ?? [])
-    .map(coll => {
-      const p = parseCollocation(coll, item.term)
-      return p ? { collocation: coll, option: p.option, position: p.position } : null
-    })
-    .filter((x): x is NonNullable<typeof x> => x !== null)
+function buildQuestion(entry: PoolEntry, pool: PoolEntry[]): NaturalPhrasesQuestion | null {
+  const { option, position } = entry
+  const exclude = new Set([option.toLowerCase()])
 
-  if (valid.length === 0) return null
-
-  const { collocation, option, position } = valid[Math.floor(Math.random() * valid.length)]
-  const exclude = new Set([option])
-
-  // Build distractors
   let distractors: string[] = []
 
   if (position === 'before') {
-    // Try verb/prep swap first
     distractors = beforeDistractorsFromSwap(option, 3)
-    distractors.forEach(d => exclude.add(d))
+    distractors.forEach(d => exclude.add(d.toLowerCase()))
   }
 
-  // Fill remaining from pool (works for both positions)
   if (distractors.length < 3) {
-    const extra = distractorsFromPool(item, pool, position, exclude, 3 - distractors.length)
+    const extra = distractorsFromPool(entry, pool, position, exclude, 3 - distractors.length)
     distractors = [...distractors, ...extra]
   }
 
@@ -248,47 +372,46 @@ function buildQuestion(item: VocabItem, pool: VocabItem[]): NaturalPhrasesQuesti
 
   const choices = shuffle([option, ...distractors.slice(0, 3)])
   return {
-    itemId:             item.id,
-    term:               item.term,
-    partOfSpeech:       item.partOfSpeech,
-    definitionEn:       (item.definitionEn ?? (item as any).shortDefinition) as string | undefined,
-    correctCollocation: collocation,
-    optionPosition:     position,
+    itemId:             entry.itemId,
+    term:               entry.term,
+    partOfSpeech:       entry.partOfSpeech,
+    definitionEn:       entry.definitionEn,
+    correctCollocation: entry.phrase,
+    optionPosition:     entry.position,
     choices,
     correctIndex:       choices.indexOf(option),
+    partnerItemId:      entry.partnerItemId,
+    exampleSentence:    entry.exampleSentence,
+    isCrossLibrary:     entry.isCrossLibrary,
   }
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
 
-/** Items with at least one cleanly parseable collocation. */
-export function selectPool(items: VocabItem[], scope: NaturalPhrasesScope): VocabItem[] {
-  const base = items.filter(
-    i => !i.archived &&
-      (i.collocations ?? []).some(c => parseCollocation(c, i.term) !== null),
-  )
-  if (scope === 'focus') {
-    const focused = base.filter(i => i.inFocus || i.weeklyFocus)
-    return focused.length >= 4 ? focused : base
-  }
-  return base
-}
-
 export function countScope(items: VocabItem[], scope: NaturalPhrasesScope): number {
-  return selectPool(items, scope).length
+  const pool = buildPool(items, scope)
+  return new Set(pool.map(e => e.itemId)).size
 }
 
-export function generateBatch(pool: VocabItem[], batchSize: number): NaturalPhrasesQuestion[] {
+/**
+ * Generate a batch of questions from a pool.
+ * Cross-library entries are prioritised; single-library entries fill the rest.
+ */
+export function generateBatch(pool: PoolEntry[], batchSize: number): NaturalPhrasesQuestion[] {
   if (pool.length < 4) return []
-  const shuffled = shuffle(pool)
-  const questions: NaturalPhrasesQuestion[] = []
-  let idx = 0, attempts = 0
-  const max = batchSize * 4
 
-  while (questions.length < batchSize && attempts < max) {
-    const item = shuffled[idx % shuffled.length]
-    idx++; attempts++
-    const q = buildQuestion(item, pool)
+  const crossLib  = shuffle(pool.filter(e => e.isCrossLibrary))
+  const singleLib = shuffle(pool.filter(e => !e.isCrossLibrary))
+  const ordered   = [...crossLib, ...singleLib]
+
+  const questions: NaturalPhrasesQuestion[] = []
+  let idx = 0
+  const max = batchSize * 5
+
+  while (questions.length < batchSize && idx < max) {
+    const entry = ordered[idx % ordered.length]
+    idx++
+    const q = buildQuestion(entry, pool)
     if (q) questions.push(q)
   }
 

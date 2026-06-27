@@ -23,9 +23,9 @@ import { useVocabStore }          from '@/store/vocabStore'
 import { useNaturalPhrasesStore } from '@/store/naturalPhrasesStore'
 import { usePracticeTimer }       from '@/hooks/usePracticeTimer'
 import {
-  selectPool, countScope, generateBatch,
+  buildPool, countScope, generateBatch,
   NATURAL_PHRASES_DURATIONS, NATURAL_PHRASES_DURATION_LABELS,
-  type NaturalPhrasesQuestion, type NaturalPhrasesAttempt,
+  type PoolEntry, type NaturalPhrasesQuestion, type NaturalPhrasesAttempt,
   type NaturalPhrasesScope, type NaturalPhrasesDuration,
 } from '@/lib/naturalPhrasesGame'
 import type { VocabItem } from '@/types/vocabulary'
@@ -38,6 +38,10 @@ interface FeedbackState {
   correct:            boolean
   correctCollocation: string
   selectedIndex:      number
+  exampleSentence?:   string
+  isCrossLibrary:     boolean
+  partnerItemId?:     string
+  partnerTerm?:       string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -157,9 +161,11 @@ function ResultsView({
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const total    = correct + wrong
-  const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0
-  const practiced = new Set(attemptsRef.current.map((a) => a.itemId)).size
+  const total         = correct + wrong
+  const accuracy      = total > 0 ? Math.round((correct / total) * 100) : 0
+  const practiced     = new Set(attemptsRef.current.map((a) => a.itemId)).size
+  const crossLibTotal = attemptsRef.current.filter((a) => a.isCrossLibrary).length
+  const crossLibCorrect = attemptsRef.current.filter((a) => a.isCrossLibrary && a.wasCorrect).length
 
   const allResults     = useNaturalPhrasesStore.getState().results
   const durationHist   = allResults.filter((r) => r.durationSecs === duration)
@@ -211,6 +217,17 @@ function ResultsView({
           <p className="text-3xl font-bold text-slate-700 tabular-nums">{practiced}</p>
           <p className="text-xs text-slate-500 mt-1">Words seen</p>
         </div>
+        {crossLibTotal > 0 && (
+          <div className="col-span-2 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-violet-800">Cross-vocabulary phrases</p>
+              <p className="text-xs text-violet-500 mt-0.5">Questions where both words are in your library</p>
+            </div>
+            <p className="text-2xl font-bold text-violet-700 tabular-nums shrink-0 ml-3">
+              {crossLibCorrect}<span className="text-sm font-normal text-violet-400">/{crossLibTotal}</span>
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Session history */}
@@ -344,6 +361,7 @@ export function NaturalPhrasesPage() {
   const latestStats       = useRef({ correct: 0, wrong: 0 })
   const resultSaved       = useRef(false)
   const effectiveDuration = useRef<NaturalPhrasesDuration>(duration)
+  const poolRef           = useRef<PoolEntry[]>([])
 
   // ── Save result ───────────────────────────────────────────────────────────────
   const saveResult = useCallback((finalCorrect: number, finalWrong: number) => {
@@ -402,11 +420,10 @@ export function NaturalPhrasesPage() {
   useEffect(() => {
     if (phase !== 'playing') return
     if (questions.length - qIndex >= 5) return
-    const pool = selectPool(items, scope)
-    const batch = generateBatch(pool, BATCH_SIZE)
+    const batch = generateBatch(poolRef.current, BATCH_SIZE)
     setQuestions((prev) => [...prev.slice(qIndex), ...batch])
     setQIndex(0)
-  }, [qIndex, questions.length, phase, items, scope])
+  }, [qIndex, questions.length, phase])
 
   // ── Start game ────────────────────────────────────────────────────────────────
   const startGame = useCallback(() => {
@@ -421,8 +438,8 @@ export function NaturalPhrasesPage() {
     setFeedback(null)
     setQIndex(0)
     saveLastSettings(scope, duration)
-    const pool  = selectPool(items, scope)
-    const batch = generateBatch(pool, BATCH_SIZE)
+    poolRef.current = buildPool(items, scope)
+    const batch = generateBatch(poolRef.current, BATCH_SIZE)
     setQuestions(batch)
     setTimeLeft(duration)
     setPhase(batch.length === 0 ? 'results' : 'playing')
@@ -448,6 +465,8 @@ export function NaturalPhrasesPage() {
       givenOption:        q.choices[choiceIndex],
       wasCorrect:         isCorrect,
       optionPosition:     q.optionPosition,
+      isCrossLibrary:     q.isCrossLibrary,
+      partnerItemId:      q.partnerItemId,
     })
 
     if (soundOn) { isCorrect ? playCorrectSound() : playWrongSound() }
@@ -458,12 +477,24 @@ export function NaturalPhrasesPage() {
         gainedExposureRef.current.add(q.itemId)
         void recordExposure(q.itemId, true)
       }
+      // Award exposure to the partner library word too
+      if (q.isCrossLibrary && q.partnerItemId && !gainedExposureRef.current.has(q.partnerItemId)) {
+        gainedExposureRef.current.add(q.partnerItemId)
+        void recordExposure(q.partnerItemId, true)
+      }
     } else {
       setWrong((w) => { latestStats.current.wrong = w + 1; return w + 1 })
     }
 
     practiceTimer.bump({ advancement: isCorrect ? 1 : 0, itemId: q.itemId })
-    setFeedback({ correct: isCorrect, correctCollocation: q.correctCollocation, selectedIndex: choiceIndex })
+    setFeedback({
+      correct:            isCorrect,
+      correctCollocation: q.correctCollocation,
+      selectedIndex:      choiceIndex,
+      exampleSentence:    q.exampleSentence,
+      isCrossLibrary:     q.isCrossLibrary,
+      partnerItemId:      q.partnerItemId,
+    })
     setPhase('feedback')
   }, [phase, questions, qIndex, soundOn, recordExposure, practiceTimer])
 
@@ -651,8 +682,9 @@ export function NaturalPhrasesPage() {
         {/* What to expect */}
         <div className="mb-6 space-y-1.5 text-xs text-slate-400">
           <p>· A word is shown — pick the phrase that uses it naturally</p>
-          <p>· <span className="font-mono text-slate-500">… option</span> means the word comes first (e.g. <span className="font-mono">collate … data</span>)</p>
-          <p>· <span className="font-mono text-slate-500">option …</span> means the word comes after (e.g. <span className="font-mono">make a … decision</span>)</p>
+          <p>· <span className="font-mono text-slate-500">… option</span> means the word comes first (e.g. <span className="font-mono">overcome … adversity</span>)</p>
+          <p>· <span className="font-mono text-slate-500">option …</span> means the word comes after (e.g. <span className="font-mono">maintain … vigilance</span>)</p>
+          <p>· Many phrases pair two vocabulary words — answering correctly trains both</p>
           <p>· Wrong options are real learner mistakes — wrong verb, wrong preposition</p>
           <p>· First correct answer per word adds one exposure</p>
           <p>· Press <kbd className="font-mono bg-slate-100 border border-slate-300 rounded px-1 py-0.5 text-slate-600">1</kbd>–<kbd className="font-mono bg-slate-100 border border-slate-300 rounded px-1 py-0.5 text-slate-600">4</kbd> to answer · <kbd className="font-mono bg-slate-100 border border-slate-300 rounded px-1 py-0.5 text-slate-600">Esc</kbd> to end</p>
@@ -768,8 +800,15 @@ export function NaturalPhrasesPage() {
         {/* Feedback banner */}
         {phase === 'feedback' && feedback && (
           feedback.correct ? (
-            <div className="flex items-center gap-2 mt-4 text-sm font-semibold rounded-xl px-3 py-2 bg-emerald-100 text-emerald-700">
-              <CheckCircle2 size={16} /> Correct!
+            <div className="mt-4 rounded-xl bg-emerald-100 text-emerald-700">
+              <div className="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold">
+                <CheckCircle2 size={16} /> Correct!
+              </div>
+              {feedback.isCrossLibrary && (
+                <p className="px-3 pb-2.5 text-xs text-emerald-600">
+                  You practised two vocabulary words at once.
+                </p>
+              )}
             </div>
           ) : (
             <div className="mt-4 rounded-xl bg-rose-100 text-rose-800">
@@ -777,6 +816,16 @@ export function NaturalPhrasesPage() {
                 <XCircle size={16} className="shrink-0 mt-0.5" />
                 <span>The natural phrase is: <strong>{feedback.correctCollocation}</strong></span>
               </div>
+              {feedback.exampleSentence && (
+                <p className="px-3 pb-1.5 text-xs text-rose-700 italic leading-relaxed">
+                  "{feedback.exampleSentence}"
+                </p>
+              )}
+              {feedback.isCrossLibrary && (
+                <p className="px-3 pb-2 text-xs text-rose-600">
+                  Both words are in your vocabulary — practice them together.
+                </p>
+              )}
               <button
                 onClick={advanceToNext}
                 className="w-full py-2.5 text-sm font-bold text-rose-700 border-t border-rose-200 hover:bg-rose-200 active:bg-rose-300 transition-colors rounded-b-xl"
