@@ -896,9 +896,9 @@ export function NaturalPhrasesPage() {
           ? items.find((i) => i.id === feedback.partnerItemId)
           : undefined
         return (
-          <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowExplore(false)}>
+          <div className="fixed inset-0 z-50 flex items-end justify-center pb-16 md:pb-0" onClick={() => setShowExplore(false)}>
             <div
-              className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl px-5 pt-5 pb-10"
+              className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl px-5 pt-5 pb-6 max-h-[75vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Phrase headline */}
