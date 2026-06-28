@@ -399,7 +399,7 @@ function ResultsView({
   effectiveDuration, scope,
   wordsGainedExposureRef, wordAttemptsRef, resultSavedRef,
   items, addToFocus, addedToFocusIds, setAddedToFocusIds,
-  startGame, clearReview, navigate, setPhase,
+  startGame, clearReview, navigate, setPhase, setResults,
 }: {
   correct:                number
   wrong:                  number
@@ -418,8 +418,10 @@ function ResultsView({
   clearReview:            () => void
   navigate:               ReturnType<typeof useNavigate>
   setPhase:               React.Dispatch<React.SetStateAction<Phase>>
+  setResults:             (results: SpeedGameResult[]) => void
 }) {
   const [selectedWordId, setSelectedWordId] = useState<string | null>(null)
+  const [confirmClear, setConfirmClear]     = useState(false)
 
   const total      = correct + wrong
   const accuracy   = total > 0 ? Math.round((correct / total) * 100) : 0
@@ -537,6 +539,27 @@ function ResultsView({
         currentSessionId={currentSessionId}
         durationLabel={durationLabel}
       />
+      {durationHistory.length > 1 && (
+        <div className="flex justify-end mb-4 -mt-2">
+          {confirmClear ? (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500">Clear all {durationLabel} history?</span>
+              <button
+                onClick={() => {
+                  setResults(allResults.filter((r) => r.durationSecs !== effectiveDuration))
+                  setConfirmClear(false)
+                }}
+                className="text-rose-600 font-semibold hover:text-rose-700"
+              >Yes, clear</button>
+              <button onClick={() => setConfirmClear(false)} className="text-slate-400 hover:text-slate-600">Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setConfirmClear(true)} className="text-xs text-slate-400 hover:text-rose-500 transition-colors">
+              Clear history
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Exposure gain note */}
       {gained > 0 && (
@@ -682,7 +705,7 @@ function ResultsView({
 export function SpeedGamePage() {
   const navigate                              = useNavigate()
   const { items, recordExposure, addToFocus } = useVocabStore()
-  const { addResult, setReview, clearReview, saveLastSettings } = useSpeedGameStore()
+  const { addResult, setReview, clearReview, saveLastSettings, setResults } = useSpeedGameStore()
   const pastResults   = useSpeedGameStore((s) => s.results)
   const practiceTimer = usePracticeTimer('speed-game')
 
@@ -945,6 +968,7 @@ export function SpeedGamePage() {
         clearReview={clearReview}
         navigate={navigate}
         setPhase={setPhase}
+        setResults={setResults}
       />
     )
   }
