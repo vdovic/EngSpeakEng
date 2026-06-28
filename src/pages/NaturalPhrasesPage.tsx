@@ -35,13 +35,20 @@ import type { VocabItem } from '@/types/vocabulary'
 type Phase = 'setup' | 'playing' | 'paused' | 'feedback' | 'results'
 
 interface FeedbackState {
-  correct:            boolean
-  correctCollocation: string
-  selectedIndex:      number
-  exampleSentence?:   string
-  isCrossLibrary:     boolean
-  partnerItemId?:     string
-  partnerTerm?:       string
+  correct:             boolean
+  correctCollocation:  string
+  selectedIndex:       number
+  isCrossLibrary:      boolean
+  // Explore-panel data — fully captured at answer time, no runtime lookups needed
+  anchorItemId:        string
+  anchorTerm:          string
+  anchorPartOfSpeech?: string
+  anchorDef?:          string
+  exampleSentence?:    string
+  partnerItemId?:      string
+  partnerTerm?:        string
+  partnerPartOfSpeech?: string
+  partnerDef?:         string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -489,16 +496,29 @@ export function NaturalPhrasesPage() {
     }
 
     practiceTimer.bump({ advancement: isCorrect ? 1 : 0, itemId: q.itemId })
+
+    // Capture explore-panel data at answer time so the overlay never needs
+    // to look up items[] or depend on q being stable during render.
+    const anchorItem  = items.find((i) => i.id === q.itemId)
+    const partnerItem = q.partnerItemId ? items.find((i) => i.id === q.partnerItemId) : undefined
+
     setFeedback({
-      correct:            isCorrect,
-      correctCollocation: q.correctCollocation,
-      selectedIndex:      choiceIndex,
-      exampleSentence:    q.exampleSentence,
-      isCrossLibrary:     q.isCrossLibrary,
-      partnerItemId:      q.partnerItemId,
+      correct:              isCorrect,
+      correctCollocation:   q.correctCollocation,
+      selectedIndex:        choiceIndex,
+      isCrossLibrary:       q.isCrossLibrary,
+      anchorItemId:         q.itemId,
+      anchorTerm:           q.term,
+      anchorPartOfSpeech:   q.partOfSpeech,
+      anchorDef:            anchorItem?.definitionEn ?? (anchorItem as any)?.shortDefinition,
+      exampleSentence:      q.exampleSentence ?? anchorItem?.exampleSentence,
+      partnerItemId:        q.partnerItemId,
+      partnerTerm:          partnerItem?.term,
+      partnerPartOfSpeech:  partnerItem?.partOfSpeech,
+      partnerDef:           partnerItem?.definitionEn ?? (partnerItem as any)?.shortDefinition,
     })
     setPhase('feedback')
-  }, [phase, questions, qIndex, soundOn, recordExposure, practiceTimer])
+  }, [phase, questions, qIndex, soundOn, recordExposure, practiceTimer, items])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -890,73 +910,70 @@ export function NaturalPhrasesPage() {
       )}
 
       {/* Explore phrase overlay — shown after a wrong answer */}
-      {showExplore && feedback && (() => {
-        const anchorItem = items.find((i) => i.id === q.itemId)
-        const partnerItem = feedback.partnerItemId
-          ? items.find((i) => i.id === feedback.partnerItemId)
-          : undefined
-        return (
-          <div className="fixed inset-0 z-50 flex items-end justify-center pb-16 md:pb-0" onClick={() => setShowExplore(false)}>
-            <div
-              className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl px-5 pt-5 pb-6 max-h-[75vh] overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Phrase headline */}
-              <p className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider mb-1">Natural phrase</p>
-              <p className="text-2xl font-bold text-slate-900 mb-4">{feedback.correctCollocation}</p>
+      {showExplore && feedback && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center pb-16 md:pb-0"
+          onClick={() => setShowExplore(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-t-2xl shadow-2xl px-5 pt-5 pb-6 max-h-[75vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Phrase headline */}
+            <p className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider mb-1">Natural phrase</p>
+            <p className="text-2xl font-bold text-slate-900 mb-4">{feedback.correctCollocation}</p>
 
-              {/* Anchor word */}
-              <div className="mb-3">
+            {/* Anchor word */}
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-slate-500 mb-0.5">
+                {feedback.anchorTerm}{feedback.anchorPartOfSpeech ? ` · ${feedback.anchorPartOfSpeech}` : ''}
+              </p>
+              {feedback.anchorDef && (
+                <p className="text-sm text-slate-700 leading-relaxed">{feedback.anchorDef}</p>
+              )}
+            </div>
+
+            {/* Partner word (cross-library) */}
+            {feedback.partnerTerm && (
+              <div className="mb-3 pl-3 border-l-2 border-violet-200">
                 <p className="text-xs font-semibold text-slate-500 mb-0.5">
-                  {q.term}{q.partOfSpeech ? ` · ${q.partOfSpeech}` : ''}
+                  {feedback.partnerTerm}{feedback.partnerPartOfSpeech ? ` · ${feedback.partnerPartOfSpeech}` : ''}
+                  <span className="ml-1.5 text-violet-500 font-normal">also in your vocabulary</span>
                 </p>
-                {anchorItem?.definitionEn && (
-                  <p className="text-sm text-slate-700 leading-relaxed">{anchorItem.definitionEn}</p>
+                {feedback.partnerDef && (
+                  <p className="text-sm text-slate-700 leading-relaxed">{feedback.partnerDef}</p>
                 )}
               </div>
+            )}
 
-              {/* Partner word (cross-library) */}
-              {partnerItem && (
-                <div className="mb-3 pl-3 border-l-2 border-violet-200">
-                  <p className="text-xs font-semibold text-slate-500 mb-0.5">
-                    {partnerItem.term}{partnerItem.partOfSpeech ? ` · ${partnerItem.partOfSpeech}` : ''}
-                    <span className="ml-1.5 text-violet-500 font-normal">also in your vocabulary</span>
-                  </p>
-                  {partnerItem.definitionEn && (
-                    <p className="text-sm text-slate-700 leading-relaxed">{partnerItem.definitionEn}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Example sentence */}
-              {(feedback.exampleSentence ?? anchorItem?.exampleSentence) && (
-                <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                  <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider mb-1">Example</p>
-                  <p className="text-sm text-amber-900 leading-relaxed italic">
-                    "{feedback.exampleSentence ?? anchorItem?.exampleSentence}"
-                  </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex gap-2.5">
-                <button
-                  onClick={() => { navigate(`/item/${q.itemId}`); setShowExplore(false) }}
-                  className="flex-1 py-3 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <ExternalLink size={13} /> Full detail
-                </button>
-                <button
-                  onClick={advanceToNext}
-                  className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors"
-                >
-                  Back to game →
-                </button>
+            {/* Example sentence */}
+            {feedback.exampleSentence && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <p className="text-[10px] font-semibold text-amber-500 uppercase tracking-wider mb-1">Example</p>
+                <p className="text-sm text-amber-900 leading-relaxed italic">
+                  "{feedback.exampleSentence}"
+                </p>
               </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => { navigate(`/item/${feedback.anchorItemId}`); setShowExplore(false) }}
+                className="flex-1 py-3 border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <ExternalLink size={13} /> Full detail
+              </button>
+              <button
+                onClick={advanceToNext}
+                className="flex-1 py-3 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-colors"
+              >
+                Back to game →
+              </button>
             </div>
           </div>
-        )
-      })()}
+        </div>
+      )}
     </div>
   )
 }
