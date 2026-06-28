@@ -30,14 +30,17 @@ import { NATURAL_PHRASE_PAIRS } from '@/data/naturalPhrasesData'
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type NaturalPhrasesScope    = 'focus' | 'full'
-export type NaturalPhrasesDuration = 60 | 120 | 180
+export type NaturalPhrasesDuration = 60 | 120 | 180 | 300 | 420 | 600
 
-export const NATURAL_PHRASES_DURATIONS: NaturalPhrasesDuration[] = [60, 120, 180]
+export const NATURAL_PHRASES_DURATIONS: NaturalPhrasesDuration[] = [60, 120, 180, 300, 420, 600]
 
 export const NATURAL_PHRASES_DURATION_LABELS: Record<NaturalPhrasesDuration, string> = {
   60:  '1 min',
   120: '2 min',
   180: '3 min',
+  300: '5 min',
+  420: '7 min',
+  600: '10 min',
 }
 
 /** Internal pool unit — one potential question source. */

@@ -26,7 +26,7 @@ import {
   buildPool, countScope, generateBatch,
   NATURAL_PHRASES_DURATIONS, NATURAL_PHRASES_DURATION_LABELS,
   type PoolEntry, type NaturalPhrasesQuestion, type NaturalPhrasesAttempt,
-  type NaturalPhrasesScope, type NaturalPhrasesDuration,
+  type NaturalPhrasesScope, type NaturalPhrasesDuration, type NaturalPhrasesResult,
 } from '@/lib/naturalPhrasesGame'
 import type { VocabItem } from '@/types/vocabulary'
 
@@ -147,6 +147,73 @@ function MissedList({
   )
 }
 
+// ── SessionHistoryTable ────────────────────────────────────────────────────────
+
+const HISTORY_COLLAPSED = 6
+
+function SessionHistoryTable({
+  results, currentSessionId, durationLabel,
+}: {
+  results:          NaturalPhrasesResult[]
+  currentSessionId: string | undefined
+  durationLabel:    string
+}) {
+  const [showAll, setShowAll] = useState(false)
+  if (results.length === 0) return null
+
+  const best    = Math.max(...results.map((r) => r.correct))
+  const isRecord = (r: NaturalPhrasesResult) => r.correct === best
+  const shown   = showAll ? results : results.slice(0, HISTORY_COLLAPSED)
+  const hidden  = results.length - HISTORY_COLLAPSED
+
+  return (
+    <div className="mb-4">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+        {durationLabel} — all sessions
+      </p>
+      <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
+        {shown.map((r) => {
+          const isCurrent = r.id === currentSessionId
+          const rec       = isRecord(r)
+          return (
+            <div key={r.id} className={`flex items-center gap-3 px-4 py-2.5 text-xs ${rec ? 'bg-amber-50' : isCurrent ? 'bg-slate-50' : ''}`}>
+              <div className="flex-1 min-w-0">
+                {isCurrent ? (
+                  <span className="font-semibold text-amber-600">This session</span>
+                ) : (
+                  <>
+                    <span className="text-slate-700 font-medium">
+                      {new Date(r.playedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    </span>
+                    <span className="text-slate-400 ml-1.5">
+                      {new Date(r.playedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </>
+                )}
+              </div>
+              <span className={`font-semibold tabular-nums w-8 text-right ${rec ? 'text-amber-700' : 'text-emerald-600'}`}>
+                {r.correct}✓
+              </span>
+              <span className="text-slate-500 tabular-nums w-8 text-right">{r.accuracy}%</span>
+              {rec
+                ? <span className="text-[10px] font-bold text-amber-600 shrink-0 w-8 text-right">best</span>
+                : <span className="w-8 shrink-0" />}
+            </div>
+          )
+        })}
+        {!showAll && hidden > 0 && (
+          <button
+            onClick={() => setShowAll(true)}
+            className="w-full py-2 text-xs text-slate-400 hover:text-slate-600 transition-colors bg-white"
+          >
+            Show {hidden} more
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── ResultsView ────────────────────────────────────────────────────────────────
 
 function ResultsView({
@@ -238,29 +305,11 @@ function ResultsView({
       </div>
 
       {/* Session history */}
-      {durationHist.length > 0 && (
-        <div className="mb-4 border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-2 border-b border-slate-100">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-              {durationLabel} — all sessions
-            </p>
-          </div>
-          {durationHist.slice(0, 8).map((r, i) => (
-            <div key={r.id} className={`flex items-center gap-3 px-4 py-2.5 text-xs ${i > 0 ? 'border-t border-slate-50' : ''}`}>
-              <div className="flex-1 min-w-0">
-                <span className="text-slate-700 font-medium">
-                  {new Date(r.playedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                </span>
-                <span className="text-slate-400 ml-1.5">
-                  {new Date(r.playedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-              <span className="font-semibold text-emerald-600 tabular-nums">{r.correct}✓</span>
-              <span className="text-slate-400 tabular-nums">{r.accuracy}%</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <SessionHistoryTable
+        results={durationHist}
+        currentSessionId={durationHist[0]?.id}
+        durationLabel={durationLabel}
+      />
 
       {/* Missed phrases */}
       <MissedList
