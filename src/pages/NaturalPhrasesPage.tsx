@@ -29,6 +29,7 @@ import {
   type NaturalPhrasesScope, type NaturalPhrasesDuration, type NaturalPhrasesResult,
 } from '@/lib/naturalPhrasesGame'
 import type { VocabItem } from '@/types/vocabulary'
+import { PHRASE_EXPLANATIONS } from '@/data/naturalPhrasesData'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -40,15 +41,12 @@ interface FeedbackState {
   selectedIndex:       number
   isCrossLibrary:      boolean
   // Explore-panel data — fully captured at answer time, no runtime lookups needed
-  anchorItemId:        string
-  anchorTerm:          string
-  anchorPartOfSpeech?: string
-  anchorDef?:          string
-  exampleSentence?:    string
-  partnerItemId?:      string
-  partnerTerm?:        string
-  partnerPartOfSpeech?: string
-  partnerDef?:         string
+  anchorItemId:         string
+  anchorTerm:           string
+  phraseExplanation?:   string
+  exampleSentence?:     string
+  partnerItemId?:       string
+  partnerTerm?:         string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -552,19 +550,16 @@ export function NaturalPhrasesPage() {
     const partnerItem = q.partnerItemId ? items.find((i) => i.id === q.partnerItemId) : undefined
 
     setFeedback({
-      correct:              isCorrect,
-      correctCollocation:   q.correctCollocation,
-      selectedIndex:        choiceIndex,
-      isCrossLibrary:       q.isCrossLibrary,
-      anchorItemId:         q.itemId,
-      anchorTerm:           q.term,
-      anchorPartOfSpeech:   q.partOfSpeech,
-      anchorDef:            anchorItem?.definitionEn ?? (anchorItem as any)?.shortDefinition,
-      exampleSentence:      q.exampleSentence ?? anchorItem?.exampleSentence,
-      partnerItemId:        q.partnerItemId,
-      partnerTerm:          partnerItem?.term,
-      partnerPartOfSpeech:  partnerItem?.partOfSpeech,
-      partnerDef:           partnerItem?.definitionEn ?? (partnerItem as any)?.shortDefinition,
+      correct:            isCorrect,
+      correctCollocation: q.correctCollocation,
+      selectedIndex:      choiceIndex,
+      isCrossLibrary:     q.isCrossLibrary,
+      anchorItemId:       q.itemId,
+      anchorTerm:         q.term,
+      phraseExplanation:  PHRASE_EXPLANATIONS[q.correctCollocation.toLowerCase()],
+      exampleSentence:    q.exampleSentence ?? anchorItem?.exampleSentence,
+      partnerItemId:      q.partnerItemId,
+      partnerTerm:        partnerItem?.term,
     })
     setPhase('feedback')
   }, [phase, questions, qIndex, soundOn, recordExposure, practiceTimer, items])
@@ -970,29 +965,22 @@ export function NaturalPhrasesPage() {
           >
             {/* Phrase headline */}
             <p className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider mb-1">Natural phrase</p>
-            <p className="text-2xl font-bold text-slate-900 mb-4">{feedback.correctCollocation}</p>
+            <p className="text-2xl font-bold text-slate-900 mb-3">{feedback.correctCollocation}</p>
 
-            {/* Anchor word */}
-            <div className="mb-3">
-              <p className="text-xs font-semibold text-slate-500 mb-0.5">
-                {feedback.anchorTerm}{feedback.anchorPartOfSpeech ? ` · ${feedback.anchorPartOfSpeech}` : ''}
+            {/* Phrase-level explanation */}
+            {feedback.phraseExplanation ? (
+              <p className="text-base text-slate-700 leading-relaxed mb-4">{feedback.phraseExplanation}</p>
+            ) : (
+              <p className="text-sm text-slate-400 italic mb-4">
+                {feedback.anchorTerm} + {feedback.partnerTerm ?? '…'}
               </p>
-              {feedback.anchorDef && (
-                <p className="text-sm text-slate-700 leading-relaxed">{feedback.anchorDef}</p>
-              )}
-            </div>
+            )}
 
-            {/* Partner word (cross-library) */}
+            {/* Cross-library note */}
             {feedback.partnerTerm && (
-              <div className="mb-3 pl-3 border-l-2 border-violet-200">
-                <p className="text-xs font-semibold text-slate-500 mb-0.5">
-                  {feedback.partnerTerm}{feedback.partnerPartOfSpeech ? ` · ${feedback.partnerPartOfSpeech}` : ''}
-                  <span className="ml-1.5 text-violet-500 font-normal">also in your vocabulary</span>
-                </p>
-                {feedback.partnerDef && (
-                  <p className="text-sm text-slate-700 leading-relaxed">{feedback.partnerDef}</p>
-                )}
-              </div>
+              <p className="text-xs text-violet-500 font-medium mb-3">
+                Both <span className="font-semibold">{feedback.anchorTerm}</span> and <span className="font-semibold">{feedback.partnerTerm}</span> are in your vocabulary
+              </p>
             )}
 
             {/* Example sentence */}
