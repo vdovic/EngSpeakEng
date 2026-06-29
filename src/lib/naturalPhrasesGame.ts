@@ -54,11 +54,7 @@ export interface PoolEntry {
   position:         'before' | 'after'
   /** The full collocation phrase. */
   phrase:           string
-  /** Set when the completing option contains another library word. */
-  partnerItemId?:   string
-  partnerTerm?:     string
   exampleSentence?: string
-  isCrossLibrary:   boolean
 }
 
 export interface NaturalPhrasesQuestion {
@@ -73,10 +69,7 @@ export interface NaturalPhrasesQuestion {
   /** The collocating part only — 4 items. */
   choices:            string[]
   correctIndex:       number
-  /** Set when the correct answer involves another library word. */
-  partnerItemId?:     string
   exampleSentence?:   string
-  isCrossLibrary:     boolean
 }
 
 export interface NaturalPhrasesAttempt {
@@ -87,8 +80,6 @@ export interface NaturalPhrasesAttempt {
   givenOption:        string
   wasCorrect:         boolean
   optionPosition:     'before' | 'after'
-  isCrossLibrary:     boolean
-  partnerItemId?:     string
 }
 
 export interface NaturalPhrasesResult {
@@ -250,20 +241,10 @@ function distractorsFromPool(
 // ── Pool builder ───────────────────────────────────────────────────────────────
 
 /**
- * Build the unified pool from static cross-library pairs + runtime collocations.
- *
- * Priority: static NATURAL_PHRASE_PAIRS first (cross-library when possible),
- * then item.collocations[] scan as fallback / supplement.
- * Bidirectional: each cross-library pair auto-generates a reverse question.
+ * Build the pool from static NATURAL_PHRASE_PAIRS + runtime item.collocations[].
+ * Static file is the primary curated source; collocations[] adds supplementary coverage.
  */
 export function buildPool(items: VocabItem[], scope: NaturalPhrasesScope): PoolEntry[] {
-  // Index ALL non-archived items by term (lowercase) — for partner resolution
-  const termToItem = new Map<string, VocabItem>()
-  for (const item of items) {
-    if (!item.archived) termToItem.set(item.term.toLowerCase(), item)
-  }
-
-  // Scope filter
   const scopeItems = items.filter(
     i => !i.archived && (scope === 'full' || i.inFocus || i.weeklyFocus),
   )
@@ -273,7 +254,7 @@ export function buildPool(items: VocabItem[], scope: NaturalPhrasesScope): PoolE
   }
 
   const entries: PoolEntry[] = []
-  const seen = new Set<string>()  // dedup: `${itemId}::${phraseLower}`
+  const seen = new Set<string>()  // dedup key: `${itemId}::${phraseLower}`
 
   function addEntry(e: PoolEntry) {
     const key = `${e.itemId}::${e.phrase.toLowerCase()}`
@@ -282,16 +263,10 @@ export function buildPool(items: VocabItem[], scope: NaturalPhrasesScope): PoolE
     entries.push(e)
   }
 
-  // 1. Static pairs
+  // 1. Static curated pairs
   for (const pair of NATURAL_PHRASE_PAIRS) {
     const anchorItem = anchorTerms.get(pair.anchor.toLowerCase())
     if (!anchorItem) continue
-
-    const partnerItem = pair.partnerTerm
-      ? termToItem.get(pair.partnerTerm.toLowerCase())
-      : undefined
-    const isCrossLibrary = !!partnerItem
-
     addEntry({
       itemId:          anchorItem.id,
       term:            anchorItem.term,
@@ -300,38 +275,11 @@ export function buildPool(items: VocabItem[], scope: NaturalPhrasesScope): PoolE
       option:          pair.option,
       position:        pair.position,
       phrase:          pair.phrase,
-      partnerItemId:   partnerItem?.id,
-      partnerTerm:     pair.partnerTerm,
       exampleSentence: pair.exampleSentence ?? anchorItem.exampleSentence,
-      isCrossLibrary,
     })
-
-    // Bidirectional: auto-generate reverse if partnerTerm is also in scope
-    if (isCrossLibrary && pair.partnerTerm) {
-      const partnerInScope = anchorTerms.get(pair.partnerTerm.toLowerCase())
-      if (partnerInScope) {
-        const parsed = parseCollocation(pair.phrase, partnerInScope.term)
-        if (parsed) {
-          addEntry({
-            itemId:          partnerInScope.id,
-            term:            partnerInScope.term,
-            partOfSpeech:    partnerInScope.partOfSpeech,
-            definitionEn:    (partnerInScope.definitionEn ?? (partnerInScope as any).shortDefinition) as string | undefined,
-            option:          parsed.option,
-            position:        parsed.position,
-            phrase:          pair.phrase,
-            partnerItemId:   anchorItem.id,
-            partnerTerm:     anchorItem.term,
-            exampleSentence: pair.exampleSentence ?? partnerInScope.exampleSentence,
-            isCrossLibrary:  true,
-          })
-        }
-      }
-    }
   }
 
-  // 2. Runtime collocations[] scan — supplement items that appear in static pairs
-  //    or add entries for items that have no static pairs at all
+  // 2. Runtime collocations[] scan — supplementary coverage
   for (const item of scopeItems) {
     for (const coll of item.collocations ?? []) {
       const parsed = parseCollocation(coll, item.term)
@@ -345,7 +293,6 @@ export function buildPool(items: VocabItem[], scope: NaturalPhrasesScope): PoolE
         position:        parsed.position,
         phrase:          coll,
         exampleSentence: item.exampleSentence,
-        isCrossLibrary:  false,
       })
     }
   }
@@ -383,9 +330,7 @@ function buildQuestion(entry: PoolEntry, pool: PoolEntry[]): NaturalPhrasesQuest
     optionPosition:     entry.position,
     choices,
     correctIndex:       choices.indexOf(option),
-    partnerItemId:      entry.partnerItemId,
     exampleSentence:    entry.exampleSentence,
-    isCrossLibrary:     entry.isCrossLibrary,
   }
 }
 
@@ -396,17 +341,10 @@ export function countScope(items: VocabItem[], scope: NaturalPhrasesScope): numb
   return new Set(pool.map(e => e.itemId)).size
 }
 
-/**
- * Generate a batch of questions from a pool.
- * Cross-library entries are prioritised; single-library entries fill the rest.
- */
 export function generateBatch(pool: PoolEntry[], batchSize: number): NaturalPhrasesQuestion[] {
   if (pool.length < 4) return []
 
-  const crossLib  = shuffle(pool.filter(e => e.isCrossLibrary))
-  const singleLib = shuffle(pool.filter(e => !e.isCrossLibrary))
-  const ordered   = [...crossLib, ...singleLib]
-
+  const ordered = shuffle(pool)
   const questions: NaturalPhrasesQuestion[] = []
   let idx = 0
   const max = batchSize * 5
