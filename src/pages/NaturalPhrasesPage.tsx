@@ -39,14 +39,11 @@ interface FeedbackState {
   correct:             boolean
   correctCollocation:  string
   selectedIndex:       number
-  isCrossLibrary:      boolean
   // Explore-panel data — fully captured at answer time, no runtime lookups needed
   anchorItemId:         string
   anchorTerm:           string
   phraseExplanation?:   string
   exampleSentence?:     string
-  partnerItemId?:       string
-  partnerTerm?:         string
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -236,9 +233,6 @@ function ResultsView({
   const total         = correct + wrong
   const accuracy      = total > 0 ? Math.round((correct / total) * 100) : 0
   const practiced     = new Set(attemptsRef.current.map((a) => a.itemId)).size
-  const crossLibTotal = attemptsRef.current.filter((a) => a.isCrossLibrary).length
-  const crossLibCorrect = attemptsRef.current.filter((a) => a.isCrossLibrary && a.wasCorrect).length
-
   const allResults     = useNaturalPhrasesStore.getState().results
   const durationHist   = allResults.filter((r) => r.durationSecs === duration)
   const prevBest       = durationHist.length > 1
@@ -289,17 +283,6 @@ function ResultsView({
           <p className="text-3xl font-bold text-slate-700 tabular-nums">{practiced}</p>
           <p className="text-xs text-slate-500 mt-1">Words seen</p>
         </div>
-        {crossLibTotal > 0 && (
-          <div className="col-span-2 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-violet-800">Cross-vocabulary phrases</p>
-              <p className="text-xs text-violet-500 mt-0.5">Questions where both words are in your library</p>
-            </div>
-            <p className="text-2xl font-bold text-violet-700 tabular-nums shrink-0 ml-3">
-              {crossLibCorrect}<span className="text-sm font-normal text-violet-400">/{crossLibTotal}</span>
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Session history */}
@@ -521,8 +504,6 @@ export function NaturalPhrasesPage() {
       givenOption:        q.choices[choiceIndex],
       wasCorrect:         isCorrect,
       optionPosition:     q.optionPosition,
-      isCrossLibrary:     q.isCrossLibrary,
-      partnerItemId:      q.partnerItemId,
     })
 
     if (soundOn) { isCorrect ? playCorrectSound() : playWrongSound() }
@@ -533,11 +514,6 @@ export function NaturalPhrasesPage() {
         gainedExposureRef.current.add(q.itemId)
         void recordExposure(q.itemId, true)
       }
-      // Award exposure to the partner library word too
-      if (q.isCrossLibrary && q.partnerItemId && !gainedExposureRef.current.has(q.partnerItemId)) {
-        gainedExposureRef.current.add(q.partnerItemId)
-        void recordExposure(q.partnerItemId, true)
-      }
     } else {
       setWrong((w) => { latestStats.current.wrong = w + 1; return w + 1 })
     }
@@ -546,20 +522,16 @@ export function NaturalPhrasesPage() {
 
     // Capture explore-panel data at answer time so the overlay never needs
     // to look up items[] or depend on q being stable during render.
-    const anchorItem  = items.find((i) => i.id === q.itemId)
-    const partnerItem = q.partnerItemId ? items.find((i) => i.id === q.partnerItemId) : undefined
+    const anchorItem = items.find((i) => i.id === q.itemId)
 
     setFeedback({
       correct:            isCorrect,
       correctCollocation: q.correctCollocation,
       selectedIndex:      choiceIndex,
-      isCrossLibrary:     q.isCrossLibrary,
       anchorItemId:       q.itemId,
       anchorTerm:         q.term,
       phraseExplanation:  PHRASE_EXPLANATIONS[q.correctCollocation.toLowerCase()],
       exampleSentence:    q.exampleSentence ?? anchorItem?.exampleSentence,
-      partnerItemId:      q.partnerItemId,
-      partnerTerm:        partnerItem?.term,
     })
     setPhase('feedback')
   }, [phase, questions, qIndex, soundOn, recordExposure, practiceTimer, items])
@@ -870,11 +842,6 @@ export function NaturalPhrasesPage() {
               <div className="flex items-center gap-2 px-3 py-2.5 text-sm font-semibold">
                 <CheckCircle2 size={16} /> Correct!
               </div>
-              {feedback.isCrossLibrary && (
-                <p className="px-3 pb-2.5 text-xs text-emerald-600">
-                  You practised two vocabulary words at once.
-                </p>
-              )}
             </div>
           ) : (
             <div className="mt-4 rounded-xl bg-rose-100 text-rose-800">
@@ -882,11 +849,6 @@ export function NaturalPhrasesPage() {
                 <XCircle size={16} className="shrink-0 mt-0.5" />
                 <span>The natural phrase is: <strong>{feedback.correctCollocation}</strong></span>
               </div>
-              {feedback.isCrossLibrary && (
-                <p className="px-3 pb-2 text-xs text-rose-600">
-                  Both words are in your vocabulary — practice them together.
-                </p>
-              )}
               <div className="flex border-t border-rose-200">
                 <button
                   onClick={() => setShowExplore(true)}
@@ -968,19 +930,8 @@ export function NaturalPhrasesPage() {
             <p className="text-2xl font-bold text-slate-900 mb-3">{feedback.correctCollocation}</p>
 
             {/* Phrase-level explanation */}
-            {feedback.phraseExplanation ? (
+            {feedback.phraseExplanation && (
               <p className="text-base text-slate-700 leading-relaxed mb-4">{feedback.phraseExplanation}</p>
-            ) : (
-              <p className="text-sm text-slate-400 italic mb-4">
-                {feedback.anchorTerm} + {feedback.partnerTerm ?? '…'}
-              </p>
-            )}
-
-            {/* Cross-library note */}
-            {feedback.partnerTerm && (
-              <p className="text-xs text-violet-500 font-medium mb-3">
-                Both <span className="font-semibold">{feedback.anchorTerm}</span> and <span className="font-semibold">{feedback.partnerTerm}</span> are in your vocabulary
-              </p>
             )}
 
             {/* Example sentence */}
