@@ -780,7 +780,184 @@ export const NATURAL_PHRASE_PAIRS: NaturalPhrasePair[] = [
   { anchor: 'craving', option: 'irresistible',    position: 'before', phrase: 'irresistible craving' },
   { anchor: 'craving', option: 'for chocolate',   position: 'after',  phrase: 'craving for chocolate' },
 
-  // ── ADJECTIVE ANCHORS (Step 3) ────────────────────────────────────────────────
+  // ── UNREMITTING ───────────────────────────────────────────────────────────────
+  { anchor: 'unremitting', option: 'pressure',      position: 'after', phrase: 'unremitting pressure' },
+  { anchor: 'unremitting', option: 'hostility',     position: 'after', phrase: 'unremitting hostility' },
+  { anchor: 'unremitting', option: 'effort',        position: 'after', phrase: 'unremitting effort' },
+  { anchor: 'unremitting', option: 'hardship',      position: 'after', phrase: 'unremitting hardship' },
+  { anchor: 'unremitting', option: 'toil',          position: 'after', phrase: 'unremitting toil' },
+
+  // ── UNWAVERING ────────────────────────────────────────────────────────────────
+  { anchor: 'unwavering', option: 'commitment',     position: 'after', phrase: 'unwavering commitment' },
+  { anchor: 'unwavering', option: 'support',        position: 'after', phrase: 'unwavering support' },
+  { anchor: 'unwavering', option: 'loyalty',        position: 'after', phrase: 'unwavering loyalty' },
+  { anchor: 'unwavering', option: 'focus',          position: 'after', phrase: 'unwavering focus' },
+  { anchor: 'unwavering', option: 'determination',  position: 'after', phrase: 'unwavering determination' },
+
+  // ── TENUOUS ───────────────────────────────────────────────────────────────────
+  { anchor: 'tenuous', option: 'link',              position: 'after', phrase: 'tenuous link' },
+  { anchor: 'tenuous', option: 'grasp',             position: 'after', phrase: 'tenuous grasp' },
+  { anchor: 'tenuous', option: 'connection',        position: 'after', phrase: 'tenuous connection' },
+  { anchor: 'tenuous', option: 'argument',          position: 'after', phrase: 'tenuous argument' },
+  { anchor: 'tenuous', option: 'relationship',      position: 'after', phrase: 'tenuous relationship' },
+
+  // ── ROBUST ────────────────────────────────────────────────────────────────────
+  { anchor: 'robust', option: 'economy',            position: 'after', phrase: 'robust economy' },
+  { anchor: 'robust', option: 'debate',             position: 'after', phrase: 'robust debate' },
+  { anchor: 'robust', option: 'system',             position: 'after', phrase: 'robust system' },
+  { anchor: 'robust', option: 'defence',            position: 'after', phrase: 'robust defence' },
+  { anchor: 'robust', option: 'growth',             position: 'after', phrase: 'robust growth' },
+  { anchor: 'robust', option: 'evidence',           position: 'after', phrase: 'robust evidence' },
+
+  // ── RIGOROUS ──────────────────────────────────────────────────────────────────
+  { anchor: 'rigorous', option: 'testing',          position: 'after', phrase: 'rigorous testing' },
+  { anchor: 'rigorous', option: 'analysis',         position: 'after', phrase: 'rigorous analysis' },
+  { anchor: 'rigorous', option: 'standards',        position: 'after', phrase: 'rigorous standards' },
+  { anchor: 'rigorous', option: 'training',         position: 'after', phrase: 'rigorous training' },
+  { anchor: 'rigorous', option: 'approach',         position: 'after', phrase: 'rigorous approach' },
+
+  // ── TENACIOUS ─────────────────────────────────────────────────────────────────
+  { anchor: 'tenacious', option: 'fighter',         position: 'after', phrase: 'tenacious fighter' },
+  { anchor: 'tenacious', option: 'defender',        position: 'after', phrase: 'tenacious defender' },
+  { anchor: 'tenacious', option: 'grip',            position: 'after', phrase: 'tenacious grip' },
+  { anchor: 'tenacious', option: 'pursuit',         position: 'after', phrase: 'tenacious pursuit' },
+  { anchor: 'tenacious', option: 'attitude',        position: 'after', phrase: 'tenacious attitude' },
+
+  // ── ZEALOUS ───────────────────────────────────────────────────────────────────
+  { anchor: 'zealous', option: 'advocate',          position: 'after', phrase: 'zealous advocate' },
+  { anchor: 'zealous', option: 'supporter',         position: 'after', phrase: 'zealous supporter' },
+  { anchor: 'zealous', option: 'reformer',          position: 'after', phrase: 'zealous reformer' },
+  { anchor: 'zealous', option: 'defence',           position: 'after', phrase: 'zealous defence' },
+  { anchor: 'zealous', option: 'effort',            position: 'after', phrase: 'zealous effort' },
+
+  // ── DUBIOUS ───────────────────────────────────────────────────────────────────
+  { anchor: 'dubious', option: 'claim',             position: 'after', phrase: 'dubious claim' },
+  { anchor: 'dubious', option: 'character',         position: 'after', phrase: 'dubious character' },
+  { anchor: 'dubious', option: 'motive',            position: 'after', phrase: 'dubious motive' },
+  { anchor: 'dubious', option: 'honour',            position: 'after', phrase: 'dubious honour' },
+  { anchor: 'dubious', option: 'distinction',       position: 'after', phrase: 'dubious distinction' },
+  { anchor: 'dubious', option: 'highly',            position: 'before', phrase: 'highly dubious' },
+
+  // ── OMINOUS ───────────────────────────────────────────────────────────────────
+  { anchor: 'ominous', option: 'sign',              position: 'after', phrase: 'ominous sign' },
+  { anchor: 'ominous', option: 'warning',           position: 'after', phrase: 'ominous warning' },
+  { anchor: 'ominous', option: 'silence',           position: 'after', phrase: 'ominous silence' },
+  { anchor: 'ominous', option: 'cloud',             position: 'after', phrase: 'ominous cloud' },
+  { anchor: 'ominous', option: 'tone',              position: 'after', phrase: 'ominous tone' },
+
+  // ── PRECARIOUS ────────────────────────────────────────────────────────────────
+  { anchor: 'precarious', option: 'situation',      position: 'after', phrase: 'precarious situation' },
+  { anchor: 'precarious', option: 'position',       position: 'after', phrase: 'precarious position' },
+  { anchor: 'precarious', option: 'balance',        position: 'after', phrase: 'precarious balance' },
+  { anchor: 'precarious', option: 'state',          position: 'after', phrase: 'precarious state' },
+  { anchor: 'precarious', option: 'existence',      position: 'after', phrase: 'precarious existence' },
+  { anchor: 'precarious', option: 'footing',        position: 'after', phrase: 'precarious footing' },
+
+  // ── SINISTER ──────────────────────────────────────────────────────────────────
+  { anchor: 'sinister', option: 'motive',           position: 'after', phrase: 'sinister motive' },
+  { anchor: 'sinister', option: 'plot',             position: 'after', phrase: 'sinister plot' },
+  { anchor: 'sinister', option: 'figure',           position: 'after', phrase: 'sinister figure' },
+  { anchor: 'sinister', option: 'smile',            position: 'after', phrase: 'sinister smile' },
+  { anchor: 'sinister', option: 'something',        position: 'before', phrase: 'something sinister' },
+
+  // ── BRAZEN ────────────────────────────────────────────────────────────────────
+  { anchor: 'brazen', option: 'lie',                position: 'after', phrase: 'brazen lie' },
+  { anchor: 'brazen', option: 'act',                position: 'after', phrase: 'brazen act' },
+  { anchor: 'brazen', option: 'defiance',           position: 'after', phrase: 'brazen defiance' },
+  { anchor: 'brazen', option: 'disregard',          position: 'after', phrase: 'brazen disregard' },
+  { anchor: 'brazen', option: 'hypocrisy',          position: 'after', phrase: 'brazen hypocrisy' },
+
+  // ── NOTORIOUS ─────────────────────────────────────────────────────────────────
+  { anchor: 'notorious', option: 'criminal',        position: 'after', phrase: 'notorious criminal' },
+  { anchor: 'notorious', option: 'reputation',      position: 'after', phrase: 'notorious reputation' },
+  { anchor: 'notorious', option: 'case',            position: 'after', phrase: 'notorious case' },
+  { anchor: 'notorious', option: 'become',          position: 'before', phrase: 'become notorious' },
+  { anchor: 'notorious', option: 'widely',          position: 'before', phrase: 'widely notorious' },
+
+  // ── VICIOUS ───────────────────────────────────────────────────────────────────
+  { anchor: 'vicious', option: 'cycle',             position: 'after', phrase: 'vicious cycle' },
+  { anchor: 'vicious', option: 'attack',            position: 'after', phrase: 'vicious attack' },
+  { anchor: 'vicious', option: 'circle',            position: 'after', phrase: 'vicious circle' },
+  { anchor: 'vicious', option: 'rivalry',           position: 'after', phrase: 'vicious rivalry' },
+  { anchor: 'vicious', option: 'criticism',         position: 'after', phrase: 'vicious criticism' },
+
+  // ── MORBID ────────────────────────────────────────────────────────────────────
+  { anchor: 'morbid', option: 'fascination',        position: 'after', phrase: 'morbid fascination' },
+  { anchor: 'morbid', option: 'curiosity',          position: 'after', phrase: 'morbid curiosity' },
+  { anchor: 'morbid', option: 'humour',             position: 'after', phrase: 'morbid humour' },
+  { anchor: 'morbid', option: 'thought',            position: 'after', phrase: 'morbid thought' },
+  { anchor: 'morbid', option: 'obsession',          position: 'after', phrase: 'morbid obsession' },
+
+  // ── COERCIVE ──────────────────────────────────────────────────────────────────
+  { anchor: 'coercive', option: 'tactics',          position: 'after', phrase: 'coercive tactics' },
+  { anchor: 'coercive', option: 'behaviour',        position: 'after', phrase: 'coercive behaviour' },
+  { anchor: 'coercive', option: 'control',          position: 'after', phrase: 'coercive control' },
+  { anchor: 'coercive', option: 'power',            position: 'after', phrase: 'coercive power' },
+  { anchor: 'coercive', option: 'measures',         position: 'after', phrase: 'coercive measures' },
+
+  // ── CONSPICUOUS ───────────────────────────────────────────────────────────────
+  { anchor: 'conspicuous', option: 'absence',       position: 'after', phrase: 'conspicuous absence' },
+  { anchor: 'conspicuous', option: 'consumption',   position: 'after', phrase: 'conspicuous consumption' },
+  { anchor: 'conspicuous', option: 'success',       position: 'after', phrase: 'conspicuous success' },
+  { anchor: 'conspicuous', option: 'silence',       position: 'after', phrase: 'conspicuous silence' },
+  { anchor: 'conspicuous', option: 'failure',       position: 'after', phrase: 'conspicuous failure' },
+
+  // ── GULLIBLE ──────────────────────────────────────────────────────────────────
+  { anchor: 'gullible', option: 'people',           position: 'after', phrase: 'gullible people' },
+  { anchor: 'gullible', option: 'consumer',         position: 'after', phrase: 'gullible consumer' },
+  { anchor: 'gullible', option: 'public',           position: 'after', phrase: 'gullible public' },
+  { anchor: 'gullible', option: 'extremely',        position: 'before', phrase: 'extremely gullible' },
+  { anchor: 'gullible', option: 'naive and',        position: 'before', phrase: 'naive and gullible' },
+
+  // ── IMPETUOUS ─────────────────────────────────────────────────────────────────
+  { anchor: 'impetuous', option: 'decision',        position: 'after', phrase: 'impetuous decision' },
+  { anchor: 'impetuous', option: 'action',          position: 'after', phrase: 'impetuous action' },
+  { anchor: 'impetuous', option: 'behaviour',       position: 'after', phrase: 'impetuous behaviour' },
+  { anchor: 'impetuous', option: 'young man',       position: 'after', phrase: 'impetuous young man' },
+  { anchor: 'impetuous', option: 'dangerously',     position: 'before', phrase: 'dangerously impetuous' },
+
+  // ── VIBRANT ───────────────────────────────────────────────────────────────────
+  { anchor: 'vibrant', option: 'community',         position: 'after', phrase: 'vibrant community' },
+  { anchor: 'vibrant', option: 'economy',           position: 'after', phrase: 'vibrant economy' },
+  { anchor: 'vibrant', option: 'culture',           position: 'after', phrase: 'vibrant culture' },
+  { anchor: 'vibrant', option: 'colour',            position: 'after', phrase: 'vibrant colour' },
+  { anchor: 'vibrant', option: 'city',              position: 'after', phrase: 'vibrant city' },
+
+  // ── SALIENT ───────────────────────────────────────────────────────────────────
+  { anchor: 'salient', option: 'point',             position: 'after', phrase: 'salient point' },
+  { anchor: 'salient', option: 'feature',           position: 'after', phrase: 'salient feature' },
+  { anchor: 'salient', option: 'fact',              position: 'after', phrase: 'salient fact' },
+  { anchor: 'salient', option: 'detail',            position: 'after', phrase: 'salient detail' },
+  { anchor: 'salient', option: 'most',              position: 'before', phrase: 'most salient' },
+
+  // ── SHREWD ────────────────────────────────────────────────────────────────────
+  { anchor: 'shrewd', option: 'businessman',        position: 'after', phrase: 'shrewd businessman' },
+  { anchor: 'shrewd', option: 'investment',         position: 'after', phrase: 'shrewd investment' },
+  { anchor: 'shrewd', option: 'observer',           position: 'after', phrase: 'shrewd observer' },
+  { anchor: 'shrewd', option: 'negotiator',         position: 'after', phrase: 'shrewd negotiator' },
+  { anchor: 'shrewd', option: 'move',               position: 'after', phrase: 'shrewd move' },
+
+  // ── JUDICIOUS ─────────────────────────────────────────────────────────────────
+  { anchor: 'judicious', option: 'use',             position: 'after', phrase: 'judicious use' },
+  { anchor: 'judicious', option: 'choice',          position: 'after', phrase: 'judicious choice' },
+  { anchor: 'judicious', option: 'decision',        position: 'after', phrase: 'judicious decision' },
+  { anchor: 'judicious', option: 'approach',        position: 'after', phrase: 'judicious approach' },
+  { anchor: 'judicious', option: 'application',     position: 'after', phrase: 'judicious application' },
+
+  // ── BUOYANT ───────────────────────────────────────────────────────────────────
+  { anchor: 'buoyant', option: 'economy',           position: 'after', phrase: 'buoyant economy' },
+  { anchor: 'buoyant', option: 'market',            position: 'after', phrase: 'buoyant market' },
+  { anchor: 'buoyant', option: 'mood',              position: 'after', phrase: 'buoyant mood' },
+  { anchor: 'buoyant', option: 'performance',       position: 'after', phrase: 'buoyant performance' },
+  { anchor: 'buoyant', option: 'spirit',            position: 'after', phrase: 'buoyant spirit' },
+
+  // ── BENIGN ────────────────────────────────────────────────────────────────────
+  { anchor: 'benign', option: 'neglect',            position: 'after', phrase: 'benign neglect' },
+  { anchor: 'benign', option: 'tumour',             position: 'after', phrase: 'benign tumour' },
+  { anchor: 'benign', option: 'influence',          position: 'after', phrase: 'benign influence' },
+  { anchor: 'benign', option: 'effect',             position: 'after', phrase: 'benign effect' },
+  { anchor: 'benign', option: 'condition',          position: 'after', phrase: 'benign condition' },
+  { anchor: 'benign', option: 'relatively',         position: 'before', phrase: 'relatively benign' },
 
 ]
 
@@ -1545,5 +1722,184 @@ export const PHRASE_EXPLANATIONS: Record<string, string> = {
   'overcome a craving':         'To resist and get past a powerful desire without giving in to it.',
   'irresistible craving':       'A desire so strong that it feels impossible not to act on it.',
   'craving for chocolate':      'A strong desire to eat chocolate, used as the typical example of a food craving.',
+
+  // unremitting
+  'unremitting pressure':       'Pressure that never lets up or eases, continuing without pause.',
+  'unremitting hostility':      'Constant and unrelenting aggression or opposition.',
+  'unremitting effort':         'Effort that continues without break or reduction in intensity.',
+  'unremitting hardship':       'Hardship that goes on without any relief or let-up.',
+  'unremitting toil':           'Hard work that continues relentlessly without pause.',
+
+  // unwavering
+  'unwavering commitment':      'Dedication that remains firm and constant, regardless of obstacles.',
+  'unwavering support':         'Support that stays solid and consistent no matter what happens.',
+  'unwavering loyalty':         'Loyalty that does not shift or weaken under any circumstances.',
+  'unwavering focus':           'Concentration that remains fixed and does not drift.',
+  'unwavering determination':   'A resolve that stays firm and does not weaken when things get hard.',
+
+  // tenuous
+  'tenuous link':               'A connection between things that is weak, fragile, or barely there.',
+  'tenuous grasp':              'A hold on something that is weak and likely to slip.',
+  'tenuous connection':         'A relationship between things that is fragile and hard to establish clearly.',
+  'tenuous argument':           'A line of reasoning that is weak and not very convincing.',
+  'tenuous relationship':       'A bond between people or ideas that is fragile and barely maintained.',
+
+  // robust
+  'robust economy':             'An economy that is strong, healthy, and performing well.',
+  'robust debate':              'A lively and energetic discussion in which people argue their views firmly.',
+  'robust system':              'A system that is strong, reliable, and able to withstand stress.',
+  'robust defence':             'A strong, thorough, and well-argued case in one\'s own defence.',
+  'robust growth':              'Growth that is strong and sustained over time.',
+  'robust evidence':            'Evidence that is solid, well-supported, and difficult to challenge.',
+
+  // rigorous
+  'rigorous testing':           'Testing that is thorough, systematic, and leaves nothing unchecked.',
+  'rigorous analysis':          'An examination that is extremely thorough and methodical.',
+  'rigorous standards':         'Criteria or requirements that are demanding and strictly applied.',
+  'rigorous training':          'Training that is demanding, thorough, and leaves nothing to chance.',
+  'rigorous approach':          'A way of doing things that is careful, systematic, and leaves no gaps.',
+
+  // tenacious
+  'tenacious fighter':          'Someone who persists and keeps going despite great difficulty.',
+  'tenacious defender':         'Someone who holds their position with great determination and energy.',
+  'tenacious grip':             'A hold that is firm and not easily broken or loosened.',
+  'tenacious pursuit':          'A chase or quest that is kept up with great determination.',
+  'tenacious attitude':         'A mindset of persistence and refusal to give up.',
+
+  // zealous
+  'zealous advocate':           'Someone who argues passionately and with great energy for a cause.',
+  'zealous supporter':          'Someone who backs a cause or person with great enthusiasm and energy.',
+  'zealous reformer':           'Someone who pushes for change with intense commitment and energy.',
+  'zealous defence':            'A passionate and energetic effort to defend something.',
+  'zealous effort':             'Work carried out with intense enthusiasm and commitment.',
+
+  // dubious
+  'dubious claim':              'A statement that seems unlikely to be true and invites scepticism.',
+  'dubious character':          'A person of questionable honesty or moral standards.',
+  'dubious motive':             'A reason for doing something that seems dishonest or self-serving.',
+  'dubious honour':             'A title or distinction that is not actually desirable or flattering.',
+  'dubious distinction':        'A form of recognition that is actually embarrassing rather than praiseworthy.',
+  'highly dubious':             'Very difficult to believe or trust; extremely questionable.',
+
+  // ominous
+  'ominous sign':               'Something that suggests bad things are going to happen.',
+  'ominous warning':            'A caution or alert that strongly suggests something bad is coming.',
+  'ominous silence':            'A quiet that feels threatening and suggests something is wrong.',
+  'ominous cloud':              'Something that seems to threaten dark or difficult times ahead.',
+  'ominous tone':               'A manner of speaking or writing that suggests trouble is coming.',
+
+  // precarious
+  'precarious situation':       'A set of circumstances that is unstable and could easily become dangerous.',
+  'precarious position':        'A place or standing that is unstable and puts you at risk.',
+  'precarious balance':         'A state of equilibrium that is fragile and could easily be upset.',
+  'precarious state':           'A condition that is unstable and likely to deteriorate.',
+  'precarious existence':       'A way of living that is fragile and uncertain, with no security.',
+  'precarious footing':         'A standing or basis that is unstable and unreliable.',
+
+  // sinister
+  'sinister motive':            'A reason for doing something that is hidden and harmful in intent.',
+  'sinister plot':              'A plan that involves hidden harmful or evil intent.',
+  'sinister figure':            'A person who seems threatening, menacing, or morally dark.',
+  'sinister smile':             'A smile that suggests hidden or harmful intent rather than warmth.',
+  'something sinister':         'An element or quality in a situation that seems threatening or menacing.',
+
+  // brazen
+  'brazen lie':                 'A false statement made openly and without any shame or embarrassment.',
+  'brazen act':                 'A bold action carried out openly, showing no shame or remorse.',
+  'brazen defiance':            'Open and shameless refusal to follow rules or authority.',
+  'brazen disregard':           'An openly dismissive attitude toward rules, rights, or feelings.',
+  'brazen hypocrisy':           'Openly saying one thing and doing another, without any embarrassment.',
+
+  // notorious
+  'notorious criminal':         'A lawbreaker who is widely known for their crimes.',
+  'notorious reputation':       'A name or standing that is widely known for something bad.',
+  'notorious case':             'A legal or other matter that is famous because of how shocking it was.',
+  'become notorious':           'To gain a wide reputation for doing something bad or disgraceful.',
+  'widely notorious':           'Well known to many people for something negative or shameful.',
+
+  // vicious
+  'vicious cycle':              'A situation in which one problem causes another, creating a loop that is hard to escape.',
+  'vicious attack':             'An assault that is extremely violent or aggressively critical.',
+  'vicious circle':             'A sequence of linked events that make each other worse in turn.',
+  'vicious rivalry':            'A competition marked by extreme and hostile aggression.',
+  'vicious criticism':          'Hostile and intensely harsh judgement of someone or something.',
+
+  // morbid
+  'morbid fascination':         'A deep interest in something dark, disturbing, or related to death.',
+  'morbid curiosity':           'A desire to know about something dark, disturbing, or morbid.',
+  'morbid humour':              'Comedy that deals with death or suffering in a darkly comic way.',
+  'morbid thought':             'A thought about death, illness, or other dark subjects.',
+  'morbid obsession':           'A fixation on dark or disturbing subjects that is unhealthy in its intensity.',
+
+  // coercive
+  'coercive tactics':           'Methods that use force, threats, or pressure to make people comply.',
+  'coercive behaviour':         'Actions intended to control or manipulate someone through fear or force.',
+  'coercive control':           'A pattern of behaviour that seeks to take away a person\'s liberty through intimidation.',
+  'coercive power':             'Power that works by threatening or using force rather than by consent.',
+  'coercive measures':          'Actions that use force or pressure to compel compliance.',
+
+  // conspicuous
+  'conspicuous absence':        'An absence that is very noticeable because the missing person or thing was expected.',
+  'conspicuous consumption':    'Buying expensive goods openly to signal wealth and status to others.',
+  'conspicuous success':        'Achievement that is very visible and obvious to others.',
+  'conspicuous silence':        'A silence that draws attention because speaking would have been expected.',
+  'conspicuous failure':        'A failure that is very obvious and visible to everyone.',
+
+  // gullible
+  'gullible people':            'Individuals who are too ready to believe what they are told.',
+  'gullible consumer':          'A buyer who is easily deceived by advertising or misleading claims.',
+  'gullible public':            'Ordinary people who are too trusting and easy to deceive.',
+  'extremely gullible':         'Very easily deceived or manipulated into believing false things.',
+  'naive and gullible':         'Both lacking experience of the world and too ready to believe what is said.',
+
+  // impetuous
+  'impetuous decision':         'A choice made suddenly and without enough thought or care.',
+  'impetuous action':           'Something done suddenly and without proper consideration of the consequences.',
+  'impetuous behaviour':        'A pattern of acting suddenly and without thinking things through.',
+  'impetuous young man':        'A young man who acts on impulse and without sufficient reflection.',
+  'dangerously impetuous':      'So prone to sudden rash action that it poses a risk to oneself or others.',
+
+  // vibrant
+  'vibrant community':          'A lively, active, and energetic group of people with strong connections.',
+  'vibrant economy':            'An economy that is active, growing, and full of energy.',
+  'vibrant culture':            'A culture that is lively, diverse, and richly expressive.',
+  'vibrant colour':             'A shade that is intense, bold, and striking.',
+  'vibrant city':               'A city that is lively, bustling, and full of activity.',
+
+  // salient
+  'salient point':              'The most important or noticeable aspect of something.',
+  'salient feature':            'The most prominent or noticeable characteristic of something.',
+  'salient fact':               'The most important or noteworthy piece of information about something.',
+  'salient detail':             'A specific element that stands out as particularly important.',
+  'most salient':               'The most noticeable or important among a number of things.',
+
+  // shrewd
+  'shrewd businessman':         'Someone who runs their business with sharp intelligence and practical wisdom.',
+  'shrewd investment':          'A financial decision that shows practical wisdom and good judgement.',
+  'shrewd observer':            'Someone who notices things that others miss and draws sharp conclusions.',
+  'shrewd negotiator':          'Someone who navigates negotiations with skill and sharp practical judgement.',
+  'shrewd move':                'An action that shows good practical judgement and achieves a desired result.',
+
+  // judicious
+  'judicious use':              'Using something in a careful, considered, and well-timed way.',
+  'judicious choice':           'A selection that shows sound, well-considered judgement.',
+  'judicious decision':         'A choice made with careful thought and sound judgement.',
+  'judicious approach':         'A way of doing something that is careful, measured, and wise.',
+  'judicious application':      'The careful and well-considered use of something in appropriate situations.',
+
+  // buoyant
+  'buoyant economy':            'An economy that is performing strongly and with an upbeat outlook.',
+  'buoyant market':             'A market in which confidence is high and prices are rising.',
+  'buoyant mood':               'A feeling of cheerfulness and positive energy.',
+  'buoyant performance':        'Results that are strong and positive, showing upward momentum.',
+  'buoyant spirit':             'An upbeat, optimistic, and energetic attitude.',
+
+  // benign
+  'benign neglect':             'A deliberate policy of not intervening, allowing something to develop on its own.',
+  'benign tumour':              'A growth that is not cancerous and does not spread to other parts of the body.',
+  'benign influence':           'A gentle and positive effect that does not cause harm.',
+  'benign effect':              'An outcome that is gentle, harmless, or mildly positive.',
+  'benign condition':           'A medical state that is not dangerous or likely to get worse.',
+  'relatively benign':          'Not particularly harmful or dangerous compared to other possibilities.',
 
 }
